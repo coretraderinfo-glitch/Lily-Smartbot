@@ -160,21 +160,22 @@ bot.on('message:text', async (ctx) => {
     }
 
     if (isCommand) {
-        // RBAC CHECK: Protect commands from 3rd parties
+        // RBAC CHECK
         const isOperator = await RBAC.isAuthorized(chatId, userId);
+        const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
+        const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
 
-        // Settings commands (Only for group admins/authorized operators)
-        const isSetting = text.startsWith('设置') || text.startsWith('/gd') || text.startsWith('清理');
+        if (!isOperator && hasOperators) {
+            return ctx.reply("❌ **您不是操作人，请联系管理员。**\nUnauthorized: Only registered operators can control the bot.", { parse_mode: 'Markdown' });
+        }
 
-        if (!isOperator && isCommand) {
-            // Exception: '开始' might be done by the first admin
-            // But for safety, we require authorization. 
-            // To bootstrap, we allow the "开始" command if no operators exist yet.
-            const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
-            if (parseInt(opCountRes.rows[0].count) > 0) {
-                console.log(`[SECURITY] Blocked unauthorized command "${text}" from ${username}`);
-                return; // Silently ignore or return ctx.reply("❌ Unauthorized")
-            }
+        // Activation Check
+        const groupRes = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
+        const state = groupRes.rows[0]?.current_state || 'WAITING_FOR_START';
+        const isTransaction = text.startsWith('+') || text.startsWith('-') || text.startsWith('下发') || text.startsWith('取') || text.startsWith('回款');
+
+        if (isTransaction && state !== 'RECORDING') {
+            return ctx.reply("⚠️ **请先输入 “开始” 以开启今日记录。**\nPlease send '开始' to activate the ledger first.", { parse_mode: 'Markdown' });
         }
 
         console.log(`[QUEUE] Adding command from ${username} in group ${chatId}`);

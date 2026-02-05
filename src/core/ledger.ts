@@ -22,7 +22,7 @@ export const Ledger = {
                 await db.query('INSERT INTO groups (id, title) VALUES ($1, $2)', [chatId, 'Group ' + chatId]);
             }
             await client.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['RECORDING', chatId]);
-            return await Ledger.generateBill(chatId);
+            return `🥂 **Cheers! Starting a news days.**\n\n${await Ledger.generateBill(chatId)}`;
         } finally {
             client.release();
         }
@@ -57,9 +57,6 @@ export const Ledger = {
             let fee = new Decimal(0);
             let net = amount;
             let rate = new Decimal(0);
-
-            // AUTO-START RECORDING STATE
-            await client.query('UPDATE groups SET current_state = \'RECORDING\' WHERE id = $1', [chatId]);
 
             // 2. Calculate Fee
             if (type === 'DEPOSIT') {
@@ -261,7 +258,7 @@ export const Ledger = {
                 // SUMMARY BLOCK (Match Photo Guideline)
                 msg += `━━━━━━━━━━━━━━━━\n`;
                 msg += `总入款： ${format(totalInRaw)}\n`;
-                msg += `费率： ${settings.rate_in || 0}%\n`;
+                msg += `费率： ${new Decimal(settings.rate_in || 0).toFixed(2)}%\n`;
 
                 // ACTIVE FOREX DETECTION (Multiple Currencies)
                 const activeRates = [];
