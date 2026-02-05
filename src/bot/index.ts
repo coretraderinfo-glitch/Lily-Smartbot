@@ -1,5 +1,6 @@
 import { Bot, Context } from 'grammy';
 import { Worker, Queue } from 'bullmq';
+import IORedis from 'ioredis';
 import { processCommand } from '../worker/processor';
 import { db } from '../db';
 import dotenv from 'dotenv';
@@ -11,8 +12,11 @@ checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
 // Init Dependencies
 const bot = new Bot(process.env.BOT_TOKEN!);
 
-// Queue Setup
-const connection = { url: process.env.REDIS_URL }; // IORedis format
+// Queue Setup (Corrected Redis Connection)
+const connection = new IORedis(process.env.REDIS_URL!, {
+    maxRetriesPerRequest: null
+});
+
 const commandQueue = new Queue('lily-commands', { connection });
 
 // Worker Setup (Running in same process for Railway simplicity)
