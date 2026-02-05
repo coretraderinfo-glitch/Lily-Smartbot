@@ -22,7 +22,7 @@ export const Ledger = {
                 await db.query('INSERT INTO groups (id, title) VALUES ($1, $2)', [chatId, 'Group ' + chatId]);
             }
             await client.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['RECORDING', chatId]);
-            return `🥂 **Cheers! Starting a news days.**\n\n${await Ledger.generateBill(chatId)}`;
+            return `🥂 **系统已开启 (News day started!)**\n\n数据录入已激活，请开始您的操作。\n\n${await Ledger.generateBill(chatId)}`;
         } finally {
             client.release();
         }
@@ -50,8 +50,9 @@ export const Ledger = {
             // 2. Get Settings
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
             const settings = settingsRes.rows[0];
-            const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
+            const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
             const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
+            const resetHour = groupRes.rows[0]?.reset_hour || 4;
 
             const amount = new Decimal(amountStr);
             let fee = new Decimal(0);
@@ -70,7 +71,7 @@ export const Ledger = {
 
             // 3. Insert
             const txId = randomUUID();
-            const date = getBusinessDate(timezone);
+            const date = getBusinessDate(timezone, resetHour);
 
             await client.query(`
                 INSERT INTO transactions 
@@ -120,11 +121,12 @@ export const Ledger = {
         try {
             await client.query('BEGIN');
 
-            const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
+            const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
             const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
+            const resetHour = groupRes.rows[0]?.reset_hour || 4;
             const amount = new Decimal(amountStr);
             const txId = randomUUID();
-            const date = getBusinessDate(timezone);
+            const date = getBusinessDate(timezone, resetHour);
 
             await client.query(`
                 INSERT INTO transactions 
@@ -151,9 +153,10 @@ export const Ledger = {
     async clearToday(chatId: number): Promise<string> {
         const client = await db.getClient();
         try {
-            const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
+            const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
             const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
-            const date = getBusinessDate(timezone);
+            const resetHour = groupRes.rows[0]?.reset_hour || 4;
+            const date = getBusinessDate(timezone, resetHour);
 
             await client.query(`
                 DELETE FROM transactions 
@@ -172,9 +175,10 @@ export const Ledger = {
     async generateBillWithMode(chatId: number, mode?: number): Promise<string> {
         const client = await db.getClient();
         try {
-            const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
+            const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
             const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
-            const date = getBusinessDate(timezone);
+            const resetHour = groupRes.rows[0]?.reset_hour || 4;
+            const date = getBusinessDate(timezone, resetHour);
 
             // Ensure settings exist
             await Settings.ensureSettings(chatId);
@@ -219,46 +223,46 @@ export const Ledger = {
 
             if (displayMode === 4) {
                 // Mode 4: Summary Only
-                msg = `📅 Ledger Update\n`;
-                msg += `Total In: ${format(totalInRaw)}\n`;
-                msg += `Total Out: ${format(totalOut)}\n`;
-                msg += `Balance: ${format(balance)}`;
+                msg = `📅 **Ledger Update**\n`;
+                msg += `💰 总入款 (IN): ${format(totalInRaw)}\n`;
+                msg += `📤 总下发 (OUT): -${format(totalOut)}\n`;
+                msg += `💎 余 (TOTAL): ${format(balance)}`;
             } else if (displayMode === 5) {
                 // Mode 5: Count Mode
-                msg = `📊 Transaction Count\n\n`;
+                msg = `📊 **Transaction Count**\n\n`;
                 txRes.rows.forEach((t, i) => {
-                    const sign = t.type === 'DEPOSIT' ? '+' : '-';
-                    msg += `${i + 1}. ${sign}${format(new Decimal(t.amount_raw))}\n`;
+                    const sign = t.type === 'DEPOSIT' ? '➕' : '➖';
+                    msg += `${i + 1}. ${sign} ${format(new Decimal(t.amount_raw))}\n`;
                 });
-                msg += `\nTotal: ${format(balance)}`;
+                msg += `\n💎 余 (TOTAL): ${format(balance)}`;
             } else {
                 // DEFAULT / MODE 1: Show latest 5 for conciseness
                 const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
                 const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
 
-                msg = `📅 ${date}\n\n`;
+                msg = `📅 **${date}**\n\n`;
 
                 const displayDeposits = deposits.slice(-depositLimit);
                 const displayPayouts = payouts.slice(-payoutLimit);
 
-                msg += `入款（${deposits.length}笔）：\n`;
+                msg += `💰 **入款 (IN)** （${deposits.length}笔）：\n`;
                 displayDeposits.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
-                    msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
+                    msg += ` 🕒 ${time}  ${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (deposits.length === 0) msg += ` (无)\n`;
 
-                msg += `\n下发（${payouts.length}笔）：\n`;
+                msg += `\n📤 **下发 (OUT)** （${payouts.length}笔）：\n`;
                 displayPayouts.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
-                    msg += ` ${time}  -${format(new Decimal(t.amount_raw))}\n`;
+                    msg += ` 🕒 ${time}  -${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (payouts.length === 0) msg += ` (无)\n`;
 
                 // SUMMARY BLOCK (Match Photo Guideline)
                 msg += `━━━━━━━━━━━━━━━━\n`;
-                msg += `总入款： ${format(totalInRaw)}\n`;
-                msg += `费率： ${new Decimal(settings.rate_in || 0).toFixed(2)}%\n`;
+                msg += `🔹 总入款 (IN)： ${format(totalInRaw)}\n`;
+                msg += `🔸 费率： ${new Decimal(settings.rate_in || 0).toFixed(2)}%\n`;
 
                 // ACTIVE FOREX DETECTION (Multiple Currencies)
                 const activeRates = [];
@@ -271,15 +275,15 @@ export const Ledger = {
                     activeRates.forEach(fx => {
                         const conv = (val: Decimal) => val.div(fx.rate).toFixed(showDecimals ? 2 : 0);
 
-                        msg += `\n${fx.label}： ${fx.rate.toFixed(2)}\n`;
-                        msg += `应下发： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
-                        msg += `总下发： -${format(totalOut)} | -${conv(totalOut)} ${fx.suffix}\n`;
-                        msg += `余： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;
+                        msg += `\n💹 ${fx.label}： ${fx.rate.toFixed(2)}\n`;
+                        msg += `📥 应下发 (IN)： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
+                        msg += `📤 总下发 (OUT)： -${format(totalOut)} | -${conv(totalOut)} ${fx.suffix}\n`;
+                        msg += `💎 余额 (TOTAL)： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;
                     });
                 } else {
-                    msg += `净入款： ${format(totalInNet)}\n`;
-                    msg += `总下发： -${format(totalOut)}\n`;
-                    msg += `余： ${format(balance)}\n`;
+                    msg += `🔹 净入款 (IN)： ${format(totalInNet)}\n`;
+                    msg += `📤 总下发 (OUT)： -${format(totalOut)}\n`;
+                    msg += `💎 余额 (TOTAL)： ${format(balance)}\n`;
                 }
             }
 

@@ -191,7 +191,9 @@ export const processCommand = async (job: Job<CommandJob>) => {
 
         // STOP (Ended Day)
         if (text === '结束记录') {
-            return await Ledger.stopDay(chatId);
+            await Ledger.stopDay(chatId);
+            const pdf = await PDFExport.generateDailyPDF(chatId);
+            return `PDF_EXPORT:${pdf.toString('base64')}`;
         }
 
         // DEPOSIT (+100)

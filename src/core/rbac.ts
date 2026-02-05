@@ -31,7 +31,7 @@ export const RBAC = {
             `, [chatId, userId, username, addedBy]);
 
             await client.query('COMMIT');
-            return `✅ **Operator Added**\n@${username} can now manage transactions.`;
+            return `✅ **经办人设置成功 (Operator Added)**\n👤 @${username} 现在可以录入账单。`;
 
         } catch (e) {
             await client.query('ROLLBACK');
@@ -55,7 +55,7 @@ export const RBAC = {
             return `ℹ️ **@${username}** was not an operator.`;
         }
 
-        return `✅ **Operator Removed**\n@${username} can no longer manage transactions.`;
+        return `✅ **经办人已移除 (Operator Removed)**\n👤 @${username} 不再拥有操作权限。`;
     },
 
     /**

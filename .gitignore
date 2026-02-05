@@ -1,3 +1,29 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment variables
 .env
-dist
+.env.local
+.env.*.local
+
+# Build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+check_font.ts
+check_font.js

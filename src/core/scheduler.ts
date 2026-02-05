@@ -2,8 +2,9 @@ import { Queue, Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import { db } from '../db';
 import { Ledger } from './ledger';
+import { PDFExport } from './pdf';
 import { DateTime } from 'luxon';
-import { Bot } from 'grammy';
+import { Bot, InputFile } from 'grammy';
 
 /**
  * THE CHRONOS ENGINE: Auto-Rollover & Scheduled Reporting
@@ -68,10 +69,20 @@ export const Chronos = {
 
                     // 3. EXECUTE CLOSURE
                     const bill = await Ledger.generateBill(group.id);
-                    const finalMsg = `🏁 **系统自动结算** (Time: ${resetHour}:00)\n\n本日记录已截止。以下是最终账单：\n\n${bill}\n\n📅 **新的一天已开始。**\n请输入 "开始" 或 "+金额" 来记录新账单。`;
+                    const pdf = await PDFExport.generateDailyPDF(group.id);
+                    const date = DateTime.now().setZone(tz).minus({ days: 1 }).toFormat('yyyy-MM-dd');
+                    const filename = `Lily_Final_Statement_${date}.pdf`;
+
+                    const finalMsg = `🏁 **系统自动结算** (Time: ${resetHour}:00)\n\n本日记录已截止。请查收附件中的最终账单 PDF。\n\n📅 **新的一天已开始。**\n请输入 "开始" 来记录新账单。`;
 
                     try {
+                        // Send Text
                         await bot.api.sendMessage(group.id, finalMsg, { parse_mode: 'Markdown' });
+
+                        // Send PDF
+                        await bot.api.sendDocument(group.id, new InputFile(pdf, filename), {
+                            caption: `📄 **Lily Smartbot: Final Statement (${date})**\nEverything finalized for the day.`
+                        });
 
                         // 4. UPDATE STATE
                         await client.query(`

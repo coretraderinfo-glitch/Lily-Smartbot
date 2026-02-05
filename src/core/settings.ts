@@ -29,7 +29,7 @@ export const Settings = {
             WHERE group_id = $2
         `, [rate, chatId]);
 
-        return `✅ **Inbound Fee Updated**\nNew Rate: ${rate}%`;
+        return `✅ **费率设置成功 (Inbound Fee Updated)**\n🔹 现行费率: ${rate}%`;
     },
 
     /**
@@ -43,7 +43,7 @@ export const Settings = {
             WHERE group_id = $2
         `, [rate, chatId]);
 
-        return `✅ **Outbound Fee Updated**\nNew Rate: ${rate}%`;
+        return `✅ **下发费率设置成功 (Outbound Fee Updated)**\n🔸 现行费率: ${rate}%`;
     },
 
     /**
@@ -69,7 +69,7 @@ export const Settings = {
             return `ℹ️ **Currency Layout Updated**\n${currencyName} has been hidden from reports.`;
         }
 
-        return `✅ **Forex Rate Synchronized**\nCurrency: ${currencyName}\nExchange Rate: ${rate}\n\n*Updating ledger conversions...*`;
+        return `✅ **汇率同步成功 (Forex Synchronized)**\n💱 币种: ${currencyName}\n💹 汇率: ${rate.toFixed(2)}\n\n*账单数据已实时更新。*`;
     },
 
     /**
@@ -106,8 +106,8 @@ export const Settings = {
         `, [show, chatId]);
 
         return show
-            ? `✅ **Decimals Enabled**\nAmounts will show decimal places`
-            : `✅ **Decimals Disabled**\nAmounts will be rounded`;
+            ? `✅ **显示设置 (Enabled)**\n📊 账单将显示所有小数位。`
+            : `✅ **显示设置 (Disabled)**\n📊 账单将自动四舍五入。`;
     },
 
     /**

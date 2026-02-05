@@ -6,10 +6,13 @@
 ## 📋 COMMAND LIST (Copy-Paste Format)
 
 ```
-ping - 🏓 Health check
-generate_key - 🔑 Generate license key (Owner only)
-activate - ✅ Activate bot with license key
-gd - 💱 Set USD exchange rate (alias)
+start - 🚀 开始记录账单 (Start recording)
+bill - 📊 显示当前账单 (Show bill)
+excel - 📁 导出Excel报表 (Export Excel)
+export - 📄 下载PDF对账单 (Download PDF)
+operators - 👥 显示操作人列表 (List team)
+cleardata - ⚠️ 清理今天数据 (Clear data)
+ping - 🛰️ 检查机器人状态 (Health check)
 ```
 
 ---
@@ -20,146 +23,84 @@ gd - 💱 Set USD exchange rate (alias)
 | Command | Description | Example |
 |---------|-------------|---------|
 | `/ping` | Health check - verify bot is online | `/ping` |
-| `/generate_key [days] [users]` | Generate license key (Owner only) | `/generate_key 30 100` |
-| `/activate [key]` | Activate bot with license key | `/activate LILY-A1B2C3D4` |
+| `/generate_key [days]` | Generate license key (Owner only) | `/generate_key 30` |
+| `/activate [key]` | Activate bot with license key | `/activate LILY-A1B...` |
 
 ---
 
 ### 📊 Core Ledger Commands
-| Command | Description | Example |
-|---------|-------------|---------|
-| `开始` | Start daily recording | `开始` |
-| `结束记录` | End recording & show final bill | `结束记录` |
-| `+XXX` | Record deposit | `+1000` or `+587.76` |
-| `下发XXX` | Record payout (CNY) | `下发500` |
-| `下发XXXu` | Record payout (USDT) | `下发100u` |
-| `回款XXX` | Record return transaction | `回款200` |
-| `显示账单` | Show current bill | `显示账单` |
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `开始` | `/start` | Start daily recording + Daily Slogan |
+| `结束记录` | - | End recording & show final summary |
+| `+XXX` | - | Record deposit (Auto-Fee calculation) |
+| `下发XXX` | - | Record payout (Prefixed with `-`) |
+| `下发XXXu` | - | Record USDT payout |
+| `回款XXX` | - | Record return transaction (0% Fee) |
+| `显示账单` | `/bill` | Show concise "Top 5" ledger |
 
 ---
 
-### ✏️ Corrections
-| Command | Description | Example |
-|---------|-------------|---------|
-| `入款-XXX` | Void/correct deposit | `入款-100` |
-| `下发-XXX` | Void/correct payout | `下发-50` |
-| `清理今天数据` | Clear all today's data (⚠️ destructive) | `清理今天数据` |
+### ✏️ Corrections & Audit
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `入款-XXX` | - | Void/correct deposit |
+| `下发-XXX` | - | Void/correct payout |
+| `清理今天数据` | `/cleardata` | Clear all today's data (Operator only) |
+| `下载报表` | `/export` | **DOWNLOAD PDF** (Professional format) |
+| `导出Excel` | `/excel` | Download CSV for internal auditing |
 
 ---
 
-### ⚙️ Settings - Fees
+### ⚙️ Settings - Fees & Precision
 | Command | Description | Example |
 |---------|-------------|---------|
-| `设置费率X%` | Set inbound fee rate | `设置费率5%` or `设置费率5.5%` |
-| `设置下发费率X%` | Set outbound fee rate | `设置下发费率2%` |
+| `设置费率X%` | Set inbound fee (Shown as 0.00%) | `设置费率5%` |
+| `设置下发费率X%` | Set outbound fee | `设置下发费率2%` |
+| `设置为无小数` | Hide decimal places | `设置为无小数` |
+| `设置为原始模式` | Show full decimals (Default) | `设置为原始模式` |
 
 ---
 
-### 💱 Settings - Exchange Rates
-| Command | Description | Example |
-|---------|-------------|---------|
-| `设置美元汇率X` | Set USD exchange rate | `设置美元汇率7.2` |
-| `/gd X` | Set USD rate (alias) | `/gd 7.3` |
-| `设置比索汇率X` | Set PHP exchange rate | `设置比索汇率56` |
-| `设置马币汇率X` | Set MYR exchange rate | `设置马币汇率4.8` |
-| `设置泰铢汇率X` | Set THB exchange rate | `设置泰铢汇率36` |
+### 💱 Settings - Multi-Currency (Concurrent)
+| Command | Deletion Command | Example |
+|---------|------------------|---------|
+| `设置美元汇率X` | `删除美元汇率` | `设置美元汇率7.25` |
+| `设置马币汇率X` | `删除马币汇率` | `设置马币汇率4.78` |
+| `设置比索汇率X` | `删除比索汇率` | `设置比索汇率56.1` |
+| `设置泰铢汇率X` | `删除泰铢汇率` | `设置泰铢汇率35.9` |
 
-**Note:** Set rate to `0` to hide that currency from bills.
-
----
-
-### 🎨 Settings - Display Options
-| Command | Description | Result |
-|---------|-------------|--------|
-| `设置显示模式2` | Show top 3 transactions | Compact view |
-| `设置显示模式3` | Show top 1 transaction | Minimal view |
-| `设置显示模式4` | Summary only | Total In/Out/Balance |
-| `设置为计数模式` | Count mode | Numbered list with total |
-| `设置为原始模式` | Reset to default | Full detail with decimals |
-| `设置为无小数` | Hide decimal places | Round all amounts |
+**Note:** You can set multiple rates! They will all show in the summary concurrently.
 
 ---
 
 ### 👥 Team Management (RBAC)
-| Command | Description | Example |
+| Command | Description | Warning |
 |---------|-------------|---------|
-| `显示操作人` | List all authorized operators | `显示操作人` |
-| `设置操作人 @user` | Add operator (use reply method) | Reply to user's message: `设置为操作人` |
-| `删除操作人 @user` | Remove operator (use reply method) | Reply to user's message: `删除操作人` |
-
-**Best Practice:** Reply to a user's message and send `设置为操作人` to add them as an operator.
+| `显示操作人` | `/operators` list | `❌ 您不是操作人...` if unauthorized |
+| `设置为操作人` | Promote via Reply | Reply to user: `设置为操作人` |
+| `删除操作人` | Demote via Reply | Reply to user: `删除操作人` |
 
 ---
 
 ## 🚀 QUICK START GUIDE
 
-### 1. First Time Setup
-```
-/activate LILY-XXXX-XXXX-XXXX
-设置费率5%
-设置美元汇率7.2
-开始
-```
+### 1. Activation & Team
+1. Owner sends `/activate [KEY]`.
+2. Owner replies to team members with `设置为操作人`.
+3. Set your rate: `设置费率2.5%`.
 
-### 2. Daily Workflow
-```
-开始
-+1000
-+500
-下发300
-显示账单
-结束记录
-```
-
-### 3. Fix Mistakes
-```
-入款-100    (if you entered +100 by mistake)
-下发-50     (if you entered 下发50 by mistake)
-```
-
-### 4. Customize Display
-```
-设置显示模式4    (summary only)
-设置为无小数      (hide decimals)
-显示账单
-设置为原始模式    (reset to default)
-```
+### 2. Standard Operation
+1. Type `开始` (Wait for slogan: 🥂 Cheers! Starting a news days).
+2. Record money: `+10000`.
+3. Record payout: `下发5000`.
+4. Audit: `/bill`.
+5. Statement: `/export` (Sends PDF).
 
 ---
 
-## 📱 BotFather Setup
-
-To add commands to your bot's menu in Telegram:
-
-1. Open [@BotFather](https://t.me/BotFather)
-2. Send `/setcommands`
-3. Select your bot
-4. Copy-paste this:
-
-```
-ping - 🏓 Health check
-generate_key - 🔑 Generate license key
-activate - ✅ Activate with license
-gd - 💱 Set USD rate
-```
-
-**Note:** Chinese commands cannot be added to BotFather menu, but they work perfectly when typed directly in chat.
-
----
-
-## 💡 TIPS
-
-1. **Decimals Supported**: `+587.76` works perfectly
-2. **USDT Suffix**: Use `下发100u` for USDT payouts
-3. **Rates Update Instantly**: No need to restart after changing settings
-4. **Display Modes**: Try different modes to find what works best for your team
-5. **Corrections**: Use `入款-XXX` instead of manually calculating negatives
-
----
-
-## ⚠️ IMPORTANT NOTES
-
-- **License Required**: Bot will not work without activation
-- **Daily Start**: Must send `开始` each day before recording transactions
-- **Clear Data**: `清理今天数据` is permanent - use with caution
-- **Timezone**: Default is Asia/Shanghai (4 AM reset)
+## ⚠️ CRITICAL RULES
+- **Mandatory Logic**: Transaction commands will fail if `开始` hasn't been sent.
+- **Admin Access**: Group Admins **cannot** use the bot unless promoted to Operator.
+- **Precision**: All financial totals are calculated using high-precision `Decimal.js`.
+- **4AM Reset**: Chronos Engine auto-resets the ledger at 4 AM every morning.

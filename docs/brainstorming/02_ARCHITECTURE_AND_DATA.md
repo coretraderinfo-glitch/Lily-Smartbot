@@ -3,16 +3,13 @@
 ## 1. High-Level Architecture
 To achieve "world-class" performance and reliability, we move beyond a simple polling bot to an Event-Driven Architecture.
 
-**Components**:
-1.  **Ingress Layer (Telegram Webhook)**: High-performance endpoint (Go/Node.js) to receive updates.
-2.  **Message Queue (Redis Stream/RabbitMQ)**: Decouples ingestion from processing using `BullMQ`.
-3.  **Core Worker (The "Brain")**:
-    *   Parser Engine (Regex/NLP for commands).
-    *   Calculators.
-    *   State Machine.
-4.  **Database (PostgreSQL)**: Relational integrity is mandatory for financial data.
-5.  **Cache (Redis)**: Speed up "Show Bill" and Rate lookups.
-6.  **Scheduler**: Handles the 4:00 AM reset logic via CRON.
+- **Components**:
+1.  **Ingress Layer (Telegram Webhook)**: High-performance endpoint receiving async updates via `grammy.js`.
+2.  **Message Queue (BullMQ)**: Transactional decoupling via Redis to ensure linear execution.
+3.  **PDF Export Engine**: Professional generation of world-class statements using `pdfkit-table`.
+4.  **Chronos Engine**: Distributed scheduler (BullMQ Repeatable Jobs) for proactive 4AM rollover.
+5.  **Database (PostgreSQL)**: Source of truth for all ledger and subscription data.
+6.  **Cache (Redis)**: Operational storage for BullMQ and session management.
 
 ---
 

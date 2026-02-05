@@ -2,6 +2,8 @@ import { db } from '../db';
 import { getBusinessDate } from '../utils/time';
 import Decimal from 'decimal.js';
 import { DateTime } from 'luxon';
+import path from 'path';
+import fs from 'fs';
 const PDFDocument = require('pdfkit-table');
 
 /**
@@ -14,9 +16,9 @@ export const PDFExport = {
      * Generate PDF for today's transactions
      */
     async generateDailyPDF(chatId: number): Promise<Buffer> {
-        const groupRes = await db.query('SELECT title, timezone FROM groups WHERE id = $1', [chatId]);
-        const group = groupRes.rows[0] || { title: 'Group', timezone: 'Asia/Shanghai' };
-        const date = getBusinessDate(group.timezone);
+        const groupRes = await db.query('SELECT title, timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
+        const group = groupRes.rows[0] || { title: 'Group', timezone: 'Asia/Shanghai', reset_hour: 4 };
+        const date = getBusinessDate(group.timezone, group.reset_hour);
 
         const txRes = await db.query(`
             SELECT * FROM transactions 
@@ -33,9 +35,30 @@ export const PDFExport = {
         doc.on('data', buffers.push.bind(buffers));
 
         // 2. Setup Font (For Chinese support)
-        // Standard Mac path for Songti
-        const fontPath = '/System/Library/Fonts/Supplemental/Songti.ttc';
-        doc.font(fontPath);
+        // We check several paths to ensure compatibility across macOS and Linux/Cloud
+        const possibleFonts = [
+            path.join(process.cwd(), 'assets/fonts/ArialUnicode.ttf'),
+            path.join(process.cwd(), 'assets/fonts/NotoSansSC-Regular.otf'),
+            '/System/Library/Fonts/Supplemental/Songti.ttc',
+            '/System/Library/Fonts/STHeiti Light.ttc',
+            '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc'
+        ];
+
+        let fontPath = '';
+        for (const p of possibleFonts) {
+            if (fs.existsSync(p)) {
+                fontPath = p;
+                break;
+            }
+        }
+
+        if (fontPath) {
+            doc.font(fontPath);
+        } else {
+            console.warn('[PDF] No Chinese-compatible font found. Falling back to Helvetica (Chinese text may be missing).');
+            doc.font('Helvetica');
+        }
 
         // 3. HEADER
         doc.fillColor('#2c3e50').fontSize(20).text('Lily Smartbot - 财务报表', { align: 'center' });
@@ -65,8 +88,8 @@ export const PDFExport = {
 
         // Create the table
         await doc.table(table, {
-            prepareHeader: () => doc.font(fontPath).fontSize(10).fillColor('#2c3e50'),
-            prepareRow: (row: any, index: any, column: any, rect: any, fontWeight: any) => doc.font(fontPath).fontSize(9).fillColor('#2c3e50'),
+            prepareHeader: () => doc.font(fontPath || 'Helvetica').fontSize(10).fillColor('#2c3e50'),
+            prepareRow: (row: any, index: any, column: any, rect: any, fontWeight: any) => doc.font(fontPath || 'Helvetica').fontSize(9).fillColor('#2c3e50'),
         });
 
         doc.moveDown();

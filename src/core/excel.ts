@@ -12,9 +12,10 @@ export const ExcelExport = {
      * Generate CSV for today's transactions
      */
     async generateDailyCSV(chatId: number): Promise<string> {
-        const groupRes = await db.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
+        const groupRes = await db.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
         const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
-        const date = getBusinessDate(timezone);
+        const resetHour = groupRes.rows[0]?.reset_hour || 4;
+        const date = getBusinessDate(timezone, resetHour);
 
         const txRes = await db.query(`
             SELECT * FROM transactions 

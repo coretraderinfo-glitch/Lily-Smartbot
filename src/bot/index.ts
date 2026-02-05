@@ -125,17 +125,15 @@ bot.on('message:text', async (ctx) => {
 
     // 4. BUSINESS LOGIC (Recognize Commands)
     const isCommand =
-        // Core commands
-        text === '开始' || text.toLowerCase() === 'start' || text.toLowerCase() === '/start' ||
-        text === '结束记录' ||
-        text === '显示账单' || text.toLowerCase() === '/bill' ||
-        text === '显示操作人' || text.toLowerCase() === '/operators' ||
-        text === '清理今天数据' || text.toLowerCase() === '/cleardata' ||
-        text === '下载报表' ||
-        text === '导出Excel' || text.toLowerCase() === '/excel' ||
-        text.toLowerCase() === '/export' ||
+        text.startsWith('/') || // Catch-all for any slash command
+        // Core commands (Bilingual)
+        text === '开始' || text.toLowerCase() === 'start' ||
+        text === '结束记录' || text.toLowerCase() === 'stop' ||
+        text === '显示账单' || text === '显示操作人' ||
+        text === '清理今天数据' ||
+        text === '下载报表' || text === '导出Excel' ||
 
-        // Settings commands
+        // Settings triggers
         text.startsWith('设置费率') ||
         text.startsWith('设置下发费率') ||
         text.startsWith('设置美元汇率') ||
@@ -148,42 +146,52 @@ bot.on('message:text', async (ctx) => {
         text.startsWith('删除马币汇率') ||
         text.startsWith('删除泰铢汇率') ||
         text.startsWith('删除汇率') ||
-        text.startsWith('/gd') ||
         text === '设置为无小数' ||
         text === '设置为计数模式' ||
         text.startsWith('设置显示模式') ||
         text === '设置为原始模式' ||
 
-        // RBAC commands
+        // RBAC triggers
         text.startsWith('设置操作人') ||
         text.startsWith('删除操作人') ||
 
-        // Transaction commands
-        text.startsWith('+') ||
-        text.startsWith('-') ||
+        // Transaction Pattern (Strict regex)
+        /^[+\-取]\s*\d/.test(text) ||
         text.startsWith('下发') ||
-        text.startsWith('取') ||
         text.startsWith('回款') ||
         text.startsWith('入款-');
 
     // 5. LICENSE CHECK (Redirect if Inactive)
-    const isActive = await Licensing.isGroupActive(chatId);
-    if (!isActive && isCommand) {
-        console.log(`[BLOCKED] Command "${text}" from ${username} in inactive group ${chatId}`);
-        return ctx.reply("⚠️ **Group Inactive or License Expired**\nPlease contact your administrator to get a valid license key.\n\nUse `/activate [KEY]` to enable full functionality.", { parse_mode: 'Markdown' });
-    }
-
     if (isCommand) {
-        // RBAC CHECK
+        // 5. LICENSE CHECK (Redirect if Inactive)
+        const isActive = await Licensing.isGroupActive(chatId);
+        if (!isActive) {
+            console.log(`[BLOCKED] Command "${text}" from ${username} in inactive group ${chatId}`);
+            return ctx.reply("⚠️ **Group Inactive or License Expired**\nPlease contact your administrator to get a valid license key.\n\nUse `/activate [KEY]` to enable full functionality.", { parse_mode: 'Markdown' });
+        }
+
+        // 6. RBAC CHECK
         const isOperator = await RBAC.isAuthorized(chatId, userId);
         const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
         const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
+        const isOwner = userId.toString() === process.env.OWNER_ID;
 
-        if (!isOperator && hasOperators) {
-            return ctx.reply("❌ **您不是操作人，请联系管理员。**\nUnauthorized: Only registered operators can control the bot.", { parse_mode: 'Markdown' });
+        // Bootstrapping: If no operators, only Owner or Group Admin can act
+        let canBootsTrap = !hasOperators;
+        if (canBootsTrap && !isOwner) {
+            try {
+                const member = await ctx.getChatMember(userId);
+                canBootsTrap = member.status === 'creator' || member.status === 'administrator';
+            } catch (e) {
+                canBootsTrap = false;
+            }
         }
 
-        // Activation Check
+        if (!isOperator && !isOwner && !canBootsTrap) {
+            return ctx.reply("❌ **权限提示 (Unauthorized)**\n\n您不是经授权的操作人或管理员。\nOnly authorized operators can record transactions here.\n\n请联系群主或经办人为您开图权限。", { parse_mode: 'Markdown' });
+        }
+
+        // 7. Activation Check
         const groupRes = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
         const state = groupRes.rows[0]?.current_state || 'WAITING_FOR_START';
         const isTransaction = text.startsWith('+') || text.startsWith('-') || text.startsWith('下发') || text.startsWith('取') || text.startsWith('回款');

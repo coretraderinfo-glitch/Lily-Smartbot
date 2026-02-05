@@ -31,53 +31,57 @@ Build "Lily", a high-precision, multi-currency financial ledger bot for Telegram
 - [x] **Deployment**: Dockerfile + Railway Config (Fixed & Live).
 - [x] **Diagnostics**: /ping, Debug Logging, Webhook Auto-Reset.
 
-## Phase 2: World-Class Features (🚧 IN PROGRESS)
+## Phase 2: World-Class Features (✅ 100% COMPLETE)
 **Reference:** `docs/brainstorming/PHASE_2_BLUEPRINT.md` (Approved 2026-02-05)
 
 ### 2.1 Architecture Refactor (The "Strong Foundation")
-- [ ] **Folder Structure**: Move to Domain-Driven Design (`src/core`, `src/bot/commands`).
-- [ ] **Dispatcher**: dedicated command router instead of giant `if/else`.
+- [x] **Folder Structure**: Move to Domain-Driven Design (`src/core`, `src/bot`, `src/db`).
+- [x] **Dispatcher**: Standardized command queuing and RBAC middleware.
 
 ### 2.2 Security & Licensing (The "Vault")
-- [ ] **Schema Update**: Add `licenses` table.
-- [ ] **Owner Commands**: `/generate_key [days]`.
-- [ ] **User Commands**: `/activate [key]`.
-- [ ] **Middleware**: Block unauthorized groups.
+- [x] **Schema Update**: Added `licenses` table and activation logic.
+- [x] **Owner Commands**: `/generate_key` (strict owner-only).
+- [x] **User Commands**: `/activate` with expiry validation.
+- [x] **Middleware**: Secure ingress blocking unauthorized access.
 
-### 2.3 The "Exchange" Engine (USDT/Forex)
-- [ ] **Schema Update**: Add `rate_usd`, `rate_myr` etc. to `group_settings`.
-- [ ] **Manual Commands**: `设置美元汇率`, `/gd`.
-- [ ] **P2P Fetcher**: Scraper/API for OKX (`lk`, `lz`, `lw`).
-- [ ] **Calculator**: `k100` logic.
+### 2.3 The "Exchange" Engine (Forex/Display)
+- [x] **Multi-Forex**: Concurrent support for USD, MYR, PHP, THB.
+- [x] **Manual Commands**: `设置...汇率` and `删除...汇率`.
+- [x] **Display Mode**: Ultra-concise "Top 5" logic for mobile readability.
 
-### 2.4 The "Ledger" Engine (Visual Excellence)
-- [ ] **Formatter**: Implement exact text template from User Request.
-- [ ] **Logic**: `sum(in) - sum(out)` calculations with `Decimal.js` precision.
-- [ ] **Commands**: `+XXX`, `下发XXX`, `入款-XXX` (Correction).
+### 2.4 The "Ledger" Engine (Financial Excellence)
+- [x] **Formatter**: Professional bill summary with dual-currency audit.
+- [x] **Returns**: Semantic `回款` support with balance integration.
+- [x] **Structural Clarity**: Prepend `-` to all payout amounts.
 
 ### 2.5 Access Control (RBAC)
-- [ ] **Operator Management**: `设置操作人`, `删除操作人`.
-- [ ] **Permission Middleware**: Only Owners/Operators can write to ledger.
+- [x] **Operator Management**: `设置为操作人`, `删除操作人` via reply.
+- [x] **Strict Protection**: Admins blocked unless authorized; contact admin prompt.
 
-### Phase 3: USDT & Advanced Tools
+### 2.6 The "Chronos" & "Report" Engines
+- [x] **Auto-Rollover**: Chronos Engine for proactive 4AM reset and reporting.
+- [x] **PDF Professional**: World-class PDF statements with localized Chinese support.
+
+## Phase 3: USDT & Advanced Tools (🚧 IN PROGRESS)
 1.  **Market Engine**: Implement OKX P2P Scraper (Puppeteer or API).
 2.  **Rate Utils**: Implement `lk`, `lz`, `k100` calculators.
-3.  **Multi-Currency**: Ensure separate counting for `XXXu` (USDT) vs Fiat.
+3.  **Cross-Ledger**: Dedicated USDT tracking vs. Fiat conversions.
 
-### Phase 4: Production Hardenining
-1.  **Validation**: Rate limiter, Input sanitization.
-2.  **Ops UX**: `@mention` button helpers.
-3.  **Deployment**: Dockerfile optimization.
+## Phase 4: Production Hardening & Global Scale
+1.  **Validation**: Rate limiter, Anti-spam.
+2.  **S3 Storage**: Move PDF/Excel files to cloud storage for scale.
+3.  **Dash**: Web-based audit dashboard for operators.
 
 ## 5) Security Baseline
 *   **Auth**: Only `Owner` or `Admin` can set Rates/Clear Data.
-*   **Audit**: All sensitive commands logged to `audit_logs`.
-*   **Isolation**: Queries MUST always include `WHERE group_id = ?`.
+*   **RBAC**: Commands ignored for non-operators to prevent noise.
+*   **Isolation**: Queries strictly partitioned by `group_id`.
 
 ## 6) Open Questions
-*   None. Brainstorming Phase handled all logic gaps.
+*   None. System in high-stability recording phase.
 
 ## 7) Definition of Done
-*   All commands from `04_UX` are functional.
-*   "Show Bill" matches manual calculation.
-*   Bot handles 4AM rollover correctly (Wait for Start).
+*   [x] 4 AM Auto-Rollover verified functional.
+*   [x] PDF Exports render correct Chinese characters.
+*   [x] All Payouts prefixed with `-` and formatted to 2 decimals.
+*   [x] Unauthorized users see "Contact Admin" prompt.

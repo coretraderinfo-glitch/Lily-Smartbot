@@ -11,11 +11,11 @@
     *   Initializes the "Daily Ledger" for the current Group ID.
     *   **CRITICAL RULE**: The ledger operations depend on the **Group State**.
     *   **State Machine**:
-        1.  **4:00 AM Auto-Reset**: System transitions state to `WAITING_FOR_START`.
-        2.  **User Input `Start`**: System transitions to `RECORDING`.
-        3.  **Transactions**: Only accepted when state is `RECORDING`.
-        4.  **User Input `End`**: System transitions to `ENDED`.
-    *   *Engineering Constraint*: Times must be stored in UTC but queried/displayed based on the group's configured timezone (defaulting to the user's implied timezone, likely UTC+8 based on context). The "Business Day" calculation is `if hour < 4 then BusinessDay = yesterday else BusinessDay = today`.
+        1.  **4:00 AM Auto-Reset**: Chronos Engine proactively transitions state to `WAIT_FOR_START`.
+        2.  **User Input `开始`**: System transitions to `RECORDING` and replies with: `🥂 Cheers! Starting a news days.`
+        3.  **Transactions**: Only accepted when state is `RECORDING`. If sent in `WAIT_FOR_START` or `ENDED`, bot replies with an activation warning.
+        4.  **User Input `结束记录`**: System transitions to `ENDED` and generates the final PDF statement.
+    *   *Engineering Constraint*: Times are stored in UTC. Business Day calculation: `DateTime.now().setZone(timezone).minus({ hours: 4 }).toFormat('yyyy-MM-dd')`.
 
 ### 1.2 Rate Management
 *   **Input**: `设置费率X.X%` (Set inbound rate)
