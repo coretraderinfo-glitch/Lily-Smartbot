@@ -158,8 +158,8 @@ export const processCommand = async (job: Job<CommandJob>) => {
             return await Ledger.addTransaction(chatId, userId, username, 'DEPOSIT', depositMatch[1]);
         }
 
-        // PAYOUT (下发100 or 取100 or 下发100u)
-        const payoutMatch = text.match(/^(?:下发|取)\s*(\d+(\.\d+)?[uU]?)$/);
+        // PAYOUT (下发100, 取100, -100, or with 'u' for USDT)
+        const payoutMatch = text.match(/^(?:下发|取|-)\s*(\d+(\.\d+)?[uU]?)$/);
         if (payoutMatch) {
             const valStr = payoutMatch[1];
             let currency = 'CNY';

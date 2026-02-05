@@ -145,7 +145,9 @@ bot.on('message:text', async (ctx) => {
 
         // Transaction commands
         text.startsWith('+') ||
+        text.startsWith('-') ||
         text.startsWith('下发') ||
+        text.startsWith('取') ||
         text.startsWith('回款') ||
         text.startsWith('入款-');
 
