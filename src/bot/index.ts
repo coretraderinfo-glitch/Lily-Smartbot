@@ -27,11 +27,28 @@ const worker = new Worker('lily-commands', async job => {
 
 worker.on('completed', async (job, returnValue) => {
     if (returnValue && job.data.chatId) {
-        // Send Reply
-        await bot.api.sendMessage(job.data.chatId, returnValue, {
-            reply_to_message_id: job.data.messageId,
-            parse_mode: 'Markdown'
-        });
+        // Check if it's an Excel export
+        if (typeof returnValue === 'string' && returnValue.startsWith('EXCEL_EXPORT:')) {
+            const csv = returnValue.replace('EXCEL_EXPORT:', '');
+            const date = new Date().toISOString().split('T')[0];
+            const filename = `Lily_Report_${date}.csv`;
+
+            // Send as document (using InputFile)
+            const { InputFile } = await import('grammy');
+            await bot.api.sendDocument(job.data.chatId,
+                new InputFile(Buffer.from(csv, 'utf-8'), filename),
+                {
+                    caption: `📊 **Daily Report**\nDate: ${date}\n\nOpen in Excel for full details.`,
+                    reply_to_message_id: job.data.messageId
+                }
+            );
+        } else {
+            // Send normal text reply
+            await bot.api.sendMessage(job.data.chatId, returnValue, {
+                reply_to_message_id: job.data.messageId,
+                parse_mode: 'Markdown'
+            });
+        }
     }
 });
 
@@ -105,6 +122,9 @@ bot.on('message:text', async (ctx) => {
         text === '显示账单' ||
         text === '显示操作人' ||
         text === '清理今天数据' ||
+        text === '下载报表' ||
+        text === '导出Excel' ||
+        text.toLowerCase() === '/export' ||
 
         // Settings commands
         text.startsWith('设置费率') ||

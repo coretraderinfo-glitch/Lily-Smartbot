@@ -2,6 +2,8 @@ import { Job } from 'bullmq';
 import { Ledger } from '../core/ledger';
 import { Settings } from '../core/settings';
 import { RBAC } from '../core/rbac';
+import { ExcelExport } from '../core/excel';
+
 
 interface CommandJob {
     chatId: number;
@@ -167,6 +169,13 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // SHOW BILL (uses display mode from settings)
         if (text === '显示账单') {
             return await Ledger.generateBillWithMode(chatId);
+        }
+
+        // DOWNLOAD EXCEL REPORT
+        if (text === '下载报表' || text === '导出Excel' || text.toLowerCase() === '/export') {
+            const csv = await ExcelExport.generateDailyCSV(chatId);
+            // Return special format to trigger file send
+            return `EXCEL_EXPORT:${csv}`;
         }
 
         return null; // Ignore unknown
