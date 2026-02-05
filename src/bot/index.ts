@@ -10,7 +10,13 @@ import dotenv from 'dotenv';
 import checkEnv from 'check-env';
 
 dotenv.config();
-checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL', 'OWNER_ID']);
+checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
+
+// Security Warning for Missing Owner
+if (!process.env.OWNER_ID) {
+    console.error('🛑 [CRITICAL WARNING] OWNER_ID is not set in environment variables!');
+    console.error('System Owner features (License Generation) will be disabled.');
+}
 
 // Init Dependencies
 const bot = new Bot(process.env.BOT_TOKEN!);
