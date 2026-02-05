@@ -84,6 +84,10 @@ bot.on('message:text', async (ctx) => {
 async function start() {
     await db.migrate();
 
+    // RESET WEBHOOK (Fixes "Deaf Bot" issue if webhook was ever set)
+    console.log('🔄 Resetting Telegram Webhook...');
+    await bot.api.deleteWebhook();
+
     // Start Bot (Long Polling for Dev/Small Scale, Webhook for Prod)
     // For Railway, simple Long Polling is easiest to start with no domain config
     console.log('🚀 Lily Bot Starting...');
