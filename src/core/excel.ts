@@ -76,13 +76,22 @@ export const ExcelExport = {
         csv += `回款 (Total Returns),${totalReturn.toFixed(2)},CNY\n`;
         csv += `余 (Balance),${balance.toFixed(2)},CNY\n`;
 
-        // Forex info if set
-        const rateUsd = new Decimal(settings.rate_usd || 0);
-        if (rateUsd.gt(0)) {
-            csv += `美元汇率 (USD Rate),${rateUsd.toFixed(2)},\n`;
-            const usdBalance = balance.div(rateUsd).toFixed(2);
-            csv += `余额 (USD Equivalent),${usdBalance},USD\n`;
-        }
+        // Forex info if set (Multiple)
+        const fxRates = [
+            { key: 'usd', label: '美元汇率 (USD Rate)', suffix: 'USD' },
+            { key: 'myr', label: '马币汇率 (MYR Rate)', suffix: 'MYR' },
+            { key: 'php', label: '比索汇率 (PHP Rate)', suffix: 'PHP' },
+            { key: 'thb', label: '泰铢汇率 (THB Rate)', suffix: 'THB' }
+        ];
+
+        fxRates.forEach(fx => {
+            const rate = new Decimal(settings[`rate_${fx.key}`] || 0);
+            if (rate.gt(0)) {
+                csv += `${fx.label},${rate.toFixed(2)},\n`;
+                const equiv = balance.div(rate).toFixed(2);
+                csv += `余额 (${fx.suffix} Equivalent),${equiv},${fx.suffix}\n`;
+            }
+        });
 
         return csv;
     },

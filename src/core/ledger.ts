@@ -235,8 +235,9 @@ export const Ledger = {
                 });
                 msg += `\nTotal: ${format(balance)}`;
             } else {
-                const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 1000;
-                const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 1000;
+                // DEFAULT / MODE 1: Show latest 5 for conciseness
+                const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
+                const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
 
                 msg = `📅 ${date}\n\n`;
 
@@ -262,39 +263,22 @@ export const Ledger = {
                 msg += `总入款： ${format(totalInRaw)}\n`;
                 msg += `费率： ${settings.rate_in || 0}%\n`;
 
-                // Forex Selection
-                let forexRate = new Decimal(0);
-                let suffix = 'USD';
-                let rateLabel = 'USD汇率';
+                // ACTIVE FOREX DETECTION (Multiple Currencies)
+                const activeRates = [];
+                if (new Decimal(settings.rate_usd || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_usd), suffix: 'USD', label: 'USD汇率' });
+                if (new Decimal(settings.rate_myr || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_myr), suffix: 'MYR', label: 'MYR汇率' });
+                if (new Decimal(settings.rate_php || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_php), suffix: 'PHP', label: 'PHP汇率' });
+                if (new Decimal(settings.rate_thb || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_thb), suffix: 'THB', label: '泰铢汇率' });
 
-                if (new Decimal(settings.rate_usd || 0).gt(0)) {
-                    forexRate = new Decimal(settings.rate_usd);
-                    suffix = 'USD';
-                    rateLabel = 'USD汇率';
-                } else if (new Decimal(settings.rate_myr || 0).gt(0)) {
-                    forexRate = new Decimal(settings.rate_myr);
-                    suffix = 'MYR';
-                    rateLabel = 'MYR汇率';
-                } else if (new Decimal(settings.rate_php || 0).gt(0)) {
-                    forexRate = new Decimal(settings.rate_php);
-                    suffix = 'PHP';
-                    rateLabel = 'PHP汇率';
-                } else if (new Decimal(settings.rate_thb || 0).gt(0)) {
-                    forexRate = new Decimal(settings.rate_thb);
-                    suffix = 'THB';
-                    rateLabel = '泰铢汇率';
-                }
+                if (activeRates.length > 0) {
+                    activeRates.forEach(fx => {
+                        const conv = (val: Decimal) => val.div(fx.rate).toFixed(showDecimals ? 2 : 0);
 
-                const conv = (val: Decimal) => {
-                    if (forexRate.isZero()) return '0';
-                    return val.div(forexRate).toFixed(showDecimals ? 2 : 0);
-                };
-
-                if (!forexRate.isZero()) {
-                    msg += `${rateLabel}： ${forexRate.toFixed(2)}\n`;
-                    msg += `应下发： ${format(totalInNet)} | ${conv(totalInNet)} ${suffix}\n`;
-                    msg += `总下发： ${format(totalOut)} | ${conv(totalOut)} ${suffix}\n`;
-                    msg += `余： ${format(balance)} | ${conv(balance)} ${suffix}\n`;
+                        msg += `\n${fx.label}： ${fx.rate.toFixed(2)}\n`;
+                        msg += `应下发： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
+                        msg += `总下发： ${format(totalOut)} | ${conv(totalOut)} ${fx.suffix}\n`;
+                        msg += `余： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;
+                    });
                 } else {
                     msg += `净入款： ${format(totalInNet)}\n`;
                     msg += `总下发： ${format(totalOut)}\n`;
