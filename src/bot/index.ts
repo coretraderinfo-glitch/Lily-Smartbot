@@ -186,7 +186,7 @@ bot.on('message:text', async (ctx) => {
             ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE', license_key = $2, license_expiry = $3
         `, [chatId, key, expiry]);
 
-        return ctx.reply(`👑 **System Owner Force Activation**\n\nThis group is now **ACTIVE** for ${days} days.\nNo license key required.\nExpiry: ${expiry.toISOString().split('T')[0]}`, { parse_mode: 'Markdown' });
+        return ctx.reply(`👑 **尊享特权激活 (System Owner Activation)**\n\n✨ **服务已开启 (Service Active)**\n本群组已由系统管理员强制激活。\n\n📅 **有效期 (Validity):** ${days} 天 (Days)\n🔐 **到期日期 (Expiry):** ${expiry.toISOString().split('T')[0]}`, { parse_mode: 'Markdown' });
     }
 
     // /activate [key] (Bypasses License Check by nature)

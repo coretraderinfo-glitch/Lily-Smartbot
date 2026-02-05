@@ -69,7 +69,7 @@ export const Licensing = {
             await client.query('COMMIT');
             return {
                 success: true,
-                message: `✅ **Activation Successful!**\nExpiry: ${expiry.toISOString().split('T')[0]}\nDays: ${license.duration_days}`
+                message: `✨ **欢迎加入 Lily 大家庭 (Activation Successful!)**\n\n您的服务已成功激活。祝您今日工作愉快！\n(System activated. Have a wonderful and productive day!)\n\n📅 **有效期 (Validity):** ${license.duration_days} 天 (Days)\n🔐 **到期日期 (Expiry):** ${expiry.toISOString().split('T')[0]}`
             };
 
         } catch (e) {
