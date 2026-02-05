@@ -116,26 +116,24 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // ============================================
 
         // 设置操作人 or Set via Reply
-        if (text === '设置为操作人' || text === '设置操作人') {
+        if (text.startsWith('设置操作人') || text.startsWith('设置为操作人')) {
             const isOperator = await RBAC.isAuthorized(chatId, userId);
             if (!isOperator) {
-                // Check if it's the first one
                 const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
-                if (parseInt(opCountRes.rows[0].count) > 0) return null;
+                if (parseInt(opCountRes.rows[0].count) > 0) return null; // Ignore non-ops if ops exist
             }
 
-            // Get target from reply
             const replyToMsg = job.data.replyToMessage;
             if (replyToMsg) {
                 const targetId = replyToMsg.from.id;
                 const targetName = replyToMsg.from.username || replyToMsg.from.first_name;
                 return await RBAC.addOperator(chatId, targetId, targetName, userId);
             }
-            return `ℹ️ **How to add Operator:**\nReply to the user's message and send: "设置为操作人"`;
+            return `ℹ️ **使用说明 (Guide):**\n\n请 **回复** 该用户的消息，并输入 "设置操作人"。\n(Please **REPLY** to the user's message with "设置操作人" to promote them.)`;
         }
 
         // 删除操作人
-        if (text === '删除操作人') {
+        if (text.startsWith('删除操作人')) {
             const isOperator = await RBAC.isAuthorized(chatId, userId);
             if (!isOperator) return null;
 
@@ -145,7 +143,7 @@ export const processCommand = async (job: Job<CommandJob>) => {
                 const targetName = replyToMsg.from.username || replyToMsg.from.first_name;
                 return await RBAC.removeOperator(chatId, targetId, targetName);
             }
-            return `ℹ️ **How to remove Operator:**\nReply to their message and send: "删除操作人"`;
+            return `ℹ️ **使用说明 (Guide):**\n\n请 **回复** 该用户的消息，并输入 "删除操作人"。\n(Please **REPLY** to the user's message with "删除操作人" to demote them.)`;
         }
 
         // 显示操作人
