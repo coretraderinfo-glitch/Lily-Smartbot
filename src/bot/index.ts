@@ -181,12 +181,32 @@ bot.on('message:text', async (ctx) => {
     if (text.startsWith('/activate')) {
         const parts = text.split(' ');
         let key = parts[1];
-        if (!key) return ctx.reply("Please provide a key: `/activate LILY-XXXX`", { parse_mode: 'Markdown' });
+        if (!key) return ctx.reply("📋 **请提供授权码 (Please provide activation key)**\n\n格式 (Format): `/activate LILY-XXXX`", { parse_mode: 'Markdown' });
 
+        // Normalize key: uppercase and trim
         key = key.trim().toUpperCase();
 
         const result = await Licensing.activateGroup(chatId, key);
-        return ctx.reply(result.message, { parse_mode: 'Markdown' });
+
+        // If activation successful, send welcome + setup reminder
+        if (result.success) {
+            await ctx.reply(result.message, { parse_mode: 'Markdown' });
+
+            // Prompt for rate setup
+            return ctx.reply(
+                `📌 **温馨提示 (Friendly Reminder)**\n\n` +
+                `为了开始使用，请先设置您的费率：\n` +
+                `(To begin using the system, please set your rates first)\n\n` +
+                `💡 **快速设置 (Quick Setup):**\n` +
+                `• 入款费率: \`设置费率 0.03\` (3%)\n` +
+                `• 下发费率: \`设置下发费率 0.02\` (2%)\n` +
+                `• 美元汇率: \`设置美元汇率 7.2\`\n\n` +
+                `设置完成后，发送 \`开始\` 即可开始记录。`,
+                { parse_mode: 'Markdown' }
+            );
+        } else {
+            return ctx.reply(result.message, { parse_mode: 'Markdown' });
+        }
     }
 
 

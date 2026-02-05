@@ -67,9 +67,14 @@ export const Licensing = {
             `, [chatId]);
 
             await client.query('COMMIT');
+
+            // Calculate days remaining for display
+            const daysRemaining = license.duration_days;
+            const expiryDate = expiry.toISOString().split('T')[0];
+
             return {
                 success: true,
-                message: `✨ **欢迎加入 Lily 大家庭 (Activation Successful!)**\n\n您的服务已成功激活。祝您今日工作愉快！\n(System activated. Have a wonderful and productive day!)\n\n📅 **有效期 (Validity):** ${license.duration_days} 天 (Days)\n🔐 **到期日期 (Expiry):** ${expiry.toISOString().split('T')[0]}`
+                message: `✨ **欢迎加入 Lily 智能账本系统！**\n**Welcome to Lily Smart Ledger!**\n\n🎉 您的服务已成功激活，祝您工作顺利，生意兴隆！\n(Your service is now active. Wishing you smooth operations and prosperous business!)\n\n📅 **授权期限 (License Period):** ${daysRemaining} 天 (Days)\n🗓️ **到期日期 (Expiry Date):** ${expiryDate}\n\n💼 现在您可以开始使用完整功能了！\n(You can now access all features!)`
             };
 
         } catch (e) {
