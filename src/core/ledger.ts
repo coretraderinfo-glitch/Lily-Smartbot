@@ -151,14 +151,14 @@ export const Ledger = {
             let msg = `📅 ${date}\n\n`;
 
             msg += `入款（${deposits.length}笔）：\n`;
-            deposits.slice(-5).forEach(t => {
+            deposits.forEach(t => {
                 const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
                 msg += ` ${time}  ${new Decimal(t.amount_raw).toFixed(2)}\n`;
             });
             if (deposits.length === 0) msg += ` (无)\n`;
 
             msg += `\n下发（${payouts.length}笔）：\n`;
-            payouts.slice(-3).forEach(t => {
+            payouts.forEach(t => {
                 const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
                 msg += ` ${time}  ${new Decimal(t.amount_raw).toFixed(2)}\n`;
             });
