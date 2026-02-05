@@ -10,7 +10,7 @@ import dotenv from 'dotenv';
 import checkEnv from 'check-env';
 
 dotenv.config();
-checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
+checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL', 'OWNER_ID']);
 
 // Init Dependencies
 const bot = new Bot(process.env.BOT_TOKEN!);
@@ -86,8 +86,9 @@ bot.on('message:text', async (ctx) => {
     const username = ctx.from.username || ctx.from.first_name;
     const messageId = ctx.message.message_id;
 
-    // Security: Check if user is System Owner
-    const isOwner = process.env.OWNER_ID && userId.toString() === process.env.OWNER_ID;
+    // Security: Check if user is System Owner (Strict Trim)
+    const rawOwnerId = process.env.OWNER_ID ? process.env.OWNER_ID.trim() : '';
+    const isOwner = rawOwnerId !== '' && userId.toString() === rawOwnerId;
 
     // DEBUG LOG
     console.log(`[MSG] Group:${chatId} User:${username} (${userId}) says: "${text}" [Owner: ${isOwner}]`);
@@ -107,11 +108,17 @@ bot.on('message:text', async (ctx) => {
         return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
     }
 
+    // Diagnostic: /whoami
+    if (text === '/whoami') {
+        const ownerStatus = isOwner ? "✅ **System Owner**" : "👤 **Regular User**";
+        return ctx.reply(`👤 **User Info**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${ownerStatus}`, { parse_mode: 'Markdown' });
+    }
+
     // /generate_key [days] [users] (OWNER ONLY)
     if (text.startsWith('/generate_key')) {
         if (!isOwner) {
             console.log(`[SECURITY] Unauthorized user ${username} tried to generate key.`);
-            return;
+            return ctx.reply("❌ **权限错误 (Security Error)**\n\n您没有生成授权码的权限。\nOnly the system owner can generate keys.", { parse_mode: 'Markdown' });
         }
         const parts = text.split(' ');
         const days = parseInt(parts[1]) || 30;

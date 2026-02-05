@@ -20,6 +20,10 @@ interface CommandJob {
 export const processCommand = async (job: Job<CommandJob>) => {
     const { chatId, userId, username, text } = job.data;
 
+    // Security: Check if user is System Owner (Strict Trim)
+    const rawOwnerId = process.env.OWNER_ID ? process.env.OWNER_ID.trim() : '';
+    const isOwner = rawOwnerId !== '' && userId.toString() === rawOwnerId;
+
     try {
         // ============================================
         // PHASE A: SETTINGS & CONFIGURATION
@@ -117,15 +121,15 @@ export const processCommand = async (job: Job<CommandJob>) => {
 
         // 设置操作人 or Set via Reply/Tag
         if (text.startsWith('设置操作人') || text.startsWith('设置为操作人')) {
-            // Authorization check: Current user must be an operator OR this is bootstrap (no operators exist yet)
+            // Authorization check: Current user must be an operator OR Owner OR this is bootstrap
             const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
             const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
 
-            if (hasOperators) {
-                // If operators exist, only existing operators can add more
+            if (hasOperators && !isOwner) {
+                // If operators exist, only existing operators can add more (Owner bypasses)
                 const isOperator = await RBAC.isAuthorized(chatId, userId);
                 if (!isOperator) {
-                    return `❌ **权限不足 (Unauthorized)**\n\n只有现有的操作人才能添加新的操作人。\n(Only existing operators can add new operators.)`;
+                    return `❌ **权限不足 (Unauthorized)**\n\n只有现有的操作人或系统所有者才能添加新的操作人。\n(Only existing operators or system owner can add new operators.)`;
                 }
             }
             // If no operators exist, the bot/index.ts bootstrap check already verified this user is Owner or Group Admin
@@ -161,8 +165,11 @@ export const processCommand = async (job: Job<CommandJob>) => {
 
         // 删除操作人
         if (text.startsWith('删除操作人')) {
-            const isOperator = await RBAC.isAuthorized(chatId, userId);
-            if (!isOperator) return null;
+            // Check if user is Operator or Owner
+            if (!isOwner) {
+                const isOperator = await RBAC.isAuthorized(chatId, userId);
+                if (!isOperator) return null;
+            }
 
             let targetId: number | null = null;
             let targetName: string | null = null;
