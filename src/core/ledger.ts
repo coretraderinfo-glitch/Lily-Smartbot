@@ -256,8 +256,8 @@ export const Ledger = {
 
                 // SUMMARY BLOCK (Match Photo Guideline)
                 msg += `━━━━━━━━━━━━━━━━\n`;
-                msg += `💰 总入款： ${format(totalInRaw)}\n`;
-                msg += `📊 费率： ${settings.rate_in || 0}%\n`;
+                msg += `总入款： ${format(totalInRaw)}\n`;
+                msg += `费率： ${settings.rate_in || 0}%\n`;
 
                 // Forex Selection
                 let forexRate = new Decimal(0);
@@ -288,14 +288,14 @@ export const Ledger = {
                 };
 
                 if (!forexRate.isZero()) {
-                    msg += `💵 ${rateLabel}： ${forexRate.toFixed(2)}\n`;
-                    msg += `📥 应下发： ${format(totalInNet)} | ${conv(totalInNet)} ${suffix}\n`;
-                    msg += `📤 总下发： ${format(totalOut)} | ${conv(totalOut)} ${suffix}\n`;
-                    msg += `💎 余： ${format(balance)} | ${conv(balance)} ${suffix}\n`;
+                    msg += `${rateLabel}： ${forexRate.toFixed(2)}\n`;
+                    msg += `应下发： ${format(totalInNet)} | ${conv(totalInNet)} ${suffix}\n`;
+                    msg += `总下发： ${format(totalOut)} | ${conv(totalOut)} ${suffix}\n`;
+                    msg += `余： ${format(balance)} | ${conv(balance)} ${suffix}\n`;
                 } else {
-                    msg += `✅ 净入款： ${format(totalInNet)}\n`;
-                    msg += `📤 总下发： ${format(totalOut)}\n`;
-                    msg += `💎 余： ${format(balance)}\n`;
+                    msg += `净入款： ${format(totalInNet)}\n`;
+                    msg += `总下发： ${format(totalOut)}\n`;
+                    msg += `余： ${format(balance)}\n`;
                 }
             }
 
