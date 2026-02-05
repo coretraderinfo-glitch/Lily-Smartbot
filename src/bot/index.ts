@@ -3,6 +3,7 @@ import { Worker, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { processCommand } from '../worker/processor';
 import { db } from '../db';
+import { Licensing } from '../core/licensing';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
 
@@ -55,15 +56,48 @@ bot.on('message:text', async (ctx) => {
     // DEBUG LOG: Show us what the bot actually sees
     console.log(`[MSG] Group:${chatId} User:${username} says: "${text}"`);
 
-    // HEALTH CHECK
+    // 1. HEALTH CHECK
     if (text === '/ping') {
         return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
     }
 
-    // Filter: Only Group/Supergroup?
-    // if (ctx.chat.type === 'private') return ctx.reply("Groups only.");
+    // 2. LICENSING COMMANDS (Prioritized)
 
-    // Simple Command Filter (Bot Optimization)
+    // /generate_key [days] [users] (OWNER ONLY)
+    if (text.startsWith('/generate_key')) {
+        const parts = text.split(' ');
+        const days = parseInt(parts[1]) || 30;
+        const maxUsers = parseInt(parts[2]) || 100;
+
+        // Security: Simple Check against ENV or just allow for now (User must set OWNER_ID)
+        // if (userId.toString() !== process.env.OWNER_ID) return; 
+
+        const key = await Licensing.generateKey(days, maxUsers, userId);
+        return ctx.reply(`🔑 **New License Key Generated**\nKey: \`${key}\`\nDays: ${days}\n\nUse \`/activate ${key}\` in your group.`, { parse_mode: 'Markdown' });
+    }
+
+    // /activate [key]
+    if (text.startsWith('/activate')) {
+        const parts = text.split(' ');
+        const key = parts[1];
+        if (!key) return ctx.reply("Please provide a key: `/activate LILY-XXXX`", { parse_mode: 'Markdown' });
+
+        const result = await Licensing.activateGroup(chatId, key);
+        return ctx.reply(result.message, { parse_mode: 'Markdown' });
+    }
+
+    // 3. LICENSE CHECK MIDDLEWARE
+    const isActive = await Licensing.isGroupActive(chatId);
+    if (!isActive) {
+        // If it looks like a command but group is inactive
+        const potentialCommand = text.startsWith('开始') || text.startsWith('+');
+        if (potentialCommand) {
+            return ctx.reply("⚠️ **Trial Expired or Inactive**\nPlease contact admin to purchase a license key.\nUse `/activate [KEY]` to resume.", { parse_mode: 'Markdown' });
+        }
+        return; // Ignore regular chatter
+    }
+
+    // 4. BUSINESS LOGIC (Only if Active)
     const isCommand =
         text === '开始' || text.toLowerCase() === 'start' ||
         text === '结束记录' ||

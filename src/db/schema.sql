@@ -1,13 +1,29 @@
 -- Lily Bot Schema V1
 
 -- 1. Tenants (Groups)
+-- 1. Tenants (Groups)
 CREATE TABLE IF NOT EXISTS groups (
     id BIGINT PRIMARY KEY, -- Telegram Chat ID
     title VARCHAR(255),
-    status VARCHAR(50) DEFAULT 'ACTIVE',
-    current_state VARCHAR(20) DEFAULT 'WAITING_FOR_START', -- WAITING_FOR_START, RECORDING, ENDED
+    status VARCHAR(50) DEFAULT 'ACTIVE', -- ACTIVE, EXPIRED, UNLICENSED
+    current_state VARCHAR(20) DEFAULT 'WAITING_FOR_START',
     timezone VARCHAR(50) DEFAULT 'Asia/Shanghai',
     currency_symbol VARCHAR(10) DEFAULT 'CNY',
+    license_key VARCHAR(50), 
+    license_expiry TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. The Vault (Licenses)
+CREATE TABLE IF NOT EXISTS licenses (
+    key VARCHAR(50) PRIMARY KEY,
+    duration_days INT NOT NULL,
+    max_users INT DEFAULT 100,
+    is_used BOOLEAN DEFAULT FALSE,
+    used_by_group_id BIGINT REFERENCES groups(id),
+    activated_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    created_by BIGINT, -- Admin ID
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -23,19 +23,41 @@ Build "Lily", a high-precision, multi-currency financial ledger bot for Telegram
 
 ## 4) Implementation Steps (Phased Execution)
 
-### Phase 1: Foundation & Ledger Core
-1.  **Scaffold**: Init Node.js repo, TypeScript, ESLint, Prettier.
-2.  **Infra**: Setup Docker Compose (Postgres, Redis).
-3.  **Schema**: Create Migration 001 (Groups, Settings, Transactions) per `02_ARCHITECTURE`.
-4.  **Ingress**: Basic Telegram Bot Hook -> Queue Producer.
-5.  **Worker (Commands)**: Implement `Start`, `Rate`, `Clear` state logic.
-6.  **Worker (Transactions)**: Implement `+XXX`, `下发`, `Void` with correct Fee logic.
-7.  **Test**: Unit tests for Fee Calculation and Daily Boundary logic.
+### Phase 1: Core Foundation (✅ DONE)
+- [x] **Project Setup**: TypeScript, Node.js, ESLint, Prettier.
+- [x] **Database**: PostgreSQL Schema (Groups, Settings, Transactions).
+- [x] **Queue System**: BullMQ + Redis for async processing.
+- [x] **Bot Ingress**: Grammy.js listener + Basic Command Parsing.
+- [x] **Deployment**: Dockerfile + Railway Config (Fixed & Live).
+- [x] **Diagnostics**: /ping, Debug Logging, Webhook Auto-Reset.
 
-### Phase 2: Reporting & Visualization
-1.  **Bill Renderer**: Implement "Text Bill" generator (Modes 1-4).
-2.  **Cache Strategy**: Implement Redis caching for `RunningTotal` to speed up reads.
-3.  **Web View**: Create simple Express route `/bill/:uuid` to render full Day Ledger (HTML/CSS).
+## Phase 2: World-Class Features (🚧 IN PROGRESS)
+**Reference:** `docs/brainstorming/PHASE_2_BLUEPRINT.md` (Approved 2026-02-05)
+
+### 2.1 Architecture Refactor (The "Strong Foundation")
+- [ ] **Folder Structure**: Move to Domain-Driven Design (`src/core`, `src/bot/commands`).
+- [ ] **Dispatcher**: dedicated command router instead of giant `if/else`.
+
+### 2.2 Security & Licensing (The "Vault")
+- [ ] **Schema Update**: Add `licenses` table.
+- [ ] **Owner Commands**: `/generate_key [days]`.
+- [ ] **User Commands**: `/activate [key]`.
+- [ ] **Middleware**: Block unauthorized groups.
+
+### 2.3 The "Exchange" Engine (USDT/Forex)
+- [ ] **Schema Update**: Add `rate_usd`, `rate_myr` etc. to `group_settings`.
+- [ ] **Manual Commands**: `设置美元汇率`, `/gd`.
+- [ ] **P2P Fetcher**: Scraper/API for OKX (`lk`, `lz`, `lw`).
+- [ ] **Calculator**: `k100` logic.
+
+### 2.4 The "Ledger" Engine (Visual Excellence)
+- [ ] **Formatter**: Implement exact text template from User Request.
+- [ ] **Logic**: `sum(in) - sum(out)` calculations with `Decimal.js` precision.
+- [ ] **Commands**: `+XXX`, `下发XXX`, `入款-XXX` (Correction).
+
+### 2.5 Access Control (RBAC)
+- [ ] **Operator Management**: `设置操作人`, `删除操作人`.
+- [ ] **Permission Middleware**: Only Owners/Operators can write to ledger.
 
 ### Phase 3: USDT & Advanced Tools
 1.  **Market Engine**: Implement OKX P2P Scraper (Puppeteer or API).
