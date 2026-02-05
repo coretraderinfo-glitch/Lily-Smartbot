@@ -117,11 +117,18 @@ export const processCommand = async (job: Job<CommandJob>) => {
 
         // 设置操作人 or Set via Reply/Tag
         if (text.startsWith('设置操作人') || text.startsWith('设置为操作人')) {
-            const isOperator = await RBAC.isAuthorized(chatId, userId);
-            if (!isOperator) {
-                const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
-                if (parseInt(opCountRes.rows[0].count) > 0) return null;
+            // Authorization check: Current user must be an operator OR this is bootstrap (no operators exist yet)
+            const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
+            const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
+
+            if (hasOperators) {
+                // If operators exist, only existing operators can add more
+                const isOperator = await RBAC.isAuthorized(chatId, userId);
+                if (!isOperator) {
+                    return `❌ **权限不足 (Unauthorized)**\n\n只有现有的操作人才能添加新的操作人。\n(Only existing operators can add new operators.)`;
+                }
             }
+            // If no operators exist, the bot/index.ts bootstrap check already verified this user is Owner or Group Admin
 
             let targetId: number | null = null;
             let targetName: string | null = null;
