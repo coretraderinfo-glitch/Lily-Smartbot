@@ -251,6 +251,20 @@ export const processCommand = async (job: Job<CommandJob>) => {
         if (text === '结束记录') {
             await Ledger.stopDay(chatId);
             const pdf = await PDFExport.generateDailyPDF(chatId);
+
+            // 🛡️ Audit Vault: Save manual stop to DB
+            const groupRes = await db.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
+            const group = groupRes.rows[0];
+            const tz = group?.timezone || 'Asia/Shanghai';
+            const rh = group?.reset_hour || 4;
+            const { getBusinessDate } = await import('../utils/time');
+            const date = getBusinessDate(tz, rh);
+
+            await db.query(`
+                INSERT INTO historical_archives (group_id, business_date, type, pdf_blob)
+                VALUES ($1, $2, 'MANUAL_STOP', $3)
+            `, [chatId, date, pdf]);
+
             return `PDF_EXPORT:${pdf.toString('base64')}`;
         }
 

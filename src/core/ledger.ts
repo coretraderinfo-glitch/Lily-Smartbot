@@ -50,9 +50,14 @@ export const Ledger = {
             // 2. Get Settings
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
             const settings = settingsRes.rows[0];
-            const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
-            const resetHour = groupRes.rows[0]?.reset_hour || 4;
+            const groupRes = await client.query('SELECT timezone, reset_hour, currency_symbol FROM groups WHERE id = $1', [chatId]);
+            const group = groupRes.rows[0];
+            const timezone = group?.timezone || 'Asia/Shanghai';
+            const resetHour = group?.reset_hour || 4;
+            const baseSymbol = group?.currency_symbol || 'CNY';
+
+            // Use group default if currency is not explicitly provided (e.g. for +100)
+            const activeCurrency = currency === 'CNY' ? baseSymbol : currency;
 
             const amount = new Decimal(amountStr);
             let fee = new Decimal(0);
@@ -79,7 +84,7 @@ export const Ledger = {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             `, [
                 txId, chatId, userId, username, date,
-                type, amount.toString(), rate.toString(), fee.toString(), net.toString(), currency
+                type, amount.toString(), rate.toString(), fee.toString(), net.toString(), activeCurrency
             ]);
 
             await client.query('COMMIT');
@@ -121,9 +126,12 @@ export const Ledger = {
         try {
             await client.query('BEGIN');
 
-            const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
-            const resetHour = groupRes.rows[0]?.reset_hour || 4;
+            const groupRes = await client.query('SELECT timezone, reset_hour, currency_symbol FROM groups WHERE id = $1', [chatId]);
+            const group = groupRes.rows[0];
+            const timezone = group?.timezone || 'Asia/Shanghai';
+            const resetHour = group?.reset_hour || 4;
+            const currency = group?.currency_symbol || 'CNY';
+
             const amount = new Decimal(amountStr);
             const txId = randomUUID();
             const date = getBusinessDate(timezone, resetHour);
@@ -131,8 +139,8 @@ export const Ledger = {
             await client.query(`
                 INSERT INTO transactions 
                 (id, group_id, operator_id, operator_name, business_date, type, amount_raw, fee_rate, fee_amount, net_amount, currency)
-                VALUES ($1, $2, $3, $4, $5, 'RETURN', $6, 0, 0, $6, 'CNY')
-            `, [txId, chatId, userId, username, date, amount.toString()]);
+                VALUES ($1, $2, $3, $4, $5, 'RETURN', $6, 0, 0, $6, $7)
+            `, [txId, chatId, userId, username, date, amount.toString(), currency]);
 
             await client.query('COMMIT');
 
