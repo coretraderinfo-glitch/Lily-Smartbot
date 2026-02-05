@@ -1,12 +1,11 @@
--- Lily Bot Schema V1
+-- Lily Bot Schema V1 (Final Phase 2)
 
--- 1. Tenants (Groups)
 -- 1. Tenants (Groups)
 CREATE TABLE IF NOT EXISTS groups (
     id BIGINT PRIMARY KEY, -- Telegram Chat ID
     title VARCHAR(255),
     status VARCHAR(50) DEFAULT 'ACTIVE', -- ACTIVE, EXPIRED, UNLICENSED
-    current_state VARCHAR(20) DEFAULT 'WAITING_FOR_START',
+    current_state VARCHAR(20) DEFAULT 'WAITING_FOR_START', -- WAITING_FOR_START, RECORDING, ENDED
     timezone VARCHAR(50) DEFAULT 'Asia/Shanghai',
     currency_symbol VARCHAR(10) DEFAULT 'CNY',
     license_key VARCHAR(50), 
@@ -14,18 +13,26 @@ CREATE TABLE IF NOT EXISTS groups (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. The Vault (Licenses)
-CREATE TABLE IF NOT EXISTS licenses (
-    key VARCHAR(50) PRIMARY KEY,
-    duration_days INT NOT NULL,
-    max_users INT DEFAULT 100,
-    is_used BOOLEAN DEFAULT FALSE,
-    used_by_group_id BIGINT REFERENCES groups(id),
-    activated_at TIMESTAMPTZ,
-    expires_at TIMESTAMPTZ,
-    created_by BIGINT, -- Admin ID
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- MIGRATION PATCHES (Idempotent)
+-- Ensure 'groups' table has new columns even if it already existed
+DO $$ 
+BEGIN 
+    BEGIN
+        ALTER TABLE groups ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE';
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE groups ADD COLUMN license_key VARCHAR(50);
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE groups ADD COLUMN license_expiry TIMESTAMPTZ;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+END $$;
 
 -- 2. Configuration (Settings)
 CREATE TABLE IF NOT EXISTS group_settings (
@@ -50,6 +57,31 @@ CREATE TABLE IF NOT EXISTS group_settings (
     
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure 'group_settings' has forex columns
+DO $$ 
+BEGIN 
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN rate_usd DECIMAL(10, 4) DEFAULT 0;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN rate_myr DECIMAL(10, 4) DEFAULT 0;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN rate_php DECIMAL(10, 4) DEFAULT 0;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN rate_thb DECIMAL(10, 4) DEFAULT 0;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+END $$;
 
 -- 3. Access Control (Operators)
 CREATE TABLE IF NOT EXISTS group_operators (
@@ -84,9 +116,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     currency VARCHAR(10) DEFAULT 'CNY',
     original_text TEXT,
     is_voided BOOLEAN DEFAULT FALSE,
-    
-    -- Correction Logic (Constraint: Contra-entries are just new rows, so no special col needed besides is_voided link logic if we get fancy later)
-    related_transaction_id VARCHAR(50) -- If correcting another tx
+    related_transaction_id VARCHAR(50)
 );
 
 -- Indices
@@ -100,5 +130,18 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     user_id BIGINT,
     action VARCHAR(50),
     details JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. The Vault (Licenses)
+CREATE TABLE IF NOT EXISTS licenses (
+    key VARCHAR(50) PRIMARY KEY,
+    duration_days INT NOT NULL,
+    max_users INT DEFAULT 100,
+    is_used BOOLEAN DEFAULT FALSE,
+    used_by_group_id BIGINT REFERENCES groups(id),
+    activated_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    created_by BIGINT, -- Admin ID
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
