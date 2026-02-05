@@ -42,17 +42,24 @@ worker.on('failed', async (job, err) => {
 
 // Bot Ingress
 bot.on('message:text', async (ctx) => {
-    const text = ctx.message.text;
+    const text = ctx.message.text.trim(); // TRIM WHITESPACE!
     const chatId = ctx.chat.id;
     const userId = ctx.from.id;
     const username = ctx.from.username || ctx.from.first_name;
     const messageId = ctx.message.message_id;
 
+    // DEBUG LOG: Show us what the bot actually sees
+    console.log(`[MSG] Group:${chatId} User:${username} says: "${text}"`);
+
+    // HEALTH CHECK
+    if (text === '/ping') {
+        return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
+    }
+
     // Filter: Only Group/Supergroup?
     // if (ctx.chat.type === 'private') return ctx.reply("Groups only.");
 
     // Simple Command Filter (Bot Optimization)
-    // Only send to queue if it looks like a command we care about
     const isCommand =
         text === '开始' || text.toLowerCase() === 'start' ||
         text === '结束记录' ||
@@ -64,9 +71,12 @@ bot.on('message:text', async (ctx) => {
         text.startsWith('入款-');
 
     if (isCommand) {
+        console.log(`[QUEUE] Adding command from ${username}`);
         await commandQueue.add('cmd', {
             chatId, userId, username, text, messageId
         });
+    } else {
+        console.log(`[IGNORE] "${text}" is not a recognized command.`);
     }
 });
 
