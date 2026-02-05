@@ -88,10 +88,14 @@ async function start() {
     console.log('🔄 Resetting Telegram Webhook...');
     await bot.api.deleteWebhook();
 
-    // Start Bot (Long Polling for Dev/Small Scale, Webhook for Prod)
-    // For Railway, simple Long Polling is easiest to start with no domain config
+    // Start Bot
     console.log('🚀 Lily Bot Starting...');
-    await bot.start();
+    await bot.start({
+        onStart: (botInfo) => {
+            console.log(`✅ SUCCESS: Connected to Telegram as @${botInfo.username} (${botInfo.id})`);
+            console.log(`✅ Waiting for messages...`);
+        }
+    });
 }
 
 start().catch(console.error);
