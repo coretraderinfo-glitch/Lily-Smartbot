@@ -89,6 +89,16 @@ bot.on('message:text', async (ctx) => {
     // DEBUG LOG: Show us what the bot actually sees
     console.log(`[MSG] Group:${chatId} User:${username} says: "${text}"`);
 
+    // 0. UPDATE USER CACHE
+    if (ctx.from.username) {
+        db.query(`
+            INSERT INTO user_cache (group_id, user_id, username, last_seen)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (group_id, username) 
+            DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
+        `, [chatId, userId, ctx.from.username]).catch(() => { });
+    }
+
     // 1. HEALTH CHECK
     if (text === '/ping') {
         return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });

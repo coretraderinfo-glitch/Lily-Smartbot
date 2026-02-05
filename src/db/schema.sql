@@ -168,3 +168,13 @@ CREATE TABLE IF NOT EXISTS historical_archives (
 
 -- Indices for Archive
 CREATE INDEX IF NOT EXISTS idx_archive_lookup ON historical_archives (group_id, business_date);
+
+-- 8. User Cache (For @username resolution)
+CREATE TABLE IF NOT EXISTS user_cache (
+    group_id BIGINT,
+    user_id BIGINT,
+    username VARCHAR(100),
+    last_seen TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (group_id, username)
+);
+CREATE INDEX IF NOT EXISTS idx_user_cache_id ON user_cache (group_id, user_id);

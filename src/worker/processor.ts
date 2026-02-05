@@ -115,21 +115,41 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // PHASE B: RBAC & TEAM MANAGEMENT
         // ============================================
 
-        // 设置操作人 or Set via Reply
+        // 设置操作人 or Set via Reply/Tag
         if (text.startsWith('设置操作人') || text.startsWith('设置为操作人')) {
             const isOperator = await RBAC.isAuthorized(chatId, userId);
             if (!isOperator) {
                 const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
-                if (parseInt(opCountRes.rows[0].count) > 0) return null; // Ignore non-ops if ops exist
+                if (parseInt(opCountRes.rows[0].count) > 0) return null;
             }
 
+            let targetId: number | null = null;
+            let targetName: string | null = null;
+
+            // Method 1: Reply
             const replyToMsg = job.data.replyToMessage;
             if (replyToMsg) {
-                const targetId = replyToMsg.from.id;
-                const targetName = replyToMsg.from.username || replyToMsg.from.first_name;
+                targetId = replyToMsg.from.id;
+                targetName = replyToMsg.from.username || replyToMsg.from.first_name;
+            } else {
+                // Method 2: Tag (@username)
+                const tagMatch = text.match(/@(\w+)/);
+                if (tagMatch) {
+                    const usernameTag = tagMatch[1];
+                    const cacheRes = await db.query(`SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2`, [chatId, usernameTag]);
+                    if (cacheRes.rows.length > 0) {
+                        targetId = parseInt(cacheRes.rows[0].user_id);
+                        targetName = usernameTag;
+                    } else {
+                        return `❌ **无法识别此用户 (@${usernameTag})**\n此用户尚未在群内发言，系统无法获取其ID。请让该用户在群里发一条消息，或者您直接 **回复** 他的消息进行设置。`;
+                    }
+                }
+            }
+
+            if (targetId && targetName) {
                 return await RBAC.addOperator(chatId, targetId, targetName, userId);
             }
-            return `ℹ️ **使用说明 (Guide):**\n\n请 **回复** 该用户的消息，并输入 "设置操作人"。\n(Please **REPLY** to the user's message with "设置操作人" to promote them.)`;
+            return `ℹ️ **使用说明 (Guide):**\n\n1. 请 **标注** 该用户，例如: "设置操作人 @username"\n2. 或 **回复** 该用户的消息，并输入 "设置操作人"。\n\n(Tag the user or reply to their message to promote them.)`;
         }
 
         // 删除操作人
@@ -137,13 +157,36 @@ export const processCommand = async (job: Job<CommandJob>) => {
             const isOperator = await RBAC.isAuthorized(chatId, userId);
             if (!isOperator) return null;
 
+            let targetId: number | null = null;
+            let targetName: string | null = null;
+
             const replyToMsg = job.data.replyToMessage;
             if (replyToMsg) {
-                const targetId = replyToMsg.from.id;
-                const targetName = replyToMsg.from.username || replyToMsg.from.first_name;
+                targetId = replyToMsg.from.id;
+                targetName = replyToMsg.from.username || replyToMsg.from.first_name;
+            } else {
+                const tagMatch = text.match(/@(\w+)/);
+                if (tagMatch) {
+                    const usernameTag = tagMatch[1];
+                    const cacheRes = await db.query(`SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2`, [chatId, usernameTag]);
+                    if (cacheRes.rows.length > 0) {
+                        targetId = parseInt(cacheRes.rows[0].user_id);
+                        targetName = usernameTag;
+                    } else {
+                        // For deletion, we can also try looking them up in the operators table directly
+                        const opRes = await db.query(`SELECT user_id FROM group_operators WHERE group_id = $1 AND username = $2`, [chatId, usernameTag]);
+                        if (opRes.rows.length > 0) {
+                            targetId = parseInt(opRes.rows[0].user_id);
+                            targetName = usernameTag;
+                        }
+                    }
+                }
+            }
+
+            if (targetId && targetName) {
                 return await RBAC.removeOperator(chatId, targetId, targetName);
             }
-            return `ℹ️ **使用说明 (Guide):**\n\n请 **回复** 该用户的消息，并输入 "删除操作人"。\n(Please **REPLY** to the user's message with "删除操作人" to demote them.)`;
+            return `ℹ️ **使用说明 (Guide):**\n\n请 **标注** 用户的名称，或者 **回复** 他的消息进行删除。`;
         }
 
         // 显示操作人
