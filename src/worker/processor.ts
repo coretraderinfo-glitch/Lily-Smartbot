@@ -23,61 +23,71 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // ============================================
 
         // 设置费率X%
-        const rateInMatch = text.match(/^设置费率(\d+(\.\d+)?)%?$/);
+        const rateInMatch = text.match(/^设置费率\s*(\d+(\.\d+)?)%?$/);
         if (rateInMatch) {
-            return await Settings.setInboundRate(chatId, parseFloat(rateInMatch[1]));
+            const res = await Settings.setInboundRate(chatId, parseFloat(rateInMatch[1]));
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置下发费率X%
-        const rateOutMatch = text.match(/^设置下发费率(\d+(\.\d+)?)%?$/);
+        const rateOutMatch = text.match(/^设置下发费率\s*(\d+(\.\d+)?)%?$/);
         if (rateOutMatch) {
-            return await Settings.setOutboundRate(chatId, parseFloat(rateOutMatch[1]));
+            const res = await Settings.setOutboundRate(chatId, parseFloat(rateOutMatch[1]));
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置美元汇率X or /gd X
         const usdMatch = text.match(/^(?:设置美元汇率|\/gd)\s*(\d+(\.\d+)?)$/);
         if (usdMatch) {
-            return await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
+            const res = await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置比索汇率X
-        const phpMatch = text.match(/^设置比索汇率(\d+(\.\d+)?)$/);
+        const phpMatch = text.match(/^设置比索汇率\s*(\d+(\.\d+)?)$/);
         if (phpMatch) {
-            return await Settings.setForexRate(chatId, 'php', parseFloat(phpMatch[1]));
+            const res = await Settings.setForexRate(chatId, 'php', parseFloat(phpMatch[1]));
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置马币汇率X
-        const myrMatch = text.match(/^设置马币汇率(\d+(\.\d+)?)$/);
+        const myrMatch = text.match(/^设置马币汇率\s*(\d+(\.\d+)?)$/);
         if (myrMatch) {
-            return await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
+            const res = await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置泰铢汇率X
-        const thbMatch = text.match(/^设置泰铢汇率(\d+(\.\d+)?)$/);
+        const thbMatch = text.match(/^设置泰铢汇率\s*(\d+(\.\d+)?)$/);
         if (thbMatch) {
-            return await Settings.setForexRate(chatId, 'thb', parseFloat(thbMatch[1]));
+            const res = await Settings.setForexRate(chatId, 'thb', parseFloat(thbMatch[1]));
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置为无小数
         if (text === '设置为无小数') {
-            return await Settings.setDecimals(chatId, false);
+            const res = await Settings.setDecimals(chatId, false);
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置为计数模式
         if (text === '设置为计数模式') {
-            return await Settings.setDisplayMode(chatId, 5);
+            const res = await Settings.setDisplayMode(chatId, 5);
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置显示模式2/3/4
-        const modeMatch = text.match(/^设置显示模式([234])$/);
+        const modeMatch = text.match(/^设置显示模式\s*([234])$/);
         if (modeMatch) {
-            return await Settings.setDisplayMode(chatId, parseInt(modeMatch[1]));
+            const res = await Settings.setDisplayMode(chatId, parseInt(modeMatch[1]));
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置为原始模式
         if (text === '设置为原始模式') {
             await Settings.setDisplayMode(chatId, 1);
-            return await Settings.setDecimals(chatId, true);
+            const res = await Settings.setDecimals(chatId, true);
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // ============================================
@@ -87,8 +97,6 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // 设置操作人 @username
         const addOpMatch = text.match(/^设置操作人\s+@(\w+)$/);
         if (addOpMatch) {
-            // Note: We need the actual user_id, not just username
-            // For now, we'll return a message asking to reply to the user
             return `ℹ️ To add an operator, please **reply** to their message and send: "设置为操作人"`;
         }
 
@@ -108,27 +116,25 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // ============================================
 
         // 入款-XXX (Void deposit)
-        const voidDepositMatch = text.match(/^入款-(\d+(\.\d+)?)$/);
+        const voidDepositMatch = text.match(/^入款\s*-\s*(\d+(\.\d+)?)$/);
         if (voidDepositMatch) {
             return await Ledger.addCorrection(chatId, userId, username, 'DEPOSIT', voidDepositMatch[1]);
         }
 
         // 下发-XXX (Void payout)
-        const voidPayoutMatch = text.match(/^下发-(\d+(\.\d+)?)$/);
+        const voidPayoutMatch = text.match(/^下发\s*-\s*(\d+(\.\d+)?)$/);
         if (voidPayoutMatch) {
             return await Ledger.addCorrection(chatId, userId, username, 'PAYOUT', voidPayoutMatch[1]);
         }
 
         // 回款XXX (Return)
-        const returnMatch = text.match(/^回款(\d+(\.\d+)?)$/);
+        const returnMatch = text.match(/^回款\s*(\d+(\.\d+)?)$/);
         if (returnMatch) {
             return await Ledger.addReturn(chatId, userId, username, returnMatch[1]);
         }
 
         // 清理今天数据 (Clear - requires confirmation)
         if (text === '清理今天数据') {
-            // TODO: Add confirmation step (requires state management or inline buttons)
-            // For now, execute directly with warning
             return await Ledger.clearToday(chatId);
         }
 
@@ -141,20 +147,21 @@ export const processCommand = async (job: Job<CommandJob>) => {
             return await Ledger.startDay(chatId);
         }
 
-        // STOP
+        // STOP (Ended Day)
         if (text === '结束记录') {
             return await Ledger.stopDay(chatId);
         }
 
         // DEPOSIT (+100)
-        const depositMatch = text.match(/^\+(\d+(\.\d+)?)$/);
+        const depositMatch = text.match(/^\+\s*(\d+(\.\d+)?)$/);
         if (depositMatch) {
             return await Ledger.addTransaction(chatId, userId, username, 'DEPOSIT', depositMatch[1]);
         }
 
-        // PAYOUT (下发100 or 下发100u)
-        if (text.startsWith('下发')) {
-            const valStr = text.replace('下发', '').trim();
+        // PAYOUT (下发100 or 取100 or 下发100u)
+        const payoutMatch = text.match(/^(?:下发|取)\s*(\d+(\.\d+)?[uU]?)$/);
+        if (payoutMatch) {
+            const valStr = payoutMatch[1];
             let currency = 'CNY';
             let cleanVal = valStr;
             if (valStr.toLowerCase().endsWith('u')) {
@@ -174,7 +181,6 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // DOWNLOAD EXCEL REPORT
         if (text === '下载报表' || text === '导出Excel' || text.toLowerCase() === '/export') {
             const csv = await ExcelExport.generateDailyCSV(chatId);
-            // Return special format to trigger file send
             return `EXCEL_EXPORT:${csv}`;
         }
 

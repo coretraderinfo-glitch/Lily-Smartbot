@@ -21,7 +21,7 @@ export const Ledger = {
             const date = getBusinessDate(group.timezone); // Use utility
 
             await client.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['RECORDING', chatId]);
-            return `✅ **Ledger Started** for ${date}\nAll transactions are now being recorded.`;
+            return await Ledger.generateBill(chatId);
         } finally {
             client.release();
         }
@@ -237,12 +237,12 @@ export const Ledger = {
             const timezone = groupRes.rows[0].timezone;
             const date = getBusinessDate(timezone);
 
-            const result = await client.query(`
+            await client.query(`
                 DELETE FROM transactions 
                 WHERE group_id = $1 AND business_date = $2
             `, [chatId, date]);
 
-            return `✅ **Data Cleared**\n${result.rowCount} transactions deleted for ${date}.`;
+            return await Ledger.generateBill(chatId);
         } finally {
             client.release();
         }
