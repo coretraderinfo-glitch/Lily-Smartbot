@@ -164,18 +164,31 @@ export const Ledger = {
             msg += `\n━━━━━━━━━━━━━━━━\n`;
             msg += `💰 入款总计：${totalInRaw.toFixed(2)}\n`;
             msg += `📊 费率：${settings.rate_in}%\n`;
-            msg += `💸 手续费：-${totalFee.toFixed(2)}\n`;
             msg += `✅ 净入款：${totalInNet.toFixed(2)}\n`;
             msg += `\n`;
             msg += `📤 下发总计：${totalOut.toFixed(2)}\n`;
             msg += `\n`;
             msg += `━━━━━━━━━━━━━━━━\n`;
-            msg += `💎 余额：${balance.toFixed(2)}\n`;
 
-            if (!rateUsd.isZero()) {
-                msg += `💵 USD汇率：${rateUsd.toFixed(2)}\n`;
-                msg += `💵 USD余额：${toUsd(balance)} USD\n`;
+            // Dual Currency Balance Display
+            let balanceDisplay = `${balance.toFixed(2)}`;
+
+            // Check for rates (Priorty: USD > MYR > PHP > THB)
+            if (new Decimal(settings.rate_usd || 0).gt(0)) {
+                const u = balance.div(settings.rate_usd).toFixed(2);
+                balanceDisplay += ` / ${u}U`;
+            } else if (new Decimal(settings.rate_myr || 0).gt(0)) {
+                const m = balance.div(settings.rate_myr).toFixed(2);
+                balanceDisplay += ` / ${m}RM`;
+            } else if (new Decimal(settings.rate_php || 0).gt(0)) {
+                const p = balance.div(settings.rate_php).toFixed(2);
+                balanceDisplay += ` / ${p}₱`;
+            } else if (new Decimal(settings.rate_thb || 0).gt(0)) {
+                const t = balance.div(settings.rate_thb).toFixed(2);
+                balanceDisplay += ` / ${t}฿`;
             }
+
+            msg += `💎 余额：${balanceDisplay}\n`;
 
             return msg;
         } finally {
@@ -347,18 +360,31 @@ export const Ledger = {
                 msg += `\n━━━━━━━━━━━━━━━━\n`;
                 msg += `💰 入款总计：${format(totalInRaw)}\n`;
                 msg += `📊 费率：${settings.rate_in}%\n`;
-                msg += `💸 手续费：-${format(totalInRaw.sub(totalInNet))}\n`;
                 msg += `✅ 净入款：${format(totalInNet)}\n`;
                 msg += `\n`;
                 msg += `📤 下发总计：${format(totalOut)}\n`;
                 msg += `\n`;
                 msg += `━━━━━━━━━━━━━━━━\n`;
-                msg += `💎 余额：${format(balance)}\n`;
 
-                if (!rateUsd.isZero()) {
-                    msg += `💵 USD汇率：${format(rateUsd)}\n`;
-                    msg += `💵 USD余额：${toUsd(balance)} USD\n`;
+                // Dual Currency Balance Display
+                let balanceDisplay = `${format(balance)}`;
+
+                // Check for rates (Priorty: USD > MYR > PHP > THB)
+                if (new Decimal(settings.rate_usd || 0).gt(0)) {
+                    const u = balance.div(settings.rate_usd).toFixed(showDecimals ? 2 : 0);
+                    balanceDisplay += ` / ${u}U`;
+                } else if (new Decimal(settings.rate_myr || 0).gt(0)) {
+                    const m = balance.div(settings.rate_myr).toFixed(showDecimals ? 2 : 0);
+                    balanceDisplay += ` / ${m}RM`;
+                } else if (new Decimal(settings.rate_php || 0).gt(0)) {
+                    const p = balance.div(settings.rate_php).toFixed(showDecimals ? 2 : 0);
+                    balanceDisplay += ` / ${p}₱`;
+                } else if (new Decimal(settings.rate_thb || 0).gt(0)) {
+                    const t = balance.div(settings.rate_thb).toFixed(showDecimals ? 2 : 0);
+                    balanceDisplay += ` / ${t}฿`;
                 }
+
+                msg += `💎 余额：${balanceDisplay}\n`;
             }
 
             return msg;

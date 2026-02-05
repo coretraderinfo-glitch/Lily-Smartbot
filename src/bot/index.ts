@@ -133,6 +133,7 @@ bot.on('message:text', async (ctx) => {
         text.startsWith('设置比索汇率') ||
         text.startsWith('设置马币汇率') ||
         text.startsWith('设置泰铢汇率') ||
+        text.startsWith('设置汇率') ||
         text.startsWith('/gd') ||
         text === '设置为无小数' ||
         text === '设置为计数模式' ||
