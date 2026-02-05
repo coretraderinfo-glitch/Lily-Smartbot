@@ -32,6 +32,16 @@ BEGIN
     EXCEPTION
         WHEN duplicate_column THEN NULL;
     END;
+    BEGIN
+        ALTER TABLE groups ADD COLUMN reset_hour INT DEFAULT 4;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE groups ADD COLUMN last_auto_reset TIMESTAMPTZ;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
 END $$;
 
 -- 2. Configuration (Settings)

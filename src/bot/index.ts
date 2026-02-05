@@ -5,6 +5,7 @@ import { processCommand } from '../worker/processor';
 import { db } from '../db';
 import { Licensing } from '../core/licensing';
 import { RBAC } from '../core/rbac';
+import { Chronos } from '../core/scheduler';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
 
@@ -185,6 +186,9 @@ bot.on('message:text', async (ctx) => {
 // Startup
 async function start() {
     await db.migrate();
+
+    // Start Auto-Rollover Engine
+    await Chronos.init(bot);
 
     // RESET WEBHOOK (Fixes "Deaf Bot" issue if webhook was ever set)
     console.log('🔄 Resetting Telegram Webhook...');

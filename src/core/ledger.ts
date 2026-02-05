@@ -58,6 +58,9 @@ export const Ledger = {
             let net = amount;
             let rate = new Decimal(0);
 
+            // AUTO-START RECORDING STATE
+            await client.query('UPDATE groups SET current_state = \'RECORDING\' WHERE id = $1', [chatId]);
+
             // 2. Calculate Fee
             if (type === 'DEPOSIT') {
                 rate = new Decimal(settings.rate_in || 0);
