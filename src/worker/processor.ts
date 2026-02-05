@@ -3,6 +3,7 @@ import { Ledger } from '../core/ledger';
 import { Settings } from '../core/settings';
 import { RBAC } from '../core/rbac';
 import { ExcelExport } from '../core/excel';
+import { db } from '../db';
 
 
 interface CommandJob {
@@ -11,6 +12,7 @@ interface CommandJob {
     username: string;
     text: string;
     messageId: number;
+    replyToMessage?: any;
 }
 
 
@@ -94,16 +96,37 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // PHASE B: RBAC & TEAM MANAGEMENT
         // ============================================
 
-        // 设置操作人 @username
-        const addOpMatch = text.match(/^设置操作人\s+@(\w+)$/);
-        if (addOpMatch) {
-            return `ℹ️ To add an operator, please **reply** to their message and send: "设置为操作人"`;
+        // 设置操作人 or Set via Reply
+        if (text === '设置为操作人' || text === '设置操作人') {
+            const isOperator = await RBAC.isAuthorized(chatId, userId);
+            if (!isOperator) {
+                // Check if it's the first one
+                const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
+                if (parseInt(opCountRes.rows[0].count) > 0) return null;
+            }
+
+            // Get target from reply
+            const replyToMsg = job.data.replyToMessage;
+            if (replyToMsg) {
+                const targetId = replyToMsg.from.id;
+                const targetName = replyToMsg.from.username || replyToMsg.from.first_name;
+                return await RBAC.addOperator(chatId, targetId, targetName, userId);
+            }
+            return `ℹ️ **How to add Operator:**\nReply to the user's message and send: "设置为操作人"`;
         }
 
-        // 删除操作人 @username
-        const delOpMatch = text.match(/^删除操作人\s+@(\w+)$/);
-        if (delOpMatch) {
-            return `ℹ️ To remove an operator, please **reply** to their message and send: "删除操作人"`;
+        // 删除操作人
+        if (text === '删除操作人') {
+            const isOperator = await RBAC.isAuthorized(chatId, userId);
+            if (!isOperator) return null;
+
+            const replyToMsg = job.data.replyToMessage;
+            if (replyToMsg) {
+                const targetId = replyToMsg.from.id;
+                const targetName = replyToMsg.from.username || replyToMsg.from.first_name;
+                return await RBAC.removeOperator(chatId, targetId, targetName);
+            }
+            return `ℹ️ **How to remove Operator:**\nReply to their message and send: "删除操作人"`;
         }
 
         // 显示操作人

@@ -4,6 +4,7 @@ import IORedis from 'ioredis';
 import { processCommand } from '../worker/processor';
 import { db } from '../db';
 import { Licensing } from '../core/licensing';
+import { RBAC } from '../core/rbac';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
 
@@ -86,8 +87,11 @@ bot.on('message:text', async (ctx) => {
         const days = parseInt(parts[1]) || 30;
         const maxUsers = parseInt(parts[2]) || 100;
 
-        // Security: Simple Check against ENV or just allow for now (User must set OWNER_ID)
-        // if (userId.toString() !== process.env.OWNER_ID) return; 
+        // Security: STRICT checking of OWNER_ID
+        if (process.env.OWNER_ID && userId.toString() !== process.env.OWNER_ID) {
+            console.log(`[SECURITY] Unauthorized user ${username} tried to generate key.`);
+            return;
+        }
 
         const key = await Licensing.generateKey(days, maxUsers, userId);
         return ctx.reply(`🔑 **New License Key Generated**\nKey: \`${key}\`\nDays: ${days}\n\nUse \`/activate ${key}\` in your group.`, { parse_mode: 'Markdown' });
@@ -150,9 +154,27 @@ bot.on('message:text', async (ctx) => {
     }
 
     if (isCommand) {
+        // RBAC CHECK: Protect commands from 3rd parties
+        const isOperator = await RBAC.isAuthorized(chatId, userId);
+
+        // Settings commands (Only for group admins/authorized operators)
+        const isSetting = text.startsWith('设置') || text.startsWith('/gd') || text.startsWith('清理');
+
+        if (!isOperator && isCommand) {
+            // Exception: '开始' might be done by the first admin
+            // But for safety, we require authorization. 
+            // To bootstrap, we allow the "开始" command if no operators exist yet.
+            const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
+            if (parseInt(opCountRes.rows[0].count) > 0) {
+                console.log(`[SECURITY] Blocked unauthorized command "${text}" from ${username}`);
+                return; // Silently ignore or return ctx.reply("❌ Unauthorized")
+            }
+        }
+
         console.log(`[QUEUE] Adding command from ${username} in group ${chatId}`);
         await commandQueue.add('cmd', {
-            chatId, userId, username, text, messageId
+            chatId, userId, username, text, messageId,
+            replyToMessage: ctx.message.reply_to_message
         });
     } else {
         // Log whisper-quiet for non-commands to avoid spamming console
