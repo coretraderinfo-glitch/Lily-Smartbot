@@ -87,11 +87,8 @@ export const Ledger = {
 
             await client.query('COMMIT');
 
-            if (type === 'DEPOSIT') {
-                return `✅ **Deposit**: ${amount} (Fee: ${fee})`;
-            } else {
-                return `📤 **Payout**: ${amount} ${currency}`;
-            }
+            // Return full bill instead of simple confirmation
+            return await Ledger.generateBill(chatId);
 
         } catch (e) {
             await client.query('ROLLBACK');
@@ -218,7 +215,9 @@ export const Ledger = {
             `, [txId, chatId, userId, username, date, amount.toString()]);
 
             await client.query('COMMIT');
-            return `✅ **Return Recorded**: ${amount}`;
+
+            // Return full bill instead of simple confirmation
+            return await Ledger.generateBill(chatId);
 
         } catch (e) {
             await client.query('ROLLBACK');
