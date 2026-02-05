@@ -129,6 +129,11 @@ bot.on('message:text', async (ctx) => {
         text.startsWith('设置马币汇率') ||
         text.startsWith('设置泰铢汇率') ||
         text.startsWith('设置汇率') ||
+        text.startsWith('删除美元汇率') ||
+        text.startsWith('删除比索汇率') ||
+        text.startsWith('删除马币汇率') ||
+        text.startsWith('删除泰铢汇率') ||
+        text.startsWith('删除汇率') ||
         text.startsWith('/gd') ||
         text === '设置为无小数' ||
         text === '设置为计数模式' ||

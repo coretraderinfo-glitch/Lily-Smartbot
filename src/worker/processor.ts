@@ -66,6 +66,24 @@ export const processCommand = async (job: Job<CommandJob>) => {
             return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
+        // 删除汇率 commands
+        if (text === '删除美元汇率' || text.toLowerCase() === '删除汇率u') {
+            const res = await Settings.setForexRate(chatId, 'usd', 0);
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+        }
+        if (text === '删除比索汇率' || text.toLowerCase() === '删除汇率php') {
+            const res = await Settings.setForexRate(chatId, 'php', 0);
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+        }
+        if (text === '删除马币汇率' || text.toLowerCase() === '删除汇率myr') {
+            const res = await Settings.setForexRate(chatId, 'myr', 0);
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+        }
+        if (text === '删除泰铢汇率' || text.toLowerCase() === '删除汇率thb') {
+            const res = await Settings.setForexRate(chatId, 'thb', 0);
+            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+        }
+
         // 设置为无小数
         if (text === '设置为无小数') {
             const res = await Settings.setDecimals(chatId, false);
