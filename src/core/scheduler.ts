@@ -17,7 +17,6 @@ const schedulerQueue = new Queue('lily-scheduler', { connection });
 export const Chronos = {
     /**
      * Initialize the Global Tick
-     * Runs every 1 minute to check if any group has reached its reset hour
      */
     async init(bot: Bot) {
         // 1. Setup Worker
@@ -25,16 +24,44 @@ export const Chronos = {
             if (job.name === 'check-rollover') {
                 await Chronos.processAllRollovers(bot);
             }
+            if (job.name === 'purge-old-data') {
+                await Chronos.purgeOldArchives();
+            }
         }, { connection });
 
-        // 2. Add Repeatable Job (Every minute)
+        // 2. Add Rollover Check (Every minute)
         await schedulerQueue.add('check-rollover', {}, {
             repeat: { pattern: '* * * * *' },
             removeOnComplete: true,
             removeOnFail: true
         });
 
+        // 3. Add Purge Task (Every Hour)
+        await schedulerQueue.add('purge-old-data', {}, {
+            repeat: { pattern: '0 * * * *' },
+            removeOnComplete: true,
+            removeOnFail: true
+        });
+
         console.log('⏳ Chronos Engine: Online (1-min resolution)');
+        console.log('🛡️  Audit Vault: Purge Cycle Scheduled (3-day retention)');
+    },
+
+    /**
+     * Data Protection: Purge archives older than 3 days
+     */
+    async purgeOldArchives() {
+        try {
+            const res = await db.query(`
+                DELETE FROM historical_archives 
+                WHERE archived_at < NOW() - INTERVAL '3 days'
+            `);
+            if (res.rowCount && res.rowCount > 0) {
+                console.log(`[VAULT] Cleaned up ${res.rowCount} expired archive records.`);
+            }
+        } catch (e) {
+            console.error('[VAULT] Purge failed:', e);
+        }
     },
 
     /**

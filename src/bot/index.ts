@@ -132,7 +132,30 @@ bot.on('message:text', async (ctx) => {
         return ctx.reply(`${statusIcon} **User Diagnostics**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${ownerStatus}\n\n**Registry:** \`${configStatus}\``, { parse_mode: 'Markdown' });
     }
 
-    // /generate_key [days] [users] [CUSTOM_KEY] (OWNER ONLY)
+    // /recover [group_id] (OWNER ONLY - Retrieve from Vault)
+    if (text.startsWith('/recover')) {
+        if (!isOwner) return;
+        const parts = text.split(/\s+/);
+        const targetGroupId = parts[1];
+        if (!targetGroupId) return ctx.reply("📋 **Usage:** `/recover [GROUP_ID]`");
+
+        const archiveRes = await db.query(`
+            SELECT pdf_blob, business_date FROM historical_archives 
+            WHERE group_id = $1 
+            ORDER BY archived_at DESC LIMIT 1
+        `, [targetGroupId]);
+
+        if (archiveRes.rows.length === 0) {
+            return ctx.reply("❌ **Vault Empty**: No recent reports found for this group ID.");
+        }
+
+        const { pdf_blob, business_date } = archiveRes.rows[0];
+        const dateStr = new Date(business_date).toISOString().split('T')[0];
+        const { InputFile } = await import('grammy');
+
+        await ctx.reply(`🛡️ **Vault Extraction Successful**\nGroup: \`${targetGroupId}\`\nDate: ${dateStr}\n\n*Sending report...*`);
+        return ctx.replyWithDocument(new InputFile(pdf_blob, `Recovered_Report_${dateStr}.pdf`));
+    }
     if (text.startsWith('/generate_key')) {
         if (!isOwner) {
             console.log(`[SECURITY] Unauthorized user ${username} tried to generate key.`);

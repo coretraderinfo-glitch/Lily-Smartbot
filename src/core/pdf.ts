@@ -113,20 +113,21 @@ export const PDFExport = {
         });
 
         const balance = totalInNet.sub(totalOut).add(totalReturn);
+        const baseSymbol = group.currency_symbol || '';
 
-        doc.addPage(); // Summary on fresh page if needed or just section
+        doc.addPage();
         doc.fillColor('#2c3e50').fontSize(16).text('财务摘要 (Financial Summary)', { underline: true });
         doc.moveDown(0.5);
 
         doc.fontSize(12);
-        doc.text(`总入款 (Total Deposits): ${totalInRaw.toFixed(2)} CNY`);
+        doc.text(`总入款 (Total Deposits): ${totalInRaw.toFixed(2)} ${baseSymbol}`);
         doc.text(`平均费率 (Base Fee Rate): ${new Decimal(settings.rate_in || 0).toFixed(2)} %`);
-        doc.text(`应下发 (Net Deposits): ${totalInNet.toFixed(2)} CNY`);
-        doc.fillColor('#e74c3c').text(`总下发 (Total Payouts): -${totalOut.toFixed(2)} CNY`);
-        doc.fillColor('#2c3e50').text(`回款 (Total Returns): ${totalReturn.toFixed(2)} CNY`);
-        doc.fontSize(14).fillColor('#27ae60').text(`余 (Final Balance): ${balance.toFixed(2)} CNY`, { stroke: true });
+        doc.text(`应下发 (Net Deposits): ${totalInNet.toFixed(2)} ${baseSymbol}`);
+        doc.fillColor('#e74c3c').text(`总下发 (Total Payouts): -${totalOut.toFixed(2)} ${baseSymbol}`);
+        doc.fillColor('#2c3e50').text(`回款 (Total Returns): ${totalReturn.toFixed(2)} ${baseSymbol}`);
+        doc.fontSize(14).fillColor('#27ae60').text(`余 (Final Balance): ${balance.toFixed(2)} ${baseSymbol}`, { stroke: true });
 
-        // Forex info
+        // Forex info (Only show active rates)
         const fxRates = [
             { key: 'usd', label: '美元汇率 (USD Rate)', suffix: 'USD' },
             { key: 'myr', label: '马币汇率 (MYR Rate)', suffix: 'MYR' },
