@@ -98,7 +98,7 @@ export const Ledger = {
     },
 
     /**
-     * Generate The Master Bill (CLEAR FORMAT)
+     * Generate The Master Bill (Template Engine)
      */
     async generateBill(chatId: number): Promise<string> {
         const client = await db.getClient();
@@ -107,6 +107,7 @@ export const Ledger = {
             const timezone = groupRes.rows[0].timezone;
             const date = getBusinessDate(timezone);
 
+            // 1. Fetch Data
             const txRes = await client.query(`
                 SELECT * FROM transactions 
                 WHERE group_id = $1 AND business_date = $2 
@@ -116,6 +117,7 @@ export const Ledger = {
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
             const settings = settingsRes.rows[0];
 
+            // 2. Aggregate
             const deposits = txRes.rows.filter(t => t.type === 'DEPOSIT');
             const payouts = txRes.rows.filter(t => t.type === 'PAYOUT');
 
@@ -123,55 +125,55 @@ export const Ledger = {
             let totalInNet = new Decimal(0);
             let totalOut = new Decimal(0);
 
+            const displayDeposits = deposits.slice(-5); // Last 5
+
             deposits.forEach(t => {
                 totalInRaw = totalInRaw.add(new Decimal(t.amount_raw));
                 totalInNet = totalInNet.add(new Decimal(t.net_amount));
             });
             payouts.forEach(t => {
-                totalOut = totalOut.add(new Decimal(t.amount_raw));
+                totalOut = totalOut.add(new Decimal(t.amount_raw)); // Payouts usually tracked by Raw amount sent
             });
 
-            const totalFee = totalInRaw.sub(totalInNet);
+            // 3. Calculations
             const balance = totalInNet.sub(totalOut);
-            const rateUsd = new Decimal(settings.rate_usd || 0);
+            const rateUsd = new Decimal(settings.rate_usd || 0); // "USD汇率"
 
+            // Helper: Convert to USD
             const toUsd = (cny: Decimal) => {
                 if (rateUsd.isZero()) return '0';
                 return cny.div(rateUsd).toFixed(2);
             };
 
-            // CLEAR CALCULATION FORMAT
-            let msg = `📅 ${date}\n\n`;
+            // 4. Render Template
+            let msg = `📅 Date: ${date}\n\n`;
 
             msg += `入款（${deposits.length}笔）：\n`;
-            deposits.slice(-5).forEach(t => {
+            displayDeposits.forEach(t => {
                 const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
-                msg += ` ${time}  ${new Decimal(t.amount_raw).toFixed(2)}\n`;
+                msg += ` ${time}  ${new Decimal(t.amount_raw)}\n`;
             });
             if (deposits.length === 0) msg += ` (无)\n`;
 
             msg += `\n下发（${payouts.length}笔）：\n`;
+            // Show last 3 payouts maybe?
             payouts.slice(-3).forEach(t => {
                 const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
-                msg += ` ${time}  ${new Decimal(t.amount_raw).toFixed(2)}\n`;
+                msg += ` ${time}  ${new Decimal(t.amount_raw)}\n`;
             });
             if (payouts.length === 0) msg += ` (无)\n`;
 
-            msg += `\n━━━━━━━━━━━━━━━━\n`;
-            msg += `💰 入款总计：${totalInRaw.toFixed(2)}\n`;
-            msg += `📊 费率：${settings.rate_in}%\n`;
-            msg += `💸 手续费：-${totalFee.toFixed(2)}\n`;
-            msg += `✅ 净入款：${totalInNet.toFixed(2)}\n`;
-            msg += `\n`;
-            msg += `📤 下发总计：${totalOut.toFixed(2)}\n`;
-            msg += `\n`;
-            msg += `━━━━━━━━━━━━━━━━\n`;
-            msg += `💎 余额：${balance.toFixed(2)}\n`;
+            msg += `\n----------------\n`;
+            msg += `总入款：${totalInRaw.toFixed(2)}\n`;
+            msg += `费率：${settings.rate_in}%\n`;
+            msg += `USD汇率：${rateUsd.toFixed(2)}\n`;
 
-            if (!rateUsd.isZero()) {
-                msg += `💵 USD汇率：${rateUsd.toFixed(2)}\n`;
-                msg += `💵 USD余额：${toUsd(balance)} USD\n`;
-            }
+            // "应下发" (Should Payout) = Net Income available to be paid out
+            msg += `应下发：${totalInNet.toFixed(2)}｜${toUsd(totalInNet)} USD\n`;
+
+            msg += `总下发：${totalOut.toFixed(2)}｜${toUsd(totalOut)} USD\n`;
+
+            msg += `余：${balance.toFixed(2)}｜${toUsd(balance)} USD\n`;
 
             return msg;
         } finally {
