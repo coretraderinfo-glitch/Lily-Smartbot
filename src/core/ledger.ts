@@ -2,6 +2,7 @@ import { db } from '../db';
 import { getBusinessDate } from '../utils/time';
 import Decimal from 'decimal.js';
 import { randomUUID } from 'crypto';
+import { Settings } from './settings';
 
 /**
  * The Ledger: Core Financial Engine
@@ -42,7 +43,10 @@ export const Ledger = {
         try {
             await client.query('BEGIN');
 
-            // 1. Get Settings
+            // 1. Ensure Settings Exist
+            await Settings.ensureSettings(chatId);
+
+            // 2. Get Settings
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
             const settings = settingsRes.rows[0];
             const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
@@ -106,6 +110,9 @@ export const Ledger = {
             const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
             const timezone = groupRes.rows[0].timezone;
             const date = getBusinessDate(timezone);
+
+            // Ensure settings exist
+            await Settings.ensureSettings(chatId);
 
             const txRes = await client.query(`
                 SELECT * FROM transactions 
@@ -251,6 +258,9 @@ export const Ledger = {
             const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
             const timezone = groupRes.rows[0].timezone;
             const date = getBusinessDate(timezone);
+
+            // Ensure settings exist
+            await Settings.ensureSettings(chatId);
 
             const txRes = await client.query(`
                 SELECT * FROM transactions 

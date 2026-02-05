@@ -3,13 +3,26 @@ import Decimal from 'decimal.js';
 
 /**
  * Settings Manager - Handles all group configuration commands
+ * FIXED: Uses UPSERT to auto-create settings rows
  */
 
 export const Settings = {
     /**
+     * Ensure group_settings row exists (Helper)
+     */
+    async ensureSettings(chatId: number): Promise<void> {
+        await db.query(`
+            INSERT INTO group_settings (group_id)
+            VALUES ($1)
+            ON CONFLICT (group_id) DO NOTHING
+        `, [chatId]);
+    },
+
+    /**
      * Set Inbound Fee Rate
      */
     async setInboundRate(chatId: number, rate: number): Promise<string> {
+        await Settings.ensureSettings(chatId);
         await db.query(`
             UPDATE group_settings 
             SET rate_in = $1, updated_at = NOW()
@@ -23,6 +36,7 @@ export const Settings = {
      * Set Outbound Fee Rate
      */
     async setOutboundRate(chatId: number, rate: number): Promise<string> {
+        await Settings.ensureSettings(chatId);
         await db.query(`
             UPDATE group_settings 
             SET rate_out = $1, updated_at = NOW()
@@ -36,6 +50,7 @@ export const Settings = {
      * Set Forex Rate (Generic)
      */
     async setForexRate(chatId: number, currency: 'usd' | 'myr' | 'php' | 'thb', rate: number): Promise<string> {
+        await Settings.ensureSettings(chatId);
         const column = `rate_${currency}`;
         const currencyName = {
             usd: 'USD (美元)',
@@ -61,11 +76,13 @@ export const Settings = {
      * Set Display Mode
      */
     async setDisplayMode(chatId: number, mode: number): Promise<string> {
+        await Settings.ensureSettings(chatId);
         const modeDesc = {
             1: 'Original (Full Detail)',
             2: 'Top 3 Transactions',
             3: 'Top 1 Transaction',
-            4: 'Summary Only'
+            4: 'Summary Only',
+            5: 'Count Mode'
         }[mode] || 'Custom';
 
         await db.query(`
@@ -81,6 +98,7 @@ export const Settings = {
      * Toggle Decimals
      */
     async setDecimals(chatId: number, show: boolean): Promise<string> {
+        await Settings.ensureSettings(chatId);
         await db.query(`
             UPDATE group_settings 
             SET show_decimals = $1, updated_at = NOW()
@@ -96,6 +114,7 @@ export const Settings = {
      * Get Current Settings
      */
     async getSettings(chatId: number): Promise<any> {
+        await Settings.ensureSettings(chatId);
         const res = await db.query(`
             SELECT * FROM group_settings WHERE group_id = $1
         `, [chatId]);
