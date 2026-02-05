@@ -251,7 +251,7 @@ export const Ledger = {
                 msg += `\n下发（${payouts.length}笔）：\n`;
                 displayPayouts.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
-                    msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
+                    msg += ` ${time}  -${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (payouts.length === 0) msg += ` (无)\n`;
 
@@ -273,12 +273,12 @@ export const Ledger = {
 
                         msg += `\n${fx.label}： ${fx.rate.toFixed(2)}\n`;
                         msg += `应下发： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
-                        msg += `总下发： ${format(totalOut)} | ${conv(totalOut)} ${fx.suffix}\n`;
+                        msg += `总下发： -${format(totalOut)} | -${conv(totalOut)} ${fx.suffix}\n`;
                         msg += `余： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;
                     });
                 } else {
                     msg += `净入款： ${format(totalInNet)}\n`;
-                    msg += `总下发： ${format(totalOut)}\n`;
+                    msg += `总下发： -${format(totalOut)}\n`;
                     msg += `余： ${format(balance)}\n`;
                 }
             }
