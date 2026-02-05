@@ -168,11 +168,12 @@ bot.on('message:text', async (ctx) => {
         const expiry = new Date();
         expiry.setDate(expiry.getDate() + days);
 
+        const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat';
         await db.query(`
-            INSERT INTO groups (id, status, license_key, license_expiry)
-            VALUES ($1, 'ACTIVE', $2, $3)
-            ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE', license_key = $2, license_expiry = $3
-        `, [chatId, key, expiry]);
+            INSERT INTO groups (id, status, license_key, license_expiry, title)
+            VALUES ($1, 'ACTIVE', $2, $3, $4)
+            ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE', license_key = $2, license_expiry = $3, title = $4
+        `, [chatId, key, expiry, chatTitle]);
 
         return ctx.reply(`👑 **尊享特权激活 (System Owner Activation)**\n\n✨ **服务已开启 (Service Active)**\n本群组已由系统管理员强制激活。\n\n📅 **有效期 (Validity):** ${days} 天 (Days)\n🔐 **到期日期 (Expiry):** ${expiry.toISOString().split('T')[0]}`, { parse_mode: 'Markdown' });
     }
@@ -186,7 +187,8 @@ bot.on('message:text', async (ctx) => {
         // Normalize key: uppercase and trim
         key = key.trim().toUpperCase();
 
-        const result = await Licensing.activateGroup(chatId, key);
+        const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat';
+        const result = await Licensing.activateGroup(chatId, key, chatTitle);
 
         // If activation successful, send welcome + setup reminder
         if (result.success) {

@@ -23,7 +23,7 @@ export const Licensing = {
     /**
      * Activate a License for a Group
      */
-    async activateGroup(chatId: number, key: string): Promise<{ success: boolean; message: string }> {
+    async activateGroup(chatId: number, key: string, groupTitle: string = 'Unnamed Group'): Promise<{ success: boolean; message: string }> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
@@ -46,20 +46,20 @@ export const Licensing = {
             const expiry = new Date();
             expiry.setDate(now.getDate() + license.duration_days);
 
-            // 3. Update License
+            // 3. Register/Update Group First (Satisfy Foreign Key Constraint)
+            await client.query(`
+                INSERT INTO groups (id, status, license_key, license_expiry, title)
+                VALUES ($1, 'ACTIVE', $2, $3, $4)
+                ON CONFLICT (id) DO UPDATE 
+                SET status = 'ACTIVE', license_key = $2, license_expiry = $3, title = $4
+            `, [chatId, key, expiry, groupTitle]);
+
+            // 4. Link License to Group
             await client.query(`
                 UPDATE licenses 
                 SET is_used = TRUE, used_by_group_id = $1, activated_at = NOW(), expires_at = $2
                 WHERE key = $3
             `, [chatId, expiry, key]);
-
-            // 4. Update Group
-            await client.query(`
-                INSERT INTO groups (id, status, license_key, license_expiry)
-                VALUES ($1, 'ACTIVE', $2, $3)
-                ON CONFLICT (id) DO UPDATE 
-                SET status = 'ACTIVE', license_key = $2, license_expiry = $3
-            `, [chatId, key, expiry]);
 
             // 5. Ensure Settings Exist
             await client.query(`
