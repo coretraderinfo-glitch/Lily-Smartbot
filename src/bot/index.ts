@@ -103,18 +103,8 @@ bot.on('message:text', async (ctx) => {
         return ctx.reply(result.message, { parse_mode: 'Markdown' });
     }
 
-    // 3. LICENSE CHECK MIDDLEWARE
-    const isActive = await Licensing.isGroupActive(chatId);
-    if (!isActive) {
-        // If it looks like a command but group is inactive
-        const potentialCommand = text.startsWith('开始') || text.startsWith('+');
-        if (potentialCommand) {
-            return ctx.reply("⚠️ **Trial Expired or Inactive**\nPlease contact admin to purchase a license key.\nUse `/activate [KEY]` to resume.", { parse_mode: 'Markdown' });
-        }
-        return; // Ignore regular chatter
-    }
 
-    // 4. BUSINESS LOGIC (Only if Active)
+    // 4. BUSINESS LOGIC (Recognize Commands)
     const isCommand =
         // Core commands
         text === '开始' || text.toLowerCase() === 'start' ||
@@ -152,13 +142,21 @@ bot.on('message:text', async (ctx) => {
         text.startsWith('回款') ||
         text.startsWith('入款-');
 
+    // 5. LICENSE CHECK (Redirect if Inactive)
+    const isActive = await Licensing.isGroupActive(chatId);
+    if (!isActive && isCommand) {
+        console.log(`[BLOCKED] Command "${text}" from ${username} in inactive group ${chatId}`);
+        return ctx.reply("⚠️ **Group Inactive or License Expired**\nPlease contact your administrator to get a valid license key.\n\nUse `/activate [KEY]` to enable full functionality.", { parse_mode: 'Markdown' });
+    }
+
     if (isCommand) {
-        console.log(`[QUEUE] Adding command from ${username}`);
+        console.log(`[QUEUE] Adding command from ${username} in group ${chatId}`);
         await commandQueue.add('cmd', {
             chatId, userId, username, text, messageId
         });
     } else {
-        console.log(`[IGNORE] "${text}" is not a recognized command.`);
+        // Log whisper-quiet for non-commands to avoid spamming console
+        if (text.length < 50) console.log(`[CHAT] ${username}: "${text}"`);
     }
 });
 
