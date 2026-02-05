@@ -18,8 +18,9 @@ export const Ledger = {
         try {
             const groupRes = await client.query('SELECT * FROM groups WHERE id = $1', [chatId]);
             const group = groupRes.rows[0];
-            const date = getBusinessDate(group.timezone); // Use utility
-
+            if (!group) {
+                await db.query('INSERT INTO groups (id, title) VALUES ($1, $2)', [chatId, 'Group ' + chatId]);
+            }
             await client.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['RECORDING', chatId]);
             return await Ledger.generateBill(chatId);
         } finally {
@@ -50,7 +51,7 @@ export const Ledger = {
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
             const settings = settingsRes.rows[0];
             const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0].timezone;
+            const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
 
             const amount = new Decimal(amountStr);
             let fee = new Decimal(0);
@@ -64,11 +65,6 @@ export const Ledger = {
                 net = amount.sub(fee);
             } else if (type === 'PAYOUT') {
                 rate = new Decimal(settings.rate_out || 0);
-                // Payout syntax usually doesn't deduct fee from itself, it adds cost? 
-                // Creating simplified logic: Fee is tracked but Net is what is sent.
-                // Re-reading user requirement: "应下发" (Should Payout) = Net Inbound.
-                // Payout reduces the "余" (Balance).
-                // Let's stick to standard: Payout 500 = Balance - 500.
                 fee = amount.mul(rate).div(100);
             }
 
@@ -102,98 +98,7 @@ export const Ledger = {
      * Generate The Master Bill (CLEAR FORMAT)
      */
     async generateBill(chatId: number): Promise<string> {
-        const client = await db.getClient();
-        try {
-            const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0].timezone;
-            const date = getBusinessDate(timezone);
-
-            // Ensure settings exist
-            await Settings.ensureSettings(chatId);
-
-            const txRes = await client.query(`
-                SELECT * FROM transactions 
-                WHERE group_id = $1 AND business_date = $2 
-                ORDER BY recorded_at ASC
-            `, [chatId, date]);
-
-            const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
-            const settings = settingsRes.rows[0];
-
-            const deposits = txRes.rows.filter(t => t.type === 'DEPOSIT');
-            const payouts = txRes.rows.filter(t => t.type === 'PAYOUT');
-
-            let totalInRaw = new Decimal(0);
-            let totalInNet = new Decimal(0);
-            let totalOut = new Decimal(0);
-
-            deposits.forEach(t => {
-                totalInRaw = totalInRaw.add(new Decimal(t.amount_raw));
-                totalInNet = totalInNet.add(new Decimal(t.net_amount));
-            });
-            payouts.forEach(t => {
-                totalOut = totalOut.add(new Decimal(t.amount_raw));
-            });
-
-            const totalFee = totalInRaw.sub(totalInNet);
-            const balance = totalInNet.sub(totalOut);
-            const rateUsd = new Decimal(settings.rate_usd || 0);
-
-            const toUsd = (cny: Decimal) => {
-                if (rateUsd.isZero()) return '0';
-                return cny.div(rateUsd).toFixed(2);
-            };
-
-            // CLEAR CALCULATION FORMAT
-            let msg = `📅 ${date}\n\n`;
-
-            msg += `入款（${deposits.length}笔）：\n`;
-            deposits.slice(-5).forEach(t => {
-                const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
-                msg += ` ${time}  ${new Decimal(t.amount_raw).toFixed(2)}\n`;
-            });
-            if (deposits.length === 0) msg += ` (无)\n`;
-
-            msg += `\n下发（${payouts.length}笔）：\n`;
-            payouts.slice(-5).forEach(t => {
-                const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
-                msg += ` ${time}  ${new Decimal(t.amount_raw).toFixed(2)}\n`;
-            });
-            if (payouts.length === 0) msg += ` (无)\n`;
-
-            msg += `\n━━━━━━━━━━━━━━━━\n`;
-            msg += `💰 入款总计：${totalInRaw.toFixed(2)}\n`;
-            msg += `📊 费率：${settings.rate_in}%\n`;
-            msg += `✅ 净入款：${totalInNet.toFixed(2)}\n`;
-            msg += `\n`;
-            msg += `📤 下发总计：${totalOut.toFixed(2)}\n`;
-            msg += `\n`;
-            msg += `━━━━━━━━━━━━━━━━\n`;
-
-            // Dual Currency Balance Display
-            let balanceDisplay = `${balance.toFixed(2)}`;
-
-            // Check for rates (Priorty: USD > MYR > PHP > THB)
-            if (new Decimal(settings.rate_usd || 0).gt(0)) {
-                const u = balance.div(settings.rate_usd).toFixed(2);
-                balanceDisplay += ` / ${u}U`;
-            } else if (new Decimal(settings.rate_myr || 0).gt(0)) {
-                const m = balance.div(settings.rate_myr).toFixed(2);
-                balanceDisplay += ` / ${m}RM`;
-            } else if (new Decimal(settings.rate_php || 0).gt(0)) {
-                const p = balance.div(settings.rate_php).toFixed(2);
-                balanceDisplay += ` / ${p}₱`;
-            } else if (new Decimal(settings.rate_thb || 0).gt(0)) {
-                const t = balance.div(settings.rate_thb).toFixed(2);
-                balanceDisplay += ` / ${t}฿`;
-            }
-
-            msg += `💎 余额：${balanceDisplay}\n`;
-
-            return msg;
-        } finally {
-            client.release();
-        }
+        return await Ledger.generateBillWithMode(chatId, 1);
     },
 
     /**
@@ -216,7 +121,7 @@ export const Ledger = {
             await client.query('BEGIN');
 
             const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0].timezone;
+            const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
             const amount = new Decimal(amountStr);
             const txId = randomUUID();
             const date = getBusinessDate(timezone);
@@ -247,7 +152,7 @@ export const Ledger = {
         const client = await db.getClient();
         try {
             const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0].timezone;
+            const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
             const date = getBusinessDate(timezone);
 
             await client.query(`
@@ -268,7 +173,7 @@ export const Ledger = {
         const client = await db.getClient();
         try {
             const groupRes = await client.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0].timezone;
+            const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
             const date = getBusinessDate(timezone);
 
             // Ensure settings exist
@@ -281,7 +186,7 @@ export const Ledger = {
             `, [chatId, date]);
 
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
-            const settings = settingsRes.rows[0];
+            const settings = settingsRes.rows[0] || { rate_in: 0, rate_out: 0, display_mode: 1, show_decimals: true };
             const displayMode = mode || settings.display_mode || 1;
             const showDecimals = settings.show_decimals !== false;
 
@@ -307,13 +212,7 @@ export const Ledger = {
             });
 
             const balance = totalInNet.sub(totalOut).add(totalReturn);
-            const rateUsd = new Decimal(settings.rate_usd || 0);
-
             const format = (val: Decimal) => showDecimals ? val.toFixed(2) : val.toFixed(0);
-            const toUsd = (cny: Decimal) => {
-                if (rateUsd.isZero()) return '0';
-                return showDecimals ? cny.div(rateUsd).toFixed(2) : cny.div(rateUsd).toFixed(0);
-            };
 
             // Render based on mode
             let msg = '';
@@ -325,7 +224,7 @@ export const Ledger = {
                 msg += `Total Out: ${format(totalOut)}\n`;
                 msg += `Balance: ${format(balance)}`;
             } else if (displayMode === 5) {
-                // Mode 5: Count Mode (计数模式)
+                // Mode 5: Count Mode
                 msg = `📊 Transaction Count\n\n`;
                 txRes.rows.forEach((t, i) => {
                     const sign = t.type === 'DEPOSIT' ? '+' : '-';
@@ -333,58 +232,71 @@ export const Ledger = {
                 });
                 msg += `\nTotal: ${format(balance)}`;
             } else {
-                // Mode 1, 2, 3: Detailed (with varying item counts)
-                const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
-                const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
+                const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 1000;
+                const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 1000;
 
-                // CLEAR CALCULATION FORMAT (Synced with generateBill)
                 msg = `📅 ${date}\n\n`;
 
-                const displayDeposits = displayMode === 1 ? deposits.slice(-5) : deposits.slice(-depositLimit);
-                const displayPayouts = displayMode === 1 ? payouts.slice(-5) : payouts.slice(-payoutLimit);
+                const displayDeposits = deposits.slice(-depositLimit);
+                const displayPayouts = payouts.slice(-payoutLimit);
 
                 msg += `入款（${deposits.length}笔）：\n`;
                 displayDeposits.forEach(t => {
-                    const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
+                    const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
                     msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (deposits.length === 0) msg += ` (无)\n`;
 
                 msg += `\n下发（${payouts.length}笔）：\n`;
                 displayPayouts.forEach(t => {
-                    const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
+                    const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
                     msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (payouts.length === 0) msg += ` (无)\n`;
 
-                msg += `\n━━━━━━━━━━━━━━━━\n`;
-                msg += `💰 入款总计：${format(totalInRaw)}\n`;
-                msg += `📊 费率：${settings.rate_in}%\n`;
-                msg += `✅ 净入款：${format(totalInNet)}\n`;
-                msg += `\n`;
-                msg += `📤 下发总计：${format(totalOut)}\n`;
-                msg += `\n`;
+                // SUMMARY BLOCK (Match Photo Guideline)
                 msg += `━━━━━━━━━━━━━━━━\n`;
+                msg += `💰 总入款： ${format(totalInRaw)}\n`;
+                msg += `📊 费率： ${settings.rate_in || 0}%\n`;
 
-                // Dual Currency Balance Display
-                let balanceDisplay = `${format(balance)}`;
+                // Forex Selection
+                let forexRate = new Decimal(0);
+                let suffix = 'USD';
+                let rateLabel = 'USD汇率';
 
-                // Check for rates (Priorty: USD > MYR > PHP > THB)
                 if (new Decimal(settings.rate_usd || 0).gt(0)) {
-                    const u = balance.div(settings.rate_usd).toFixed(showDecimals ? 2 : 0);
-                    balanceDisplay += ` / ${u}U`;
+                    forexRate = new Decimal(settings.rate_usd);
+                    suffix = 'USD';
+                    rateLabel = 'USD汇率';
                 } else if (new Decimal(settings.rate_myr || 0).gt(0)) {
-                    const m = balance.div(settings.rate_myr).toFixed(showDecimals ? 2 : 0);
-                    balanceDisplay += ` / ${m}RM`;
+                    forexRate = new Decimal(settings.rate_myr);
+                    suffix = 'MYR';
+                    rateLabel = 'MYR汇率';
                 } else if (new Decimal(settings.rate_php || 0).gt(0)) {
-                    const p = balance.div(settings.rate_php).toFixed(showDecimals ? 2 : 0);
-                    balanceDisplay += ` / ${p}₱`;
+                    forexRate = new Decimal(settings.rate_php);
+                    suffix = 'PHP';
+                    rateLabel = 'PHP汇率';
                 } else if (new Decimal(settings.rate_thb || 0).gt(0)) {
-                    const t = balance.div(settings.rate_thb).toFixed(showDecimals ? 2 : 0);
-                    balanceDisplay += ` / ${t}฿`;
+                    forexRate = new Decimal(settings.rate_thb);
+                    suffix = 'THB';
+                    rateLabel = '泰铢汇率';
                 }
 
-                msg += `💎 余额：${balanceDisplay}\n`;
+                const conv = (val: Decimal) => {
+                    if (forexRate.isZero()) return '0';
+                    return val.div(forexRate).toFixed(showDecimals ? 2 : 0);
+                };
+
+                if (!forexRate.isZero()) {
+                    msg += `💵 ${rateLabel}： ${forexRate.toFixed(2)}\n`;
+                    msg += `📥 应下发： ${format(totalInNet)} | ${conv(totalInNet)} ${suffix}\n`;
+                    msg += `📤 总下发： ${format(totalOut)} | ${conv(totalOut)} ${suffix}\n`;
+                    msg += `💎 余： ${format(balance)} | ${conv(balance)} ${suffix}\n`;
+                } else {
+                    msg += `✅ 净入款： ${format(totalInNet)}\n`;
+                    msg += `📤 总下发： ${format(totalOut)}\n`;
+                    msg += `💎 余： ${format(balance)}\n`;
+                }
             }
 
             return msg;
@@ -393,4 +305,3 @@ export const Ledger = {
         }
     }
 };
-
