@@ -99,10 +99,31 @@ bot.on('message:text', async (ctx) => {
 
     // 4. BUSINESS LOGIC (Only if Active)
     const isCommand =
+        // Core commands
         text === '开始' || text.toLowerCase() === 'start' ||
         text === '结束记录' ||
         text === '显示账单' ||
-        text.startsWith('设置') ||
+        text === '显示操作人' ||
+        text === '清理今天数据' ||
+
+        // Settings commands
+        text.startsWith('设置费率') ||
+        text.startsWith('设置下发费率') ||
+        text.startsWith('设置美元汇率') ||
+        text.startsWith('设置比索汇率') ||
+        text.startsWith('设置马币汇率') ||
+        text.startsWith('设置泰铢汇率') ||
+        text.startsWith('/gd') ||
+        text === '设置为无小数' ||
+        text === '设置为计数模式' ||
+        text.startsWith('设置显示模式') ||
+        text === '设置为原始模式' ||
+
+        // RBAC commands
+        text.startsWith('设置操作人') ||
+        text.startsWith('删除操作人') ||
+
+        // Transaction commands
         text.startsWith('+') ||
         text.startsWith('下发') ||
         text.startsWith('回款') ||
