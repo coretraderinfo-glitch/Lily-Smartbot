@@ -29,8 +29,22 @@ const worker = new Worker('lily-commands', async job => {
 
 worker.on('completed', async (job, returnValue) => {
     if (returnValue && job.data.chatId) {
-        // Check if it's an Excel export
-        if (typeof returnValue === 'string' && returnValue.startsWith('EXCEL_EXPORT:')) {
+        // Check if it's a PDF export
+        if (typeof returnValue === 'string' && returnValue.startsWith('PDF_EXPORT:')) {
+            const base64 = returnValue.replace('PDF_EXPORT:', '');
+            const date = new Date().toISOString().split('T')[0];
+            const filename = `Lily_Statement_${date}.pdf`;
+
+            const { InputFile } = await import('grammy');
+            await bot.api.sendDocument(job.data.chatId,
+                new InputFile(Buffer.from(base64, 'base64'), filename),
+                {
+                    caption: `📄 **Daily Statement (PDF)**\nDate: ${date}\n\nHere is your world-class financial report.`,
+                    reply_to_message_id: job.data.messageId
+                }
+            );
+        }
+        else if (typeof returnValue === 'string' && returnValue.startsWith('EXCEL_EXPORT:')) {
             const csv = returnValue.replace('EXCEL_EXPORT:', '');
             const date = new Date().toISOString().split('T')[0];
             const filename = `Lily_Report_${date}.csv`;

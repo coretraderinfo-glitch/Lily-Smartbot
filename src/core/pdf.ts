@@ -1,0 +1,135 @@
+import { db } from '../db';
+import { getBusinessDate } from '../utils/time';
+import Decimal from 'decimal.js';
+import { DateTime } from 'luxon';
+const PDFDocument = require('pdfkit-table');
+
+/**
+ * PDF Export Module
+ * Generates World-Class PDF reports for daily transactions
+ */
+
+export const PDFExport = {
+    /**
+     * Generate PDF for today's transactions
+     */
+    async generateDailyPDF(chatId: number): Promise<Buffer> {
+        const groupRes = await db.query('SELECT title, timezone FROM groups WHERE id = $1', [chatId]);
+        const group = groupRes.rows[0] || { title: 'Group', timezone: 'Asia/Shanghai' };
+        const date = getBusinessDate(group.timezone);
+
+        const txRes = await db.query(`
+            SELECT * FROM transactions 
+            WHERE group_id = $1 AND business_date = $2 
+            ORDER BY recorded_at ASC
+        `, [chatId, date]);
+
+        const settingsRes = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
+        const settings = settingsRes.rows[0] || {};
+
+        // 1. Create PDF
+        const doc = new PDFDocument({ margin: 30, size: 'A4' }) as any;
+        const buffers: any[] = [];
+        doc.on('data', buffers.push.bind(buffers));
+
+        // 2. Setup Font (For Chinese support)
+        // Standard Mac path for Songti
+        const fontPath = '/System/Library/Fonts/Supplemental/Songti.ttc';
+        doc.font(fontPath);
+
+        // 3. HEADER
+        doc.fillColor('#2c3e50').fontSize(20).text('Lily Smartbot - 财务报表', { align: 'center' });
+        doc.fontSize(10).text(`生成时间: ${DateTime.now().setZone(group.timezone).toFormat('yyyy-MM-dd HH:mm:ss')}`, { align: 'center' });
+        doc.moveDown();
+
+        doc.fontSize(12).fillColor('#34495e');
+        doc.text(`群组: ${group.title}`);
+        doc.text(`业务日期: ${date}`);
+        doc.moveDown();
+
+        // 4. TABLE
+        const table = {
+            title: "交易详情 (Transaction Details)",
+            headers: ["时间", "类型", "原始金额", "费率", "手续费", "净额", "币种", "操作人"],
+            rows: txRes.rows.map(t => [
+                new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),
+                t.type === 'DEPOSIT' ? '入款' : t.type === 'PAYOUT' ? '下发' : '回款',
+                new Decimal(t.amount_raw).toFixed(2),
+                `${new Decimal(t.fee_rate).toFixed(2)}%`,
+                new Decimal(t.fee_amount).toFixed(2),
+                new Decimal(t.net_amount).toFixed(2),
+                t.currency,
+                t.operator_name
+            ]),
+        };
+
+        // Create the table
+        await doc.table(table, {
+            prepareHeader: () => doc.font(fontPath).fontSize(10).fillColor('#2c3e50'),
+            prepareRow: (row: any, index: any, column: any, rect: any, fontWeight: any) => doc.font(fontPath).fontSize(9).fillColor('#2c3e50'),
+        });
+
+        doc.moveDown();
+
+        // 5. SUMMARY
+        let totalInRaw = new Decimal(0);
+        let totalInNet = new Decimal(0);
+        let totalOut = new Decimal(0);
+        let totalReturn = new Decimal(0);
+
+        txRes.rows.forEach(t => {
+            const amount = new Decimal(t.amount_raw);
+            if (t.type === 'DEPOSIT') {
+                totalInRaw = totalInRaw.add(amount);
+                totalInNet = totalInNet.add(new Decimal(t.net_amount));
+            } else if (t.type === 'PAYOUT') {
+                totalOut = totalOut.add(amount);
+            } else if (t.type === 'RETURN') {
+                totalReturn = totalReturn.add(amount);
+            }
+        });
+
+        const balance = totalInNet.sub(totalOut).add(totalReturn);
+
+        doc.addPage(); // Summary on fresh page if needed or just section
+        doc.fillColor('#2c3e50').fontSize(16).text('财务摘要 (Financial Summary)', { underline: true });
+        doc.moveDown(0.5);
+
+        doc.fontSize(12);
+        doc.text(`总入款 (Total Deposits): ${totalInRaw.toFixed(2)} CNY`);
+        doc.text(`平均费率 (Base Fee Rate): ${new Decimal(settings.rate_in || 0).toFixed(2)} %`);
+        doc.text(`应下发 (Net Deposits): ${totalInNet.toFixed(2)} CNY`);
+        doc.fillColor('#e74c3c').text(`总下发 (Total Payouts): -${totalOut.toFixed(2)} CNY`);
+        doc.fillColor('#2c3e50').text(`回款 (Total Returns): ${totalReturn.toFixed(2)} CNY`);
+        doc.fontSize(14).fillColor('#27ae60').text(`余 (Final Balance): ${balance.toFixed(2)} CNY`, { stroke: true });
+
+        // Forex info
+        const fxRates = [
+            { key: 'usd', label: '美元汇率 (USD Rate)', suffix: 'USD' },
+            { key: 'myr', label: '马币汇率 (MYR Rate)', suffix: 'MYR' },
+            { key: 'php', label: '比索汇率 (PHP Rate)', suffix: 'PHP' },
+            { key: 'thb', label: '泰铢汇率 (THB Rate)', suffix: 'THB' }
+        ];
+
+        fxRates.forEach(fx => {
+            const rate = new Decimal(settings[`rate_${fx.key}`] || 0);
+            if (rate.gt(0)) {
+                doc.moveDown(0.5);
+                doc.fontSize(12).fillColor('#2c3e50').text(`${fx.label}: ${rate.toFixed(2)}`);
+                const equiv = balance.div(rate).toFixed(2);
+                doc.text(`余额换算 (${fx.suffix} Equivalent): ${equiv} ${fx.suffix}`);
+            }
+        });
+
+        // Footer
+        doc.fontSize(8).fillColor('#bdc3c7').text('Generated by Lily Smartbot', doc.page.width - 150, doc.page.height - 30);
+
+        doc.end();
+
+        return new Promise((resolve) => {
+            doc.on('end', () => {
+                resolve(Buffer.concat(buffers));
+            });
+        });
+    }
+};

@@ -2,6 +2,7 @@ import { Job } from 'bullmq';
 import { Ledger } from '../core/ledger';
 import { Settings } from '../core/settings';
 import { RBAC } from '../core/rbac';
+import { PDFExport } from '../core/pdf';
 import { ExcelExport } from '../core/excel';
 import { db } from '../db';
 
@@ -219,8 +220,13 @@ export const processCommand = async (job: Job<CommandJob>) => {
             return await Ledger.generateBillWithMode(chatId);
         }
 
-        // DOWNLOAD EXCEL REPORT
-        if (text === '下载报表' || text === '导出Excel' || text.toLowerCase() === '/excel' || text.toLowerCase() === '/export') {
+        // DOWNLOAD REPORTS
+        if (text === '下载报表' || text.toLowerCase() === '/export') {
+            const pdf = await PDFExport.generateDailyPDF(chatId);
+            return `PDF_EXPORT:${pdf.toString('base64')}`;
+        }
+
+        if (text === '导出Excel' || text.toLowerCase() === '/excel') {
             const csv = await ExcelExport.generateDailyCSV(chatId);
             return `EXCEL_EXPORT:${csv}`;
         }
