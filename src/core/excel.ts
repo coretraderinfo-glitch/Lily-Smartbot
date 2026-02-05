@@ -13,7 +13,7 @@ export const ExcelExport = {
      */
     async generateDailyCSV(chatId: number): Promise<string> {
         const groupRes = await db.query('SELECT timezone FROM groups WHERE id = $1', [chatId]);
-        const timezone = groupRes.rows[0].timezone;
+        const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
         const date = getBusinessDate(timezone);
 
         const txRes = await db.query(`
@@ -23,7 +23,7 @@ export const ExcelExport = {
         `, [chatId, date]);
 
         const settingsRes = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
-        const settings = settingsRes.rows[0];
+        const settings = settingsRes.rows[0] || {};
 
         // Helper to safe-quote CSV fields
         const safe = (str: any) => {
@@ -35,44 +35,54 @@ export const ExcelExport = {
             return s;
         };
 
-        // CSV Header
-        let csv = 'Time,Type,Amount,Fee Rate,Fee Amount,Net Amount,Currency,Operator\n';
+        // EXCEL COMPATIBILITY: Add UTF-8 BOM
+        let csv = '\ufeff';
+
+        // Header
+        csv += '时间 (Time),类型 (Type),原始金额 (Raw),费率 (Rate),手续费 (Fee),净额 (Net),币种 (Ccy),操作人 (Operator)\n';
+
+        // Aggregates
+        let totalInRaw = new Decimal(0);
+        let totalInNet = new Decimal(0);
+        let totalOut = new Decimal(0);
+        let totalReturn = new Decimal(0);
 
         // CSV Rows
         txRes.rows.forEach(t => {
-            const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
+            const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
             const type = t.type === 'DEPOSIT' ? '入款' : t.type === 'PAYOUT' ? '下发' : '回款';
+            const amount = new Decimal(t.amount_raw);
+
+            if (t.type === 'DEPOSIT') {
+                totalInRaw = totalInRaw.add(amount);
+                totalInNet = totalInNet.add(new Decimal(t.net_amount));
+            } else if (t.type === 'PAYOUT') {
+                totalOut = totalOut.add(amount);
+            } else if (t.type === 'RETURN') {
+                totalReturn = totalReturn.add(amount);
+            }
 
             csv += `${safe(time)},${safe(type)},${safe(t.amount_raw)},${safe(t.fee_rate)}%,${safe(t.fee_amount)},${safe(t.net_amount)},${safe(t.currency)},${safe(t.operator_name)}\n`;
         });
 
-        // Summary
-        const deposits = txRes.rows.filter(t => t.type === 'DEPOSIT');
-        const payouts = txRes.rows.filter(t => t.type === 'PAYOUT');
+        const balance = totalInNet.sub(totalOut).add(totalReturn);
 
-        let totalInRaw = new Decimal(0);
-        let totalInNet = new Decimal(0);
-        let totalOut = new Decimal(0);
+        // Summary Section
+        csv += '\n财务摘要 (Financial Summary)\n';
+        csv += `总入款 (Total Deposits),${totalInRaw.toFixed(2)},CNY\n`;
+        csv += `费率 (Fee Rate),${settings.rate_in || 0},%\n`;
+        csv += `应下发 (Net Deposits),${totalInNet.toFixed(2)},CNY\n`;
+        csv += `总下发 (Total Payouts),${totalOut.toFixed(2)},CNY\n`;
+        csv += `回款 (Total Returns),${totalReturn.toFixed(2)},CNY\n`;
+        csv += `余 (Balance),${balance.toFixed(2)},CNY\n`;
 
-        deposits.forEach(t => {
-            totalInRaw = totalInRaw.add(new Decimal(t.amount_raw));
-            totalInNet = totalInNet.add(new Decimal(t.net_amount));
-        });
-        payouts.forEach(t => {
-            totalOut = totalOut.add(new Decimal(t.amount_raw));
-        });
-
-        const totalFee = totalInRaw.sub(totalInNet);
-        const balance = totalInNet.sub(totalOut);
-
-        csv += '\n';
-        csv += `Summary,,,,,,\n`;
-        csv += `Total Deposits,${totalInRaw.toFixed(2)},,,,,\n`;
-        csv += `Fee Rate,${settings.rate_in}%,,,,,\n`;
-        csv += `Total Fee,${totalFee.toFixed(2)},,,,,\n`;
-        csv += `Net Deposits,${totalInNet.toFixed(2)},,,,,\n`;
-        csv += `Total Payouts,${totalOut.toFixed(2)},,,,,\n`;
-        csv += `Balance,${balance.toFixed(2)},,,,,\n`;
+        // Forex info if set
+        const rateUsd = new Decimal(settings.rate_usd || 0);
+        if (rateUsd.gt(0)) {
+            csv += `美元汇率 (USD Rate),${rateUsd.toFixed(2)},\n`;
+            const usdBalance = balance.div(rateUsd).toFixed(2);
+            csv += `余额 (USD Equivalent),${usdBalance},USD\n`;
+        }
 
         return csv;
     },

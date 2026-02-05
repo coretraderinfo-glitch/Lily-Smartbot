@@ -112,13 +112,13 @@ bot.on('message:text', async (ctx) => {
     // 4. BUSINESS LOGIC (Recognize Commands)
     const isCommand =
         // Core commands
-        text === '开始' || text.toLowerCase() === 'start' ||
+        text === '开始' || text.toLowerCase() === 'start' || text.toLowerCase() === '/start' ||
         text === '结束记录' ||
-        text === '显示账单' ||
-        text === '显示操作人' ||
-        text === '清理今天数据' ||
+        text === '显示账单' || text.toLowerCase() === '/bill' ||
+        text === '显示操作人' || text.toLowerCase() === '/operators' ||
+        text === '清理今天数据' || text.toLowerCase() === '/cleardata' ||
         text === '下载报表' ||
-        text === '导出Excel' ||
+        text === '导出Excel' || text.toLowerCase() === '/excel' ||
         text.toLowerCase() === '/export' ||
 
         // Settings commands

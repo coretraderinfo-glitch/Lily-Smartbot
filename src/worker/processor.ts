@@ -130,7 +130,7 @@ export const processCommand = async (job: Job<CommandJob>) => {
         }
 
         // 显示操作人
-        if (text === '显示操作人') {
+        if (text === '显示操作人' || text.toLowerCase() === '/operators') {
             return await RBAC.listOperators(chatId);
         }
 
@@ -157,7 +157,7 @@ export const processCommand = async (job: Job<CommandJob>) => {
         }
 
         // 清理今天数据 (Clear - requires confirmation)
-        if (text === '清理今天数据') {
+        if (text === '清理今天数据' || text.toLowerCase() === '/cleardata') {
             return await Ledger.clearToday(chatId);
         }
 
@@ -166,7 +166,7 @@ export const processCommand = async (job: Job<CommandJob>) => {
         // ============================================
 
         // START
-        if (text === '开始' || text.toLowerCase() === 'start') {
+        if (text === '开始' || text.toLowerCase() === 'start' || text.toLowerCase() === '/start') {
             return await Ledger.startDay(chatId);
         }
 
@@ -197,12 +197,12 @@ export const processCommand = async (job: Job<CommandJob>) => {
         }
 
         // SHOW BILL (uses display mode from settings)
-        if (text === '显示账单') {
+        if (text === '显示账单' || text.toLowerCase() === '/bill') {
             return await Ledger.generateBillWithMode(chatId);
         }
 
         // DOWNLOAD EXCEL REPORT
-        if (text === '下载报表' || text === '导出Excel' || text.toLowerCase() === '/export') {
+        if (text === '下载报表' || text === '导出Excel' || text.toLowerCase() === '/excel' || text.toLowerCase() === '/export') {
             const csv = await ExcelExport.generateDailyCSV(chatId);
             return `EXCEL_EXPORT:${csv}`;
         }
