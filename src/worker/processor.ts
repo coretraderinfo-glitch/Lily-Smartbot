@@ -37,28 +37,28 @@ export const processCommand = async (job: Job<CommandJob>) => {
         }
 
         // 设置美元汇率X or /gd X or 设置汇率U X
-        const usdMatch = text.match(/^(?:设置美元汇率|\/gd|设置汇率U)\s*(\d+(\.\d+)?)$/);
+        const usdMatch = text.match(/^(?:设置美元汇率|\/gd|设置汇率U)[:\s]*(\d+(\.\d+)?)$/i);
         if (usdMatch) {
             const res = await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
             return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
-        // 设置比索汇率X
-        const phpMatch = text.match(/^(?:设置比索汇率|设置汇率PHP)\s*(\d+(\.\d+)?)$/);
+        // 设置比索汇率X or 设置汇率PHP X
+        const phpMatch = text.match(/^(?:设置比索汇率|设置汇率PHP)[:\s]*(\d+(\.\d+)?)$/i);
         if (phpMatch) {
             const res = await Settings.setForexRate(chatId, 'php', parseFloat(phpMatch[1]));
             return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置马币汇率X or 设置汇率MYR X
-        const myrMatch = text.match(/^(?:设置马币汇率|设置汇率MYR)\s*(\d+(\.\d+)?)$/);
+        const myrMatch = text.match(/^(?:设置马币汇率|设置汇率MYR)[:\s]*(\d+(\.\d+)?)$/i);
         if (myrMatch) {
             const res = await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
             return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
         }
 
         // 设置泰铢汇率X or 设置汇率泰Bhat X
-        const thbMatch = text.match(/^(?:设置泰铢汇率|设置汇率泰Bhat|设置汇率THB)\s*(\d+(\.\d+)?)$/);
+        const thbMatch = text.match(/^(?:设置泰铢汇率|设置汇率泰Bhat|设置汇率THB)[:\s]*(\d+(\.\d+)?)$/i);
         if (thbMatch) {
             const res = await Settings.setForexRate(chatId, 'thb', parseFloat(thbMatch[1]));
             return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;

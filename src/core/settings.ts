@@ -66,10 +66,10 @@ export const Settings = {
         `, [rate, chatId]);
 
         if (rate === 0) {
-            return `✅ **${currencyName} Hidden**\nRate set to 0 (will not display in bills)`;
+            return `ℹ️ **Currency Layout Updated**\n${currencyName} has been hidden from reports.`;
         }
 
-        return `✅ **${currencyName} Rate Updated**\nNew Rate: ${rate}`;
+        return `✅ **Forex Rate Synchronized**\nCurrency: ${currencyName}\nExchange Rate: ${rate}\n\n*Updating ledger conversions...*`;
     },
 
     /**
