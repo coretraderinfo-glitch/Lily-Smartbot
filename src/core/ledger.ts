@@ -323,30 +323,43 @@ export const Ledger = {
             } else {
                 // Mode 1, 2, 3: Detailed (with varying item counts)
                 const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
-                const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 3;
+                const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
 
-                msg = `📅 Date: ${date}\n\n`;
+                // CLEAR CALCULATION FORMAT (Synced with generateBill)
+                msg = `📅 ${date}\n\n`;
+
+                const displayDeposits = displayMode === 1 ? deposits.slice(-5) : deposits.slice(-depositLimit);
+                const displayPayouts = displayMode === 1 ? payouts.slice(-5) : payouts.slice(-payoutLimit);
+
                 msg += `入款（${deposits.length}笔）：\n`;
-                deposits.slice(-depositLimit).forEach(t => {
+                displayDeposits.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
                     msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (deposits.length === 0) msg += ` (无)\n`;
 
                 msg += `\n下发（${payouts.length}笔）：\n`;
-                payouts.slice(-payoutLimit).forEach(t => {
+                displayPayouts.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
                     msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (payouts.length === 0) msg += ` (无)\n`;
 
-                msg += `\n----------------\n`;
-                msg += `总入款：${format(totalInRaw)}\n`;
-                msg += `费率：${settings.rate_in}%\n`;
-                msg += `USD汇率：${format(rateUsd)}\n`;
-                msg += `应下发：${format(totalInNet)}｜${toUsd(totalInNet)} USD\n`;
-                msg += `总下发：${format(totalOut)}｜${toUsd(totalOut)} USD\n`;
-                msg += `余：${format(balance)}｜${toUsd(balance)} USD\n`;
+                msg += `\n━━━━━━━━━━━━━━━━\n`;
+                msg += `💰 入款总计：${format(totalInRaw)}\n`;
+                msg += `📊 费率：${settings.rate_in}%\n`;
+                msg += `💸 手续费：-${format(totalInRaw.sub(totalInNet))}\n`;
+                msg += `✅ 净入款：${format(totalInNet)}\n`;
+                msg += `\n`;
+                msg += `📤 下发总计：${format(totalOut)}\n`;
+                msg += `\n`;
+                msg += `━━━━━━━━━━━━━━━━\n`;
+                msg += `💎 余额：${format(balance)}\n`;
+
+                if (!rateUsd.isZero()) {
+                    msg += `💵 USD汇率：${format(rateUsd)}\n`;
+                    msg += `💵 USD余额：${toUsd(balance)} USD\n`;
+                }
             }
 
             return msg;

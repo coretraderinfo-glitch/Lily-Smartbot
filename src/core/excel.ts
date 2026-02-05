@@ -25,6 +25,16 @@ export const ExcelExport = {
         const settingsRes = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
         const settings = settingsRes.rows[0];
 
+        // Helper to safe-quote CSV fields
+        const safe = (str: any) => {
+            if (str === null || str === undefined) return '';
+            const s = String(str);
+            if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+                return `"${s.replace(/"/g, '""')}"`;
+            }
+            return s;
+        };
+
         // CSV Header
         let csv = 'Time,Type,Amount,Fee Rate,Fee Amount,Net Amount,Currency,Operator\n';
 
@@ -32,7 +42,8 @@ export const ExcelExport = {
         txRes.rows.forEach(t => {
             const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false });
             const type = t.type === 'DEPOSIT' ? '入款' : t.type === 'PAYOUT' ? '下发' : '回款';
-            csv += `${time},${type},${t.amount_raw},${t.fee_rate}%,${t.fee_amount},${t.net_amount},${t.currency},${t.operator_name}\n`;
+
+            csv += `${safe(time)},${safe(type)},${safe(t.amount_raw)},${safe(t.fee_rate)}%,${safe(t.fee_amount)},${safe(t.net_amount)},${safe(t.currency)},${safe(t.operator_name)}\n`;
         });
 
         // Summary
