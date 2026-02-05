@@ -153,17 +153,38 @@ export const Ledger = {
     async clearToday(chatId: number): Promise<string> {
         const client = await db.getClient();
         try {
+            await client.query('BEGIN');
+
             const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
             const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
             const resetHour = groupRes.rows[0]?.reset_hour || 4;
             const date = getBusinessDate(timezone, resetHour);
 
-            await client.query(`
-                DELETE FROM transactions 
+            // 1. Snapshot the data before wiping
+            const txRes = await client.query(`
+                SELECT * FROM transactions 
                 WHERE group_id = $1 AND business_date = $2
             `, [chatId, date]);
 
+            if (txRes.rows.length > 0) {
+                // 2. Move to The Archive (Vault)
+                await client.query(`
+                    INSERT INTO historical_archives (group_id, business_date, type, data_json)
+                    VALUES ($1, $2, 'TRANSACTION_WIPE', $3)
+                `, [chatId, date, JSON.stringify(txRes.rows)]);
+
+                // 3. Clear from active ledger
+                await client.query(`
+                    DELETE FROM transactions 
+                    WHERE group_id = $1 AND business_date = $2
+                `, [chatId, date]);
+            }
+
+            await client.query('COMMIT');
             return await Ledger.generateBill(chatId);
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
         } finally {
             client.release();
         }

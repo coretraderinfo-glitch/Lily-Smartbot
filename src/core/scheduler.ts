@@ -84,7 +84,13 @@ export const Chronos = {
                             caption: `📄 **Lily Smartbot: Final Statement (${date})**\nEverything finalized for the day.`
                         });
 
-                        // 4. UPDATE STATE
+                        // 4. Archive Snapshot in Vault (DB)
+                        await client.query(`
+                            INSERT INTO historical_archives (group_id, business_date, type, pdf_blob)
+                            VALUES ($1, $2, 'DAILY_SNAPSHOT', $3)
+                        `, [group.id, date, pdf]);
+
+                        // 5. UPDATE STATE
                         await client.query(`
                             UPDATE groups 
                             SET current_state = 'ENDED', 

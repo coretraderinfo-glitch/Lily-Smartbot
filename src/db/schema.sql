@@ -155,3 +155,16 @@ CREATE TABLE IF NOT EXISTS licenses (
     created_by BIGINT, -- Admin ID
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- 7. The Archive (World-Class Data Retention)
+CREATE TABLE IF NOT EXISTS historical_archives (
+    id SERIAL PRIMARY KEY,
+    group_id BIGINT REFERENCES groups(id),
+    business_date DATE,
+    type VARCHAR(50), -- 'TRANSACTION_WIPE' or 'DAILY_SNAPSHOT'
+    data_json JSONB, -- Stores the raw JSON of the wiped data
+    pdf_blob BYTEA, -- Optional: Stores the actual PDF data for high-security archival
+    archived_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indices for Archive
+CREATE INDEX IF NOT EXISTS idx_archive_lookup ON historical_archives (group_id, business_date);
