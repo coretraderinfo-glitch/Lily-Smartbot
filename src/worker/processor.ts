@@ -20,10 +20,12 @@ interface CommandJob {
 export const processCommand = async (job: Job<CommandJob>) => {
     const { chatId, userId, username, text } = job.data;
 
-    // Security: Hyper-Resilient Owner Check (Sync with Bot Ingress)
-    const rawOwnerEnv = (process.env.OWNER_ID || '').replace(/['"\[\]]+/g, '').trim();
+    // 🛡️ MILITARY-GRADE SECURITY: System Owner Validation (Synced with Bot Ingress)
+    const rawOwnerEnv = (process.env.OWNER_ID || '').replace(/['"\[\]\s]+/g, '').trim();
     const ownerList = rawOwnerEnv.split(',').map(id => id.replace(/\D/g, '')).filter(id => id.length > 0);
-    const isOwner = ownerList.includes(userId.toString()) || text.includes('#LILY-ADMIN');
+
+    // STRICT VALIDATION: User must be in the authorized list
+    const isOwner = ownerList.length > 0 && ownerList.includes(userId.toString());
 
     try {
         // ============================================

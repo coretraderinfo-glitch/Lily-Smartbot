@@ -92,35 +92,22 @@ bot.on('message:text', async (ctx) => {
     const username = ctx.from.username || ctx.from.first_name;
     const messageId = ctx.message.message_id;
 
-    // Security: Check if user is System Owner (Hyper-Resilient Multi-ID Matching)
-    const rawOwnerEnv = (process.env.OWNER_ID || '').replace(/['"\[\]]+/g, '').trim();
-    const masterKey = process.env.MASTER_KEY ? process.env.MASTER_KEY.trim() : null;
+    // 🛡️ MILITARY-GRADE SECURITY: System Owner Validation
+    // ZERO-TRUST ARCHITECTURE - No bypasses, no shortcuts, no exceptions
+    const rawOwnerEnv = (process.env.OWNER_ID || '').replace(/['"\[\]\s]+/g, '').trim();
 
-    // Parse OWNER_ID into a clean array of numeric strings
+    // Parse OWNER_ID into clean numeric array (supports comma-separated list)
     const ownerList = rawOwnerEnv.split(',').map(id => id.replace(/\D/g, '')).filter(id => id.length > 0);
 
-    let ownerReason = "ID_NOT_IN_LIST";
-    let isOwner = ownerList.includes(userId.toString());
+    // STRICT VALIDATION: User must be in the authorized list
+    const isOwner = ownerList.length > 0 && ownerList.includes(userId.toString());
 
-    if (isOwner) ownerReason = "LIST_MATCH";
-
-    // Emergency Mode: Hyper-Resilient "CLAIM"
-    if (!isOwner && rawOwnerEnv.toUpperCase() === 'CLAIM') {
-        process.env.OWNER_ID = userId.toString();
-        isOwner = true;
-        ownerReason = "EMERGENCY_CLAIM_SUCCESS";
-        console.log(`👑 [EMERGENCY] User ${username} (${userId}) has CLAIMED ownership of this bot.`);
+    // AUDIT LOG: Record all authorization checks for security monitoring
+    if (text.startsWith('/generate_key') || text.startsWith('/super_activate')) {
+        const timestamp = new Date().toISOString();
+        const authResult = isOwner ? '✅ AUTHORIZED' : '❌ DENIED';
+        console.log(`[SECURITY AUDIT] ${timestamp} | User: ${userId} (${username}) | Command: ${text.split(' ')[0]} | Result: ${authResult} | Registry: [${ownerList.join('|')}]`);
     }
-
-    // Master Secret Bypass (One-time supreme authority)
-    if (!isOwner && (text.includes('#LILY-ADMIN') || (masterKey && text.includes(masterKey)))) {
-        isOwner = true;
-        ownerReason = "MASTER_SECRET_BYPASS";
-    }
-
-    // DEBUG LOG (Masked)
-    if (isOwner) console.log(`[AUTH] 👑 Verified Owner: ${username} (${userId}) [Reason: ${ownerReason}]`);
-    else if (text.startsWith('/')) console.log(`[AUTH] 👤 Standard User: ${userId} | Registry: [${ownerList.join('|')}] | Env: "${rawOwnerEnv}"`);
 
     // 0. UPDATE USER CACHE
     if (ctx.from.username) {
@@ -140,8 +127,9 @@ bot.on('message:text', async (ctx) => {
     // Diagnostic: /whoami
     if (text.startsWith('/whoami')) {
         const statusIcon = isOwner ? "✅" : "👤";
-        const ownerStatus = isOwner ? `**System Owner** (via ${ownerReason})` : "**Regular User**";
-        return ctx.reply(`${statusIcon} **User Diagnostics**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${ownerStatus}\n\n**Registry Status:** \`${ownerList.length} ID(s) configured\`\n**Env State:** \`${rawOwnerEnv === 'CLAIM' ? 'BOOTSTRAP_READY' : rawOwnerEnv ? 'RESTRICTED' : 'NOT_CONFIGURED'}\``, { parse_mode: 'Markdown' });
+        const ownerStatus = isOwner ? "**System Owner**" : "**Regular User**";
+        const configStatus = ownerList.length > 0 ? `${ownerList.length} ID(s) configured` : '⚠️ NOT CONFIGURED';
+        return ctx.reply(`${statusIcon} **User Diagnostics**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${ownerStatus}\n\n**Registry:** \`${configStatus}\``, { parse_mode: 'Markdown' });
     }
 
     // /generate_key [days] [users] [CUSTOM_KEY] (OWNER ONLY)
