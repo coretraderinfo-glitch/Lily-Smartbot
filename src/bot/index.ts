@@ -15,7 +15,7 @@ checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
 // Security Warning for Missing Owner
 if (!process.env.OWNER_ID) {
     console.error('🛑 [CRITICAL WARNING] OWNER_ID is not set in environment variables!');
-    console.error('System Owner features (License Generation) will be disabled.');
+    console.error('System Owner features (License Generation) will be disabled until OWNER_ID is configured.');
 }
 
 // Init Dependencies
@@ -92,12 +92,20 @@ bot.on('message:text', async (ctx) => {
     const username = ctx.from.username || ctx.from.first_name;
     const messageId = ctx.message.message_id;
 
-    // Security: Check if user is System Owner (Strict Trim)
-    const rawOwnerId = process.env.OWNER_ID ? process.env.OWNER_ID.trim() : '';
-    const isOwner = rawOwnerId !== '' && userId.toString() === rawOwnerId;
+    // Security: Check if user is System Owner (Hyper-Resilient Matching)
+    const rawOwnerId = process.env.OWNER_ID ? process.env.OWNER_ID.replace(/['"]+/g, '').trim() : '';
+    const masterKey = process.env.MASTER_KEY ? process.env.MASTER_KEY.trim() : null;
+
+    // An owner is someone who matches OWNER_ID or provides the MASTER_KEY in text
+    let isOwner = rawOwnerId !== '' && userId.toString() === rawOwnerId;
+
+    // Explicit Master Key Bypass (If user includes #MASTER_KEY at end of command)
+    if (!isOwner && masterKey && text.includes(masterKey)) {
+        isOwner = true;
+    }
 
     // DEBUG LOG
-    console.log(`[MSG] Group:${chatId} User:${username} (${userId}) says: "${text}" [Owner: ${isOwner}]`);
+    console.log(`[MSG] In Bound - Group:${chatId} User:${username} (${userId}) [Owner: ${isOwner}]`);
 
     // 0. UPDATE USER CACHE
     if (ctx.from.username) {
@@ -120,25 +128,58 @@ bot.on('message:text', async (ctx) => {
         return ctx.reply(`👤 **User Info**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${ownerStatus}`, { parse_mode: 'Markdown' });
     }
 
-    // /generate_key [days] [users] (OWNER ONLY)
+    // /generate_key [days] [users] [CUSTOM_KEY] (OWNER ONLY)
     if (text.startsWith('/generate_key')) {
         if (!isOwner) {
             console.log(`[SECURITY] Unauthorized user ${username} tried to generate key.`);
-            return ctx.reply("❌ **权限错误 (Security Error)**\n\n您没有生成授权码的权限。\nOnly the system owner can generate keys.", { parse_mode: 'Markdown' });
+            return ctx.reply(`❌ **权限错误 (Security Error)**\n\n您的 ID (\`${userId}\`) 不在系统管理员名单中。\nOnly the registered System Owner can generate keys.`, { parse_mode: 'Markdown' });
         }
         const parts = text.split(' ');
         const days = parseInt(parts[1]) || 30;
         const maxUsers = parseInt(parts[2]) || 100;
+        const customKey = parts[3]; // Optional CUSTOM Key
 
-        const key = await Licensing.generateKey(days, maxUsers, userId);
-        return ctx.reply(`🔑 **New License Key Generated**\nKey: \`${key}\`\nDays: ${days}\n\nUse \`/activate ${key}\` in your group.`, { parse_mode: 'Markdown' });
+        // If customKey exists, use it, otherwise random
+        const key = customKey ? customKey.toUpperCase() : await Licensing.generateKey(days, maxUsers, userId);
+
+        // If it was a custom key, we need to manually insert it into DB
+        if (customKey) {
+            await db.query(`
+                INSERT INTO licenses (key, duration_days, max_users, created_by)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (key) DO NOTHING
+            `, [key, days, maxUsers, userId]);
+        }
+
+        return ctx.reply(`🔑 **New License Key Prepared**\nKey: \`${key}\`\nDays: ${days}\nUsers: ${maxUsers}\n\nUse \`/activate ${key}\` in the client group.`, { parse_mode: 'Markdown' });
+    }
+
+    // /super_activate [days] (OWNER ONLY - Instant Bypass)
+    if (text.startsWith('/super_activate')) {
+        if (!isOwner) return;
+        const days = parseInt(text.split(' ')[1]) || 365;
+        const key = "MASTER-PASS-" + Math.random().toString(36).substring(7).toUpperCase();
+
+        // Directly update the group without checking for a license code
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + days);
+
+        await db.query(`
+            INSERT INTO groups (id, status, license_key, license_expiry)
+            VALUES ($1, 'ACTIVE', $2, $3)
+            ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE', license_key = $2, license_expiry = $3
+        `, [chatId, key, expiry]);
+
+        return ctx.reply(`👑 **System Owner Force Activation**\n\nThis group is now **ACTIVE** for ${days} days.\nNo license key required.\nExpiry: ${expiry.toISOString().split('T')[0]}`, { parse_mode: 'Markdown' });
     }
 
     // /activate [key] (Bypasses License Check by nature)
     if (text.startsWith('/activate')) {
         const parts = text.split(' ');
-        const key = parts[1];
+        let key = parts[1];
         if (!key) return ctx.reply("Please provide a key: `/activate LILY-XXXX`", { parse_mode: 'Markdown' });
+
+        key = key.trim().toUpperCase();
 
         const result = await Licensing.activateGroup(chatId, key);
         return ctx.reply(result.message, { parse_mode: 'Markdown' });
