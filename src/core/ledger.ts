@@ -261,19 +261,22 @@ export const Ledger = {
                 const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
                 const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
 
-                msg = `📅 **${date}**\n\n`;
+                const [y, m, d_part] = date.split('-');
+                const displayDate = `${d_part}-${m}-${y}`;
+
+                msg = `📅 **${displayDate}**\n\n`;
 
                 const displayDeposits = deposits.slice(-depositLimit);
                 const displayPayouts = payouts.slice(-payoutLimit);
 
-                msg += `**入款 (IN)** （${deposits.length}笔）：\n`;
+                msg += `📥 **入款 (IN)** （${deposits.length}笔）：\n`;
                 displayDeposits.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
                     msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (deposits.length === 0) msg += ` (无)\n`;
 
-                msg += `\n**下发 (OUT)** （${payouts.length}笔）：\n`;
+                msg += `\n📤 **下发 (OUT)** （${payouts.length}笔）：\n`;
                 displayPayouts.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
                     msg += ` ${time}  -${format(new Decimal(t.amount_raw))}\n`;
