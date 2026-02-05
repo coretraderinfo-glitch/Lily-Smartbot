@@ -92,20 +92,31 @@ bot.on('message:text', async (ctx) => {
     const username = ctx.from.username || ctx.from.first_name;
     const messageId = ctx.message.message_id;
 
-    // Security: Check if user is System Owner (Hyper-Resilient Matching)
-    const rawOwnerId = process.env.OWNER_ID ? process.env.OWNER_ID.replace(/['"]+/g, '').trim() : '';
+    // Security: Check if user is System Owner (Hyper-Resilient Multi-ID Matching)
+    const rawOwnerEnv = process.env.OWNER_ID || '';
     const masterKey = process.env.MASTER_KEY ? process.env.MASTER_KEY.trim() : null;
 
-    // An owner is someone who matches OWNER_ID or provides the MASTER_KEY in text
-    let isOwner = rawOwnerId !== '' && userId.toString() === rawOwnerId;
+    // Parse OWNER_ID into a clean array of numeric strings
+    // Handles: "123, 456", "'123', '456'", "[123, 456]"
+    const ownerList = rawOwnerEnv.split(',').map(id => id.replace(/\D/g, '')).filter(id => id.length > 0);
 
-    // Explicit Master Key Bypass (If user includes #MASTER_KEY at end of command)
+    let isOwner = ownerList.includes(userId.toString());
+
+    // Emergency Mode: If OWNER_ID is "CLAIM", the first person to talk becomes the owner
+    if (rawOwnerEnv.toUpperCase() === 'CLAIM') {
+        process.env.OWNER_ID = userId.toString();
+        isOwner = true;
+        console.log(`👑 [EMERGENCY] User ${username} (${userId}) has CLAIMED ownership of this bot.`);
+    }
+
+    // Explicit Master Key Bypass
     if (!isOwner && masterKey && text.includes(masterKey)) {
         isOwner = true;
     }
 
-    // DEBUG LOG
-    console.log(`[MSG] In Bound - Group:${chatId} User:${username} (${userId}) [Owner: ${isOwner}]`);
+    // DEBUG LOG (Masked for safety)
+    if (isOwner) console.log(`[AUTH] 👑 Verified Owner: ${username} (${userId})`);
+    else if (text.startsWith('/')) console.log(`[AUTH] 👤 Standard User: ${userId} vs Authorized List: [${ownerList.join('|')}]`);
 
     // 0. UPDATE USER CACHE
     if (ctx.from.username) {
@@ -132,7 +143,7 @@ bot.on('message:text', async (ctx) => {
     if (text.startsWith('/generate_key')) {
         if (!isOwner) {
             console.log(`[SECURITY] Unauthorized user ${username} tried to generate key.`);
-            return ctx.reply(`❌ **权限错误 (Security Error)**\n\n您的 ID (\`${userId}\`) 不在系统管理员名单中。\nOnly the registered System Owner can generate keys.`, { parse_mode: 'Markdown' });
+            return ctx.reply(`❌ **权限错误 (Security Error)**\n\n您的 ID (\`${userId}\`) 不在系统管理员名单中。\n\n**当前授权名单 (Registry):** \`${ownerList.join(', ') || 'NONE'}\`\n\n如果您是群主，请在 Railway 设置中的 \`OWNER_ID\` 填入您的 ID 即可。`, { parse_mode: 'Markdown' });
         }
         const parts = text.split(' ');
         const days = parseInt(parts[1]) || 30;
