@@ -80,14 +80,17 @@ worker.on('failed', async (job, err) => {
 
 // Bot Ingress
 bot.on('message:text', async (ctx) => {
-    const text = ctx.message.text.trim(); // TRIM WHITESPACE!
+    const text = ctx.message.text.trim();
     const chatId = ctx.chat.id;
     const userId = ctx.from.id;
     const username = ctx.from.username || ctx.from.first_name;
     const messageId = ctx.message.message_id;
 
-    // DEBUG LOG: Show us what the bot actually sees
-    console.log(`[MSG] Group:${chatId} User:${username} says: "${text}"`);
+    // Security: Check if user is System Owner
+    const isOwner = process.env.OWNER_ID && userId.toString() === process.env.OWNER_ID;
+
+    // DEBUG LOG
+    console.log(`[MSG] Group:${chatId} User:${username} (${userId}) says: "${text}" [Owner: ${isOwner}]`);
 
     // 0. UPDATE USER CACHE
     if (ctx.from.username) {
@@ -99,30 +102,26 @@ bot.on('message:text', async (ctx) => {
         `, [chatId, userId, ctx.from.username]).catch(() => { });
     }
 
-    // 1. HEALTH CHECK
+    // 1. HEALTH CHECK & SYSTEM COMMANDS
     if (text === '/ping') {
         return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
     }
 
-    // 2. LICENSING COMMANDS (Prioritized)
-
     // /generate_key [days] [users] (OWNER ONLY)
     if (text.startsWith('/generate_key')) {
-        const parts = text.split(' ');
-        const days = parseInt(parts[1]) || 30;
-        const maxUsers = parseInt(parts[2]) || 100;
-
-        // Security: STRICT checking of OWNER_ID
-        if (process.env.OWNER_ID && userId.toString() !== process.env.OWNER_ID) {
+        if (!isOwner) {
             console.log(`[SECURITY] Unauthorized user ${username} tried to generate key.`);
             return;
         }
+        const parts = text.split(' ');
+        const days = parseInt(parts[1]) || 30;
+        const maxUsers = parseInt(parts[2]) || 100;
 
         const key = await Licensing.generateKey(days, maxUsers, userId);
         return ctx.reply(`🔑 **New License Key Generated**\nKey: \`${key}\`\nDays: ${days}\n\nUse \`/activate ${key}\` in your group.`, { parse_mode: 'Markdown' });
     }
 
-    // /activate [key]
+    // /activate [key] (Bypasses License Check by nature)
     if (text.startsWith('/activate')) {
         const parts = text.split(' ');
         const key = parts[1];
@@ -173,20 +172,21 @@ bot.on('message:text', async (ctx) => {
 
     // 5. LICENSE CHECK (Redirect if Inactive)
     if (isCommand) {
-        // 5. LICENSE CHECK (Redirect if Inactive)
-        const isActive = await Licensing.isGroupActive(chatId);
-        if (!isActive) {
-            console.log(`[BLOCKED] Command "${text}" from ${username} in inactive group ${chatId}`);
-            return ctx.reply("⚠️ **Group Inactive or License Expired**\nPlease contact your administrator to get a valid license key.\n\nUse `/activate [KEY]` to enable full functionality.", { parse_mode: 'Markdown' });
+        // Owner Bypasses License Check
+        if (!isOwner) {
+            const isActive = await Licensing.isGroupActive(chatId);
+            if (!isActive) {
+                console.log(`[BLOCKED] Command "${text}" from ${username} in inactive group ${chatId}`);
+                return ctx.reply("⚠️ **Group Inactive or License Expired**\nPlease contact your administrator to get a valid license key.\n\nUse `/activate [KEY]` to enable full functionality.", { parse_mode: 'Markdown' });
+            }
         }
 
         // 6. RBAC CHECK
         const isOperator = await RBAC.isAuthorized(chatId, userId);
         const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
         const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
-        const isOwner = userId.toString() === process.env.OWNER_ID;
 
-        // Bootstrapping: If no operators, only Owner or Group Admin can act
+        // Bootstrapping or Owner Bypass
         let canBootsTrap = !hasOperators;
         if (canBootsTrap && !isOwner) {
             try {
@@ -198,7 +198,7 @@ bot.on('message:text', async (ctx) => {
         }
 
         if (!isOperator && !isOwner && !canBootsTrap) {
-            return ctx.reply("❌ **权限提示 (Unauthorized)**\n\n您不是经授权的操作人或管理员。\nOnly authorized operators can record transactions here.\n\n请联系群主或经办人为您开图权限。", { parse_mode: 'Markdown' });
+            return ctx.reply("❌ **权限提示 (Unauthorized)**\n\n您不是经授权的操作人或管理员。\nOnly authorized operators can record transactions here.\n\n请联系群主或经办人为您开通权限。", { parse_mode: 'Markdown' });
         }
 
         // 7. Activation Check
