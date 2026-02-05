@@ -138,7 +138,7 @@ bot.on('message:text', async (ctx) => {
             console.log(`[SECURITY] Unauthorized user ${username} tried to generate key.`);
             return ctx.reply(`❌ **权限错误 (Security Error)**\n\n您的 ID (\`${userId}\`) 不在系统管理员名单中。\n\n**当前授权名单 (Registry):** \`${ownerList.join(', ') || 'NONE'}\`\n\n如果您是群主，请在 Railway 设置中的 \`OWNER_ID\` 填入您的 ID 即可。`, { parse_mode: 'Markdown' });
         }
-        const parts = text.split(' ');
+        const parts = text.split(/\s+/);
         const days = parseInt(parts[1]) || 30;
         const maxUsers = parseInt(parts[2]) || 100;
         const customKey = parts[3]; // Optional CUSTOM Key
@@ -161,7 +161,8 @@ bot.on('message:text', async (ctx) => {
     // /super_activate [days] (OWNER ONLY - Instant Bypass)
     if (text.startsWith('/super_activate')) {
         if (!isOwner) return;
-        const days = parseInt(text.split(' ')[1]) || 365;
+        const parts = text.split(/\s+/);
+        const days = parseInt(parts[1]) || 365;
         const key = "MASTER-PASS-" + Math.random().toString(36).substring(7).toUpperCase();
 
         // Directly update the group without checking for a license code
@@ -180,7 +181,7 @@ bot.on('message:text', async (ctx) => {
 
     // /activate [key] (Bypasses License Check by nature)
     if (text.startsWith('/activate')) {
-        const parts = text.split(' ');
+        const parts = text.split(/\s+/); // Use regex for robust splitting
         let key = parts[1];
         if (!key) return ctx.reply("📋 **请提供授权码 (Please provide activation key)**\n\n格式 (Format): `/activate LILY-XXXX`", { parse_mode: 'Markdown' });
 
@@ -252,12 +253,38 @@ bot.on('message:text', async (ctx) => {
 
     // 5. LICENSE CHECK (Redirect if Inactive)
     if (isCommand) {
-        // Owner Bypasses License Check
-        if (!isOwner) {
+        // Essential commands that MUST work even without a license
+        const isEssential =
+            text.startsWith('/activate') ||
+            text.startsWith('/start') ||
+            text.startsWith('/whoami') ||
+            text === '/ping';
+
+        // /start logic for onboarding
+        if (text.startsWith('/start')) {
+            return ctx.reply(
+                `✨ **欢迎使用 Lily 智能账本系统 (Lily Smart Ledger)**\n` +
+                `专业 · 高效 · 实时财务结算解决方案\n\n` +
+                `📊 **核心优势 (Core Features):**\n` +
+                `• 实时入款/下发记录与结算\n` +
+                `• 自动汇率换算与资产汇点管理\n` +
+                `• 秒级生成可视化财务报表\n` +
+                `• 军工级数据安全与权限控制\n\n` +
+                `🚀 **快速开始 (Quick Onboarding):**\n` +
+                `1. 获取授权码 (Contact System Owner for Key)\n` +
+                `2. 在群组内发送: \`/activate [您的授权码]\`\n` +
+                `3. 配置费率并点击 "开始" 即可\n\n` +
+                `💡 *ID: \`${userId}\` | Status: ${isOwner ? '👑 Owner' : '👤 User'}*`,
+                { parse_mode: 'Markdown' }
+            );
+        }
+
+        // Owner Bypasses License Check, and essential commands bypass it
+        if (!isOwner && !isEssential) {
             const isActive = await Licensing.isGroupActive(chatId);
             if (!isActive) {
                 console.log(`[BLOCKED] Command "${text}" from ${username} in inactive group ${chatId}`);
-                return ctx.reply("⚠️ **Group Inactive or License Expired**\nPlease contact your administrator to get a valid license key.\n\nUse `/activate [KEY]` to enable full functionality.", { parse_mode: 'Markdown' });
+                return ctx.reply("⚠️ **群组未激活或授权已过期 (Group Inactive or License Expired)**\n\n请联系管理员获取授权码。\nUse `/activate [KEY]` to enable full functionality.", { parse_mode: 'Markdown' });
             }
         }
 
