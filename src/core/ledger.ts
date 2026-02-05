@@ -245,17 +245,17 @@ export const Ledger = {
             if (displayMode === 4) {
                 // Mode 4: Summary Only
                 msg = `📅 **Ledger Update**\n`;
-                msg += `💰 总入款 (IN): ${format(totalInRaw)}\n`;
-                msg += `📤 总下发 (OUT): -${format(totalOut)}\n`;
-                msg += `💎 余 (TOTAL): ${format(balance)}`;
+                msg += `总入款 (IN): ${format(totalInRaw)}\n`;
+                msg += `总下发 (OUT): -${format(totalOut)}\n`;
+                msg += `余额 (TOTAL): ${format(balance)}`;
             } else if (displayMode === 5) {
                 // Mode 5: Count Mode
-                msg = `📊 **Transaction Count**\n\n`;
+                msg = `**Transaction Count**\n\n`;
                 txRes.rows.forEach((t, i) => {
                     const sign = t.type === 'DEPOSIT' ? '➕' : '➖';
                     msg += `${i + 1}. ${sign} ${format(new Decimal(t.amount_raw))}\n`;
                 });
-                msg += `\n💎 余 (TOTAL): ${format(balance)}`;
+                msg += `\n余额 (TOTAL): ${format(balance)}`;
             } else {
                 // DEFAULT / MODE 1: Show latest 5 for conciseness
                 const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
@@ -266,24 +266,24 @@ export const Ledger = {
                 const displayDeposits = deposits.slice(-depositLimit);
                 const displayPayouts = payouts.slice(-payoutLimit);
 
-                msg += `💰 **入款 (IN)** （${deposits.length}笔）：\n`;
+                msg += `**入款 (IN)** （${deposits.length}笔）：\n`;
                 displayDeposits.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
-                    msg += ` 🕒 ${time}  ${format(new Decimal(t.amount_raw))}\n`;
+                    msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (deposits.length === 0) msg += ` (无)\n`;
 
-                msg += `\n📤 **下发 (OUT)** （${payouts.length}笔）：\n`;
+                msg += `\n**下发 (OUT)** （${payouts.length}笔）：\n`;
                 displayPayouts.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
-                    msg += ` 🕒 ${time}  -${format(new Decimal(t.amount_raw))}\n`;
+                    msg += ` ${time}  -${format(new Decimal(t.amount_raw))}\n`;
                 });
                 if (payouts.length === 0) msg += ` (无)\n`;
 
                 // SUMMARY BLOCK (Match Photo Guideline)
                 msg += `━━━━━━━━━━━━━━━━\n`;
-                msg += `🔹 总入款 (IN)： ${format(totalInRaw)}\n`;
-                msg += `🔸 费率： ${new Decimal(settings.rate_in || 0).toFixed(2)}%\n`;
+                msg += `总入款 (IN)： ${format(totalInRaw)}\n`;
+                msg += `费率： ${new Decimal(settings.rate_in || 0).toFixed(2)}%\n`;
 
                 // ACTIVE FOREX DETECTION (Multiple Currencies)
                 const activeRates = [];
@@ -296,15 +296,15 @@ export const Ledger = {
                     activeRates.forEach(fx => {
                         const conv = (val: Decimal) => val.div(fx.rate).toFixed(showDecimals ? 2 : 0);
 
-                        msg += `\n💹 ${fx.label}： ${fx.rate.toFixed(2)}\n`;
-                        msg += `📥 应下发 (IN)： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
-                        msg += `📤 总下发 (OUT)： -${format(totalOut)} | -${conv(totalOut)} ${fx.suffix}\n`;
-                        msg += `💎 余额 (TOTAL)： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;
+                        msg += `\n${fx.label}： ${fx.rate.toFixed(2)}\n`;
+                        msg += `应下发 (IN)： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
+                        msg += `总下发 (OUT)： -${format(totalOut)} | -${conv(totalOut)} ${fx.suffix}\n`;
+                        msg += `余额 (TOTAL)： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;
                     });
                 } else {
-                    msg += `🔹 净入款 (IN)： ${format(totalInNet)}\n`;
-                    msg += `📤 总下发 (OUT)： -${format(totalOut)}\n`;
-                    msg += `💎 余额 (TOTAL)： ${format(balance)}\n`;
+                    msg += `净入款 (IN)： ${format(totalInNet)}\n`;
+                    msg += `总下发 (OUT)： -${format(totalOut)}\n`;
+                    msg += `余额 (TOTAL)： ${format(balance)}\n`;
                 }
             }
 
