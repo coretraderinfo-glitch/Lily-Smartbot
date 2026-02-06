@@ -95,17 +95,6 @@ const MainMenuMarkup = {
 const CalcMenuMarkup = {
     inline_keyboard: [
         [
-            { text: "🚀 START", callback_data: "calc_start" },
-            { text: "🛑 STOP", callback_data: "calc_stop" }
-        ],
-        [
-            { text: "📝 BILL", callback_data: "calc_bill" },
-            { text: "📄 PDF", callback_data: "calc_pdf" }
-        ],
-        [
-            { text: "🧹 WIPE TODAY", callback_data: "calc_wipe" }
-        ],
-        [
             { text: "⬅️ BACK TO MENU", callback_data: "menu_main" }
         ]
     ]
@@ -140,13 +129,21 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (data === "menu_calc") {
         return ctx.editMessageText(
-            `📊 **CALCULATION ENGINE**\n\n` +
-            `World-class ledger tracking. You can use the buttons below **OR** type these manual commands directly:\n\n` +
-            `📥 **Deposits (入款):** \`+100\` or \`入款 100\`\n` +
-            `📤 **Payouts (下发):** \`-50\`, \`下发 50\` or \`取 50\`\n` +
-            `🔄 **Returns (回款):** \`回款 200\`\n` +
-            `❌ **Corrections:** \`入款-50\` or \`下发-20\`\n\n` +
-            `💡 *Note: You must click "START" before recording.*`,
+            `📊 **CALCULATION ENGINE - COMMAND LIST**\n\n` +
+            `Use the following commands manually to operate the bot:\n\n` +
+            `🚀 **Flow Control:**\n` +
+            `• \`开始\` / \`start\`: Start today's ledger\n` +
+            `• \`结束记录\` / \`stop\`: End day & Generate PDF\n\n` +
+            `� **Recording Transactions:**\n` +
+            `• \`+100\` / \`入款 100\`: Record Deposit\n` +
+            `• \`-50\` / \`下发 50\`: Record Payout\n` +
+            `• \`回款 200\`: Record Return Transaction\n` +
+            `• \`入款-50\` / \`下发-20\`: Error Correction\n\n` +
+            `📝 **Information & Data:**\n` +
+            `• \`显示账单\`: View current balance & bill\n` +
+            `• \`下载报表\`: Instant PDF Statement\n` +
+            `• \`清理今天数据\`: Permanently wipe today's entries\n\n` +
+            `💡 *Type any command exactly as shown.*`,
             { parse_mode: 'Markdown', reply_markup: CalcMenuMarkup }
         );
     }
