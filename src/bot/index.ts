@@ -87,7 +87,19 @@ worker.on('completed', async (job, returnValue) => {
                     options.reply_markup = new InlineKeyboard().url("检查明细（More)", result.url);
                 }
 
-                await bot.api.sendMessage(job.data.chatId, result.text, options);
+                try {
+                    await bot.api.sendMessage(job.data.chatId, result.text, options);
+                } catch (sendErr: any) {
+                    // Safety Fallback: If Telegram rejects the bill (likely due to a bad URL), 
+                    // send the text WITHOUT the button so the system still "works"
+                    if (options.reply_markup) {
+                        console.error('Telegram rejected URL button, sending without keyboard:', sendErr.message);
+                        delete options.reply_markup;
+                        await bot.api.sendMessage(job.data.chatId, result.text, options);
+                    } else {
+                        throw sendErr; // Real error, let it bubble
+                    }
+                }
                 return;
             }
         }

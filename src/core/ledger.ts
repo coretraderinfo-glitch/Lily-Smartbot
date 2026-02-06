@@ -244,25 +244,41 @@ export const Ledger = {
             const format = (val: Decimal) => formatNumber(val, showDecimals ? 2 : 0);
 
             let msg = '';
-            // Determine if we should show the "More" button (>= 5 entries today)
-            const showMore = txs.length >= 5;
             let reportUrl = '';
+            let showMore = txs.length >= 5;
 
             if (showMore) {
                 const securityToken = Security.generateReportToken(chatId, date);
 
-                // Railway protocol check - Ensure we always have https://
+                // World-Class URL Detection
+                // 1. PUBLIC_URL (Manual override)
+                // 2. RAILWAY_PUBLIC_DOMAIN (Railway assigned domain)
+                // 3. RAILWAY_STATIC_URL (Railway internal static domain)
                 let baseUrl = process.env.PUBLIC_URL ||
-                    process.env.RAILWAY_STATIC_URL ||
                     process.env.RAILWAY_PUBLIC_DOMAIN ||
-                    'localhost:3000';
+                    process.env.RAILWAY_STATIC_URL;
 
-                if (!baseUrl.startsWith('http')) {
-                    baseUrl = `https://${baseUrl}`;
+                // Fallback for local development
+                if (!baseUrl && (process.env.NODE_ENV !== 'production')) {
+                    baseUrl = 'localhost:3000';
                 }
 
-                const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`).toString('base64');
-                reportUrl = `${baseUrl}/v/${tokenBase64}`;
+                if (baseUrl) {
+                    if (!baseUrl.startsWith('http')) {
+                        baseUrl = `https://${baseUrl}`;
+                    }
+                    const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`).toString('base64');
+                    reportUrl = `${baseUrl}/v/${tokenBase64}`;
+
+                    // Final sanity check for Telegram (no localhost in buttons)
+                    if (reportUrl.includes('localhost') && process.env.NODE_ENV === 'production') {
+                        showMore = false;
+                        reportUrl = '';
+                    }
+                } else {
+                    // No public URL available, hide the button to prevent crash
+                    showMore = false;
+                }
             }
 
             if (displayMode === 4) {
