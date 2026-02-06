@@ -176,7 +176,36 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         const returnMatch = text.match(/^回款\s*(\d+(\.\d+)?)$/);
         if (returnMatch) return await Ledger.addReturn(chatId, userId, username, returnMatch[1]);
 
-        if (text === '清理今天数据' || /^\/cleardata$/i.test(text)) return await Ledger.clearToday(chatId);
+        // DANGEROUS COMMAND: Clear Today's Data (Requires Confirmation)
+        if (text === '清理今天数据' || /^\/cleardata$/i.test(text)) {
+            // Check if this is a confirmation callback
+            const txRes = await db.query(`SELECT count(*) FROM transactions WHERE group_id = $1 AND business_date = (
+                SELECT CASE 
+                    WHEN EXTRACT(HOUR FROM NOW() AT TIME ZONE COALESCE(timezone, 'Asia/Shanghai')) < COALESCE(reset_hour, 4)
+                    THEN (NOW() AT TIME ZONE COALESCE(timezone, 'Asia/Shanghai') - INTERVAL '1 day')::date
+                    ELSE (NOW() AT TIME ZONE COALESCE(timezone, 'Asia/Shanghai'))::date
+                END FROM groups WHERE id = $1
+            )`, [chatId]);
+
+            const txCount = parseInt(txRes.rows[0]?.count || '0');
+
+            if (txCount === 0) {
+                return await Ledger.clearToday(chatId);
+            }
+
+            // Show confirmation dialog
+            return {
+                text: `⚠️ **数据清理确认 (Confirmation Required)**\n\n您即将删除今天的 **${txCount} 条交易记录**。\n\n**此操作不可撤销！** 数据将被归档但无法恢复到当前账单。\n\n请确认是否继续：`,
+                needsConfirmation: true,
+                confirmAction: 'cleardata_confirmed',
+                txCount
+            } as any;
+        }
+
+        // Handle confirmation callback
+        if (text === 'CONFIRM_CLEARDATA') {
+            return await Ledger.clearToday(chatId);
+        }
 
         // FLOW
         if (text === '开始' || /^(?:\/start|start)$/i.test(text)) return await Ledger.startDay(chatId);

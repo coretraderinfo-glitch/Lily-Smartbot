@@ -76,7 +76,23 @@ worker.on('completed', async (job, returnValue) => {
 
         // 3. Handle Rich Bill Results (Object with metadata for "More" button)
         if (typeof returnValue === 'object' && returnValue !== null) {
-            const result = returnValue as BillResult;
+            const result = returnValue as any;
+
+            // 3a. Handle Confirmation Dialogs (Dangerous Commands)
+            if (result.needsConfirmation) {
+                const confirmKeyboard = new InlineKeyboard()
+                    .text(`✅ 确认删除 ${result.txCount} 条记录`, `confirm:cleardata:${job.data.chatId}`)
+                    .text('❌ 取消', `cancel:cleardata:${job.data.chatId}`);
+
+                await bot.api.sendMessage(job.data.chatId, result.text, {
+                    reply_to_message_id: job.data.messageId,
+                    parse_mode: 'Markdown',
+                    reply_markup: confirmKeyboard
+                });
+                return;
+            }
+
+            // 3b. Handle Bill Results with "More" button
             if (result.text) {
                 const options: any = {
                     reply_to_message_id: job.data.messageId,
@@ -183,6 +199,39 @@ bot.on('callback_query:data', async (ctx) => {
             text: "🛡️ GUARDIAN SYSTEM\nComing soon in the next update.",
             show_alert: true
         });
+    }
+
+    // CONFIRMATION HANDLERS: Clear Data
+    if (data.startsWith('confirm:cleardata:')) {
+        const targetChatId = parseInt(data.split(':')[2]);
+        if (targetChatId !== chatId) {
+            return ctx.answerCallbackQuery({ text: "❌ Invalid confirmation", show_alert: true });
+        }
+
+        // Execute the clear command
+        await commandQueue.add('cmd', {
+            chatId: targetChatId,
+            userId,
+            username: ctx.from.username || ctx.from.first_name,
+            text: 'CONFIRM_CLEARDATA',
+            messageId: ctx.callbackQuery.message?.message_id || 0
+        });
+
+        await ctx.editMessageText(
+            `⏳ **Processing...** 正在清理数据...`,
+            { parse_mode: 'Markdown' }
+        );
+
+        return ctx.answerCallbackQuery({ text: "✅ 确认成功，正在清理数据..." });
+    }
+
+    if (data.startsWith('cancel:cleardata:')) {
+        await ctx.editMessageText(
+            `✅ **操作已取消 (Operation Cancelled)**\n\n数据清理已中止，所有记录保持不变。`,
+            { parse_mode: 'Markdown' }
+        );
+
+        return ctx.answerCallbackQuery({ text: "✅ 已取消" });
     }
 });
 
