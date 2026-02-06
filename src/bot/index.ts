@@ -129,21 +129,40 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (data === "menu_calc") {
         return ctx.editMessageText(
-            `📊 **CALCULATION ENGINE - COMMAND LIST**\n\n` +
-            `Use the following commands manually to operate the bot:\n\n` +
-            `🚀 **Flow Control:**\n` +
-            `• \`开始\` / \`start\`: Start today's ledger\n` +
-            `• \`结束记录\` / \`stop\`: End day & Generate PDF\n\n` +
-            `� **Recording Transactions:**\n` +
+            `📊 **LILY COMPLETE COMMAND LIST**\n\n` +
+            `🚀 **FLOW CONTROL (流程控制)**\n` +
+            `• \`开始\` / \`start\`: Start recording today\n` +
+            `• \`结束记录\`: End day & Archive PDF\n\n` +
+            `💰 **RECORDING (实时记账)**\n` +
             `• \`+100\` / \`入款 100\`: Record Deposit\n` +
-            `• \`-50\` / \`下发 50\`: Record Payout\n` +
-            `• \`回款 200\`: Record Return Transaction\n` +
-            `• \`入款-50\` / \`下发-20\`: Error Correction\n\n` +
-            `📝 **Information & Data:**\n` +
-            `• \`显示账单\`: View current balance & bill\n` +
-            `• \`下载报表\`: Instant PDF Statement\n` +
-            `• \`清理今天数据\`: Permanently wipe today's entries\n\n` +
-            `💡 *Type any command exactly as shown.*`,
+            `• \`-50\` / \`下发 50\` / \`取 50\`: Record Payout\n` +
+            `• \`-50u\`: Record Payout (USDT Mode)\n` +
+            `• \`回款 200\`: Record Return\n\n` +
+            `❌ **CORRECTIONS (账目纠错)**\n` +
+            `• \`入款-50\`: Void a Deposit entry\n` +
+            `• \`下发-20\`: Void a Payout entry\n\n` +
+            `⚙️ **FINANCIAL SETTINGS (费率/汇率设置)**\n` +
+            `• \`设置费率 0.03\`: Set Inbound Rate (3%)\n` +
+            `• \`设置下发费率 0.02\`: Set Outbound Rate (2%)\n` +
+            `• \`设置美元汇率 7.2\`: Set USD Rate\n` +
+            `• \`设置马币汇率 0.65\`: Set MYR Rate\n` +
+            `• \`设置[\u6bd4\u7d22/\u6cf0\u94e2]汇率 [值]\`: Set PHP/THB\n` +
+            `• \`删除美元汇率\`: Reset/Delete a specific rate\n\n` +
+            `🖥️ **DISPLAY MODES (显示与格式)**\n` +
+            `• \`设置为无小数\`: Hide decimal points\n` +
+            `• \`设置为计数模式\`: Simplified list view\n` +
+            `• \`设置显示模式 [2/3/4]\`: Toggle UI detail level\n` +
+            `• \`设置为原始模式\`: Restore default display\n\n` +
+            `� **TEAM (团队管理)**\n` +
+            `• \`设置操作人 @tag\`: Add Operator (tag or reply)\n` +
+            `• \`删除操作人 @tag\`: Remove permissions\n` +
+            `• \`显示操作人\`: View authorized team list\n\n` +
+            `📊 **REPORTS (数据报表)**\n` +
+            `• \`显示账单\`: View balance & ledger summary\n` +
+            `• \`下载报表\`: Export daily PDF\n` +
+            `• \`导出Excel\`: Export CSV spreadsheet\n` +
+            `• \`清理今天数据\`: Full reset of active day\n\n` +
+            `💡 *Pro-Tip: You can use any command by typing it directly in the chat.*`,
             { parse_mode: 'Markdown', reply_markup: CalcMenuMarkup }
         );
     }
