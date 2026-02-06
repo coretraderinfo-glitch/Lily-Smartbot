@@ -248,23 +248,29 @@ export const Ledger = {
             const balance = totalInNet.sub(totalOut).add(totalReturn);
             const format = (val: Decimal) => formatNumber(val, showDecimals ? 2 : 0);
 
+            // 🛠️ ALIGNMENT HELPER: Right-align numbers using spaces and monospaced font
+            const padAmount = (val: Decimal, width: number = 10) => {
+                const f = format(val);
+                return `\`${f.padStart(width, ' ')}\\u2007\``; // Using figure space for better alignment
+            };
+
             // Render based on mode
             let msg = '';
 
             if (displayMode === 4) {
                 // Mode 4: Summary Only
                 msg = `📅 **Ledger Update**\n`;
-                msg += `总入款 (IN): ${format(totalInRaw)}\n`;
-                msg += `总下发 (OUT): -${format(totalOut)}\n`;
-                msg += `余额 (TOTAL): ${format(balance)}`;
+                msg += `总入款 (IN): \`${format(totalInRaw)}\`\n`;
+                msg += `总下发 (OUT): \`-${format(totalOut)}\`\n`;
+                msg += `余额 (TOTAL): \`${format(balance)}\``;
             } else if (displayMode === 5) {
                 // Mode 5: Count Mode
                 msg = `**Transaction Count**\n\n`;
                 txRes.rows.forEach((t, i) => {
                     const sign = t.type === 'DEPOSIT' ? '➕' : '➖';
-                    msg += `${i + 1}. ${sign} ${format(new Decimal(t.amount_raw))}\n`;
+                    msg += `${i + 1}. ${sign} \`${format(new Decimal(t.amount_raw))}\`\n`;
                 });
-                msg += `\n余额 (TOTAL): ${format(balance)}`;
+                msg += `\n余额 (TOTAL): \`${format(balance)}\``;
             } else {
                 // DEFAULT / MODE 1: Show latest 5 for conciseness
                 const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
@@ -278,24 +284,32 @@ export const Ledger = {
                 const displayDeposits = deposits.slice(-depositLimit);
                 const displayPayouts = payouts.slice(-payoutLimit);
 
+                // Calculate max width for padding
+                const allListAmounts = [...displayDeposits, ...displayPayouts].map(t => format(new Decimal(t.amount_raw)).length);
+                const maxWidth = Math.max(...allListAmounts, 10);
+
                 msg += `📥 **入款 (IN)** （${deposits.length}笔）：\n`;
                 displayDeposits.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
-                    msg += ` ${time}  ${format(new Decimal(t.amount_raw))}\n`;
+                    const amt = format(new Decimal(t.amount_raw));
+                    msg += ` \`${time}\`  \`${amt.padStart(maxWidth, ' ')}\`\n`;
                 });
                 if (deposits.length === 0) msg += ` (无)\n`;
 
                 msg += `\n📤 **下发 (OUT)** （${payouts.length}笔）：\n`;
                 displayPayouts.forEach(t => {
                     const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
-                    msg += ` ${time}  -${format(new Decimal(t.amount_raw))}\n`;
+                    const amt = `-${format(new Decimal(t.amount_raw))}`;
+                    msg += ` \`${time}\`  \`${amt.padStart(maxWidth + 1, ' ')}\`\n`;
                 });
                 if (payouts.length === 0) msg += ` (无)\n`;
 
-                // SUMMARY BLOCK (Match Photo Guideline)
+                // SUMMARY BLOCK (Professional Alignment)
+                const summaryWidth = Math.max(format(totalInRaw).length, format(totalInNet).length, format(totalOut).length, format(balance).length, 12);
+
                 msg += `━━━━━━━━━━━━━━━━\n`;
-                msg += `总入款 (IN)： ${format(totalInRaw)}\n`;
-                msg += `费率： ${formatNumber(new Decimal(settings.rate_in || 0), 2)}%\n`;
+                msg += `总入款 (IN)： \`${format(totalInRaw).padStart(summaryWidth, ' ')}\`\n`;
+                msg += `费率： \`${formatNumber(new Decimal(settings.rate_in || 0), 2).padStart(summaryWidth - 1, ' ')}%\`\n`;
 
                 // ACTIVE FOREX DETECTION (Multiple Currencies)
                 const activeRates = [];
@@ -308,15 +322,15 @@ export const Ledger = {
                     activeRates.forEach(fx => {
                         const conv = (val: Decimal) => formatNumber(val.div(fx.rate), showDecimals ? 2 : 0);
 
-                        msg += `\n${fx.label}： ${formatNumber(fx.rate, 2)}\n`;
-                        msg += `应下发 (IN)： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
-                        msg += `总下发 (OUT)： -${format(totalOut)} | -${conv(totalOut)} ${fx.suffix}\n`;
-                        msg += `余额 (TOTAL)： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;
+                        msg += `\n${fx.label}： \`${formatNumber(fx.rate, 2)}\`\n`;
+                        msg += `应下发 (IN)： \`${format(totalInNet).padStart(summaryWidth, ' ')}\` | \`${conv(totalInNet).padStart(10, ' ')} ${fx.suffix}\`\n`;
+                        msg += `总下发 (OUT)： \`-${format(totalOut).padStart(summaryWidth - 1, ' ')}\` | \`-${conv(totalOut).padStart(9, ' ')} ${fx.suffix}\`\n`;
+                        msg += `余额 (TOTAL)： \`${format(balance).padStart(summaryWidth, ' ')}\` | \`${conv(balance).padStart(10, ' ')} ${fx.suffix}\`\n`;
                     });
                 } else {
-                    msg += `净入款 (IN)： ${format(totalInNet)}\n`;
-                    msg += `总下发 (OUT)： -${format(totalOut)}\n`;
-                    msg += `余额 (TOTAL)： ${format(balance)}\n`;
+                    msg += `净入款 (IN)： \`${format(totalInNet).padStart(summaryWidth, ' ')}\`\n`;
+                    msg += `总下发 (OUT)： \`-${format(totalOut).padStart(summaryWidth - 1, ' ')}\`\n`;
+                    msg += `余额 (TOTAL)： \`${format(balance).padStart(summaryWidth, ' ')}\`\n`;
                 }
             }
 

@@ -75,14 +75,13 @@ export const PDFExport = {
         const table = {
             title: "交易详情 (Transaction Details)",
             headers: [
-                { label: "时间", property: 'time', width: 60, align: 'left' },
-                { label: "类型", property: 'type', width: 50, align: 'left' },
-                { label: "原始金额", property: 'amount_raw', width: 80, align: 'right' },
-                { label: "费率", property: 'fee_rate', width: 40, align: 'right' },
-                { label: "手续费", property: 'fee_amount', width: 70, align: 'right' },
-                { label: "净额", property: 'net_amount', width: 80, align: 'right' },
-                { label: "币种", property: 'currency', width: 40, align: 'center' },
-                { label: "操作人", property: 'operator', width: 80, align: 'left' }
+                { label: "时间", property: 'time', width: 70, align: 'left' },
+                { label: "类型", property: 'type', width: 60, align: 'left' },
+                { label: "原始金额", property: 'amount_raw', width: 100, align: 'right' },
+                { label: "费率", property: 'fee_rate', width: 50, align: 'right' },
+                { label: "手续费", property: 'fee_amount', width: 80, align: 'right' },
+                { label: "净额", property: 'net_amount', width: 100, align: 'right' },
+                { label: "操作人", property: 'operator', width: 100, align: 'left' }
             ],
             rows: txRes.rows.map(t => [
                 new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),
@@ -91,7 +90,6 @@ export const PDFExport = {
                 `${formatNumber(new Decimal(t.fee_rate), 2)}%`,
                 formatNumber(new Decimal(t.fee_amount), 2),
                 formatNumber(new Decimal(t.net_amount), 2),
-                t.currency,
                 t.operator_name
             ]),
         };
