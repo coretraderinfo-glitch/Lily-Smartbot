@@ -274,30 +274,27 @@ export const Ledger = {
 
                 msg += `\n━━━━━━━━━━━━━━━━\n`;
 
-                // 1. Exchange Rates Block
+                // 1. Exchange Rates Block (Simple Style)
                 const activeRates = [];
-                if (new Decimal(settings.rate_usd || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_usd), code: 'USD', label: '美元汇率' });
-                if (new Decimal(settings.rate_myr || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_myr), code: 'MYR', label: '马币汇率' });
-                if (new Decimal(settings.rate_php || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_php), code: 'PHP', label: '比索汇率' });
-                if (new Decimal(settings.rate_thb || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_thb), code: 'THB', label: '泰铢汇率' });
+                if (new Decimal(settings.rate_usd || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_usd), code: 'USD' });
+                if (new Decimal(settings.rate_myr || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_myr), code: 'MYR' });
+                if (new Decimal(settings.rate_php || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_php), code: 'PHP' });
+                if (new Decimal(settings.rate_thb || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_thb), code: 'THB' });
 
-                if (activeRates.length > 0) {
-                    msg += `🔹 **当前汇率 (Ex-Rates):**\n`;
-                    activeRates.forEach(r => msg += `• ${r.label}: ${r.rate}\n`);
-                    msg += `\n`;
-                }
-
-                // 2. Financial Totals
+                // 2. Financial Totals (Simple Style matching Photo 1)
                 const rateIn = new Decimal(settings.rate_in || 0);
                 const conv = (v: Decimal, fx: { rate: Decimal, code: string }) => ` | ${formatNumber(v.div(fx.rate), showDecimals ? 2 : 0)} ${fx.code}`;
 
-                msg += `💰 **总入款 (Gross In):** ${format(totalInRaw)}\n`;
-                msg += `⚙️ **现行费率 (Fee):** ${rateIn.toString()}%\n`;
-                msg += `💵 **入款净额 (Net In):** ${format(totalInNet)}${activeRates.length > 0 ? conv(totalInNet, activeRates[0]) : ''}\n`;
-                msg += `💸 **总下发 (Total Out):** -${format(totalOut)}${activeRates.length > 0 ? conv(totalOut, activeRates[0]) : ''}\n`;
-                msg += `➕ **总回款 (Return):** ${format(totalReturn)}\n`;
-                msg += `\n💎 **应下发 (Total Due):** ${format(balance)}${activeRates.length > 0 ? conv(balance, activeRates[0]) : ''}\n`;
-                msg += `🏛 **余额 (Balance):** ${format(balance)}\n`;
+                msg += `总入款 (IN): ${format(totalInRaw)}\n`;
+                msg += `费率: ${rateIn.toString()}%\n\n`;
+
+                if (activeRates.length > 0) {
+                    activeRates.forEach(r => msg += `${r.code}汇率: ${r.rate}\n`);
+                }
+
+                msg += `应下发 (IN): ${format(totalInNet)}${activeRates.length > 0 ? conv(totalInNet, activeRates[0]) : ''}\n`;
+                msg += `总下发 (OUT): -${format(totalOut)}${activeRates.length > 0 ? conv(totalOut, activeRates[0]) : ''}\n`;
+                msg += `余额 (TOTAL): ${format(balance)}${activeRates.length > 0 ? conv(balance, activeRates[0]) : ''}\n`;
             }
             return { text: msg, showMore, url: reportUrl };
         } finally {
