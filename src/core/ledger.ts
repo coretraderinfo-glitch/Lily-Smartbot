@@ -225,9 +225,20 @@ export const Ledger = {
             let totalOut = new Decimal(0);
             let totalReturn = new Decimal(0);
 
-            deposits.forEach(t => { totalInRaw = totalInRaw.add(new Decimal(t.amount_raw)); totalInNet = totalInNet.add(new Decimal(t.net_amount)); });
-            payouts.forEach(t => { totalOut = totalOut.add(new Decimal(t.amount_raw)); });
-            returns.forEach(t => { totalReturn = totalReturn.add(new Decimal(t.amount_raw)); });
+            txs.forEach(t => {
+                const amount = new Decimal(t.amount_raw);
+                const fee = new Decimal(t.fee_amount || 0);
+                const net = new Decimal(t.net_amount || 0);
+
+                if (t.type === 'DEPOSIT') {
+                    totalInRaw = totalInRaw.add(amount);
+                    totalInNet = totalInNet.add(net);
+                } else if (t.type === 'PAYOUT') {
+                    totalOut = totalOut.add(amount.add(fee));
+                } else if (t.type === 'RETURN') {
+                    totalReturn = totalReturn.add(amount);
+                }
+            });
 
             const balance = totalInNet.sub(totalOut).add(totalReturn);
             const format = (val: Decimal) => formatNumber(val, showDecimals ? 2 : 0);
@@ -239,10 +250,17 @@ export const Ledger = {
 
             if (showMore) {
                 const securityToken = Security.generateReportToken(chatId, date);
-                // Railway provides RAILWAY_STATIC_URL or we construct from RAILWAY_PUBLIC_DOMAIN
-                const baseUrl = process.env.PUBLIC_URL ||
+
+                // Railway protocol check - Ensure we always have https://
+                let baseUrl = process.env.PUBLIC_URL ||
                     process.env.RAILWAY_STATIC_URL ||
-                    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
+                    process.env.RAILWAY_PUBLIC_DOMAIN ||
+                    'localhost:3000';
+
+                if (!baseUrl.startsWith('http')) {
+                    baseUrl = `https://${baseUrl}`;
+                }
+
                 const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`).toString('base64');
                 reportUrl = `${baseUrl}/v/${tokenBase64}`;
             }

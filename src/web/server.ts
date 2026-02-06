@@ -15,6 +15,8 @@ const PORT = parseInt(process.env.PORT || '3000');
  * THE LILY WEB READER: Secure Financial Platform
  */
 
+app.get('/', (req, res) => res.status(200).send('Lily Financial Services: Online 🟢'));
+
 app.get('/v/:token', async (req, res) => {
     const { token } = req.params;
 
@@ -52,11 +54,14 @@ app.get('/v/:token', async (req, res) => {
 
         txs.forEach(t => {
             const amount = new Decimal(t.amount_raw);
+            const fee = new Decimal(t.fee_amount || 0);
+            const net = new Decimal(t.net_amount || 0);
+
             if (t.type === 'DEPOSIT') {
                 totalInRaw = totalInRaw.add(amount);
-                totalInNet = totalInNet.add(new Decimal(t.net_amount));
+                totalInNet = totalInNet.add(net);
             } else if (t.type === 'PAYOUT') {
-                totalOut = totalOut.add(amount);
+                totalOut = totalOut.add(amount.add(fee));
             } else if (t.type === 'RETURN') {
                 totalReturn = totalReturn.add(amount);
             }

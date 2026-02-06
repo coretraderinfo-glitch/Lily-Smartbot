@@ -1,5 +1,5 @@
 import { Job } from 'bullmq';
-import { Ledger } from '../core/ledger';
+import { Ledger, BillResult } from '../core/ledger';
 import { Settings } from '../core/settings';
 import { RBAC } from '../core/rbac';
 import { PDFExport } from '../core/pdf';
@@ -17,10 +17,19 @@ interface CommandJob {
 }
 
 /**
+ * Helper to combine a simple message with a BillResult
+ */
+const combine = (prefix: string, bill: BillResult): BillResult => ({
+    text: `${prefix}\n\n${bill.text}`,
+    showMore: bill.showMore,
+    url: bill.url
+});
+
+/**
  * COMMAND PROCESSOR
  * World-class bilingual command engine
  */
-export const processCommand = async (job: Job<CommandJob>) => {
+export const processCommand = async (job: Job<CommandJob>): Promise<BillResult | string | null> => {
     const { chatId, userId, username, text } = job.data;
 
     // Security Check
@@ -35,62 +44,62 @@ export const processCommand = async (job: Job<CommandJob>) => {
         const rateInMatch = text.match(/^设置费率\s*(\d+(\.\d+)?)%?$/);
         if (rateInMatch) {
             const res = await Settings.setInboundRate(chatId, parseFloat(rateInMatch[1]));
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
         // Outbound Fee
         const rateOutMatch = text.match(/^设置下发费率\s*(\d+(\.\d+)?)%?$/);
         if (rateOutMatch) {
             const res = await Settings.setOutboundRate(chatId, parseFloat(rateOutMatch[1]));
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
         // Forex Rates (USD/PHP/MYR/THB)
         const usdMatch = text.match(/^(?:设置美元汇率|\/gd|设置汇率U)[:\s]*(\d+(\.\d+)?)$/i);
         if (usdMatch) {
             const res = await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         const phpMatch = text.match(/^(?:设置比索汇率|设置汇率PHP)[:\s]*(\d+(\.\d+)?)$/i);
         if (phpMatch) {
             const res = await Settings.setForexRate(chatId, 'php', parseFloat(phpMatch[1]));
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         const myrMatch = text.match(/^(?:设置马币汇率|设置汇率MYR)[:\s]*(\d+(\.\d+)?)$/i);
         if (myrMatch) {
             const res = await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         const thbMatch = text.match(/^(?:设置泰铢汇率|设置汇率泰Bhat|设置汇率THB)[:\s]*(\d+(\.\d+)?)$/i);
         if (thbMatch) {
             const res = await Settings.setForexRate(chatId, 'thb', parseFloat(thbMatch[1]));
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
         // Deletion
         if (/^(?:删除美元汇率|删除汇率U)$/i.test(text)) {
             const res = await Settings.setForexRate(chatId, 'usd', 0);
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
         // Display Modes
         if (text === '设置为无小数') {
             const res = await Settings.setDecimals(chatId, false);
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         if (text === '设置为计数模式') {
             const res = await Settings.setDisplayMode(chatId, 5);
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         const modeMatch = text.match(/^设置显示模式\s*([234])$/);
         if (modeMatch) {
             const res = await Settings.setDisplayMode(chatId, parseInt(modeMatch[1]));
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         if (text === '设置为原始模式') {
             await Settings.setDisplayMode(chatId, 1);
             const res = await Settings.setDecimals(chatId, true);
-            return `${res}\n\n${await Ledger.generateBillWithMode(chatId)}`;
+            return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
         // ============================================
@@ -173,7 +182,7 @@ export const processCommand = async (job: Job<CommandJob>) => {
         if (text === '开始' || /^(?:\/start|start)$/i.test(text)) return await Ledger.startDay(chatId);
 
         if (text === '结束记录' || /^(?:\/stop|stop)$/i.test(text)) {
-            await Ledger.stopDay(chatId);
+            const bill = await Ledger.stopDay(chatId);
             const pdf = await PDFExport.generateDailyPDF(chatId);
             const groupRes = await db.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
             const tz = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
@@ -186,7 +195,10 @@ export const processCommand = async (job: Job<CommandJob>) => {
                 VALUES ($1, $2, 'MANUAL_STOP', $3)
             `, [chatId, date, pdf]);
 
-            return `PDF_EXPORT:${pdf.toString('base64')}`;
+            return {
+                text: `🏁 **本日记录已正式结束 (Day Finalized)**\n\n请查收以下最终对账单 PDF。\n\n${bill.text}`,
+                pdf: pdf.toString('base64')
+            } as any;
         }
 
         // ============================================

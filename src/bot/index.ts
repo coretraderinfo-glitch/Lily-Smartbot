@@ -1,4 +1,4 @@
-import { Bot, Context } from 'grammy';
+import { Bot, Context, InputFile, InlineKeyboard } from 'grammy';
 import { Worker, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { processCommand } from '../worker/processor';
@@ -7,6 +7,7 @@ import { Licensing } from '../core/licensing';
 import { RBAC } from '../core/rbac';
 import { Chronos } from '../core/scheduler';
 import { startWebServer } from '../web/server';
+import { BillResult } from '../core/ledger';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
 
@@ -35,10 +36,10 @@ const worker = new Worker('lily-commands', async job => {
 }, { connection });
 
 worker.on('completed', async (job, returnValue) => {
-    if (returnValue && job.data.chatId) {
-        const { InputFile, InlineKeyboard } = await import('grammy');
+    if (!returnValue || !job.data.chatId) return;
 
-        // Check if it's a PDF export (manual /export command)
+    try {
+        // 1. Handle PDF Exports (Direct PDF result)
         if (typeof returnValue === 'string' && returnValue.startsWith('PDF_EXPORT:')) {
             const base64 = returnValue.replace('PDF_EXPORT:', '');
             const date = new Date().toISOString().split('T')[0];
@@ -51,39 +52,55 @@ worker.on('completed', async (job, returnValue) => {
                     reply_to_message_id: job.data.messageId
                 }
             );
+            return;
         }
-        else if (typeof returnValue === 'string' && returnValue.startsWith('EXCEL_EXPORT:')) {
-            const csv = returnValue.replace('EXCEL_EXPORT:', '');
-            const date = new Date().toISOString().split('T')[0];
-            const filename = `Lily_Report_${date}.csv`;
 
-            await bot.api.sendDocument(job.data.chatId,
-                new InputFile(Buffer.from(csv, 'utf-8'), filename),
-                {
-                    caption: `📊 **Daily Report**\nDate: ${date}`,
-                    reply_to_message_id: job.data.messageId
-                }
-            );
-        } else if (typeof returnValue === 'object' && returnValue.text) {
-            // Handle Rich Bill Result
-            const { text, showMore, url } = returnValue;
-            const options: any = {
+        // 2. Handle Composite Results (Object with Text + PDF)
+        if (typeof returnValue === 'object' && returnValue !== null && (returnValue as any).pdf) {
+            const { text, pdf } = returnValue as any;
+            const date = new Date().toISOString().split('T')[0];
+
+            // Send text first
+            await bot.api.sendMessage(job.data.chatId, text, {
                 reply_to_message_id: job.data.messageId,
                 parse_mode: 'Markdown'
-            };
+            });
 
-            if (showMore && url) {
-                options.reply_markup = new InlineKeyboard().url("检查明细（More)", url);
+            // Then send PDF
+            await bot.api.sendDocument(job.data.chatId,
+                new InputFile(Buffer.from(pdf, 'base64'), `Lily_Final_${date}.pdf`),
+                { caption: `📄 **Final Daily Archive**` }
+            );
+            return;
+        }
+
+        // 3. Handle Rich Bill Results (Object with metadata for "More" button)
+        if (typeof returnValue === 'object' && returnValue !== null) {
+            const result = returnValue as BillResult;
+            if (result.text) {
+                const options: any = {
+                    reply_to_message_id: job.data.messageId,
+                    parse_mode: 'Markdown'
+                };
+
+                if (result.showMore && result.url) {
+                    options.reply_markup = new InlineKeyboard().url("检查明细（More)", result.url);
+                }
+
+                await bot.api.sendMessage(job.data.chatId, result.text, options);
+                return;
             }
+        }
 
-            await bot.api.sendMessage(job.data.chatId, text, options);
-        } else {
-            // Send normal text reply
-            await bot.api.sendMessage(job.data.chatId, returnValue as string, {
+        // 4. Handle Standard Text Replies
+        if (typeof returnValue === 'string') {
+            await bot.api.sendMessage(job.data.chatId, returnValue, {
                 reply_to_message_id: job.data.messageId,
                 parse_mode: 'Markdown'
             });
         }
+    } catch (err) {
+        console.error('Failed to send worker result response:', err);
     }
 });
 
