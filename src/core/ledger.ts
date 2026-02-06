@@ -6,66 +6,81 @@ import { randomUUID } from 'crypto';
 import { Settings } from './settings';
 
 /**
- * The Ledger: Core Financial Engine
+ * THE LEDGER ENGINE: World-Class Financial Processing
+ * Ensures absolute precision and high-speed accounting logic.
  */
-
 export const Ledger = {
 
     /**
-     * Start the Day
+     * Internal Metadata Helper: Fetches group configuration efficiently
      */
-    async startDay(chatId: number): Promise<string> {
+    async _getMeta(chatId: number) {
         const client = await db.getClient();
         try {
-            const groupRes = await client.query('SELECT * FROM groups WHERE id = $1', [chatId]);
+            const groupRes = await client.query('SELECT timezone, reset_hour, currency_symbol, current_state FROM groups WHERE id = $1', [chatId]);
             const group = groupRes.rows[0];
-            if (!group) {
-                await db.query('INSERT INTO groups (id, title) VALUES ($1, $2)', [chatId, 'Group ' + chatId]);
-            }
-            await client.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['RECORDING', chatId]);
-            return `🥂 **系统已开启 (News day started!)**\n\n数据录入已激活，请开始您的操作。\n\n${await Ledger.generateBill(chatId)}`;
+            return {
+                timezone: group?.timezone || 'Asia/Shanghai',
+                resetHour: group?.reset_hour || 4,
+                baseSymbol: group?.currency_symbol || 'CNY',
+                state: group?.current_state || 'WAITING_FOR_START'
+            };
         } finally {
             client.release();
         }
     },
 
     /**
-     * Stop the Day
+     * Start the Business Day
      */
-    async stopDay(chatId: number): Promise<string> {
-        await db.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['ENDED', chatId]);
-        return await Ledger.generateBill(chatId); // Auto-show bill on stop
+    async startDay(chatId: number): Promise<string> {
+        const client = await db.getClient();
+        try {
+            const exists = (await client.query('SELECT count(*) FROM groups WHERE id = $1', [chatId])).rows[0].count > 0;
+            if (!exists) {
+                await client.query('INSERT INTO groups (id, title) VALUES ($1, $2)', [chatId, 'Group ' + chatId]);
+            }
+            await client.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['RECORDING', chatId]);
+            return `🥂 **系统已开启 (New day started!)**\n\n数据录入已激活，请开始您的操作。\n\n${await Ledger.generateBill(chatId)}`;
+        } finally {
+            client.release();
+        }
     },
 
     /**
-     * Add Transaction (Deposit/Payout)
+     * Stop the Business Day & Finalize Ledger
+     */
+    async stopDay(chatId: number): Promise<string> {
+        await db.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['ENDED', chatId]);
+        return await Ledger.generateBill(chatId);
+    },
+
+    /**
+     * CORE RECORDING ENGINE: Processes Deposits and Payouts
+     * Implements strict numerical validation and precise fee calculation.
      */
     async addTransaction(chatId: number, userId: number, username: string, type: 'DEPOSIT' | 'PAYOUT', amountStr: string, currency: string = 'CNY'): Promise<string> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
-
-            // 1. Ensure Settings Exist
             await Settings.ensureSettings(chatId);
 
-            // 2. Get Settings
+            const meta = await Ledger._getMeta(chatId);
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
             const settings = settingsRes.rows[0];
-            const groupRes = await client.query('SELECT timezone, reset_hour, currency_symbol FROM groups WHERE id = $1', [chatId]);
-            const group = groupRes.rows[0];
-            const timezone = group?.timezone || 'Asia/Shanghai';
-            const resetHour = group?.reset_hour || 4;
-            const baseSymbol = group?.currency_symbol || 'CNY';
 
-            // Use group default if currency is not explicitly provided (e.g. for +100)
-            const activeCurrency = currency === 'CNY' ? baseSymbol : currency;
-
+            // 1. THE NEGATIVE GATE: World-Class Validation
             const amount = new Decimal(amountStr);
+            if (amount.lte(0)) {
+                return `❌ **金额错误 (Invalid Amount)**\n\n金额必须大于0。如需冲正，请使用 \`入款-金额\` 或 \`下发-金额\`。\n(Amount must be positive. Use correction commands for voids.)`;
+            }
+
+            const activeCurrency = currency === 'CNY' ? meta.baseSymbol : currency;
             let fee = new Decimal(0);
             let net = amount;
             let rate = new Decimal(0);
 
-            // 2. Calculate Fee
+            // 2. PRECISION CALCULATION
             if (type === 'DEPOSIT') {
                 rate = new Decimal(settings.rate_in || 0);
                 fee = amount.mul(rate).div(100);
@@ -75,23 +90,17 @@ export const Ledger = {
                 fee = amount.mul(rate).div(100);
             }
 
-            // 3. Insert
             const txId = randomUUID();
-            const date = getBusinessDate(timezone, resetHour);
+            const date = getBusinessDate(meta.timezone, meta.resetHour);
 
             await client.query(`
                 INSERT INTO transactions 
                 (id, group_id, operator_id, operator_name, business_date, type, amount_raw, fee_rate, fee_amount, net_amount, currency)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            `, [
-                txId, chatId, userId, username, date,
-                type, amount.toString(), rate.toString(), fee.toString(), net.toString(), activeCurrency
-            ]);
+            `, [txId, chatId, userId, username, date, type, amount.toString(), rate.toString(), fee.toString(), net.toString(), activeCurrency]);
 
             await client.query('COMMIT');
-
-            // Return full bill instead of simple confirmation
-            return await Ledger.generateBill(chatId);
+            return await Ledger.generateBillWithMode(chatId);
 
         } catch (e) {
             await client.query('ROLLBACK');
@@ -102,224 +111,149 @@ export const Ledger = {
     },
 
     /**
-     * Generate The Master Bill (CLEAR FORMAT)
-     */
-    async generateBill(chatId: number): Promise<string> {
-        return await Ledger.generateBillWithMode(chatId, 1);
-    },
-
-    /**
-     * Add Correction (Void/Negative Entry)
-     * 入款-XXX or 下发-XXX
+     * Add Correction (Manual Voids)
      */
     async addCorrection(chatId: number, userId: number, username: string, type: 'DEPOSIT' | 'PAYOUT', amountStr: string): Promise<string> {
-        // Corrections are negative amounts
-        const negativeAmount = `-${amountStr}`;
-        return await Ledger.addTransaction(chatId, userId, username, type, negativeAmount);
+        const client = await db.getClient();
+        try {
+            await client.query('BEGIN');
+            const meta = await Ledger._getMeta(chatId);
+            const negativeAmount = new Decimal(amountStr).neg();
+
+            const txId = randomUUID();
+            const date = getBusinessDate(meta.timezone, meta.resetHour);
+
+            await client.query(`
+                INSERT INTO transactions 
+                (id, group_id, operator_id, operator_name, business_date, type, amount_raw, fee_rate, fee_amount, net_amount, currency)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0, $7, $8)
+            `, [txId, chatId, userId, username, date, type, negativeAmount.toString(), meta.baseSymbol]);
+
+            await client.query('COMMIT');
+            return await Ledger.generateBillWithMode(chatId);
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
     },
 
-    /**
-     * Add Return Transaction
-     * 回款XXX
-     */
     async addReturn(chatId: number, userId: number, username: string, amountStr: string): Promise<string> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
-
-            const groupRes = await client.query('SELECT timezone, reset_hour, currency_symbol FROM groups WHERE id = $1', [chatId]);
-            const group = groupRes.rows[0];
-            const timezone = group?.timezone || 'Asia/Shanghai';
-            const resetHour = group?.reset_hour || 4;
-            const currency = group?.currency_symbol || 'CNY';
-
+            const meta = await Ledger._getMeta(chatId);
             const amount = new Decimal(amountStr);
+            if (amount.lte(0)) return `❌ **Invalid Amount**`;
+
             const txId = randomUUID();
-            const date = getBusinessDate(timezone, resetHour);
+            const date = getBusinessDate(meta.timezone, meta.resetHour);
 
             await client.query(`
                 INSERT INTO transactions 
                 (id, group_id, operator_id, operator_name, business_date, type, amount_raw, fee_rate, fee_amount, net_amount, currency)
                 VALUES ($1, $2, $3, $4, $5, 'RETURN', $6, 0, 0, $6, $7)
-            `, [txId, chatId, userId, username, date, amount.toString(), currency]);
+            `, [txId, chatId, userId, username, date, amount.toString(), meta.baseSymbol]);
 
             await client.query('COMMIT');
-
-            // Return full bill instead of simple confirmation
-            return await Ledger.generateBill(chatId);
-
-        } catch (e) {
-            await client.query('ROLLBACK');
-            throw e;
+            return await Ledger.generateBillWithMode(chatId);
         } finally {
             client.release();
         }
     },
 
-    /**
-     * Clear Today's Data
-     */
+    async generateBill(chatId: number): Promise<string> {
+        return await Ledger.generateBillWithMode(chatId, 1);
+    },
+
     async clearToday(chatId: number): Promise<string> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
+            const meta = await Ledger._getMeta(chatId);
+            const date = getBusinessDate(meta.timezone, meta.resetHour);
 
-            const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
-            const resetHour = groupRes.rows[0]?.reset_hour || 4;
-            const date = getBusinessDate(timezone, resetHour);
-
-            // 1. Snapshot the data before wiping
-            const txRes = await client.query(`
-                SELECT * FROM transactions 
-                WHERE group_id = $1 AND business_date = $2
-            `, [chatId, date]);
-
+            const txRes = await client.query(`SELECT * FROM transactions WHERE group_id = $1 AND business_date = $2`, [chatId, date]);
             if (txRes.rows.length > 0) {
-                // 2. Move to The Archive (Vault)
-                await client.query(`
-                    INSERT INTO historical_archives (group_id, business_date, type, data_json)
-                    VALUES ($1, $2, 'TRANSACTION_WIPE', $3)
-                `, [chatId, date, JSON.stringify(txRes.rows)]);
-
-                // 3. Clear from active ledger
-                await client.query(`
-                    DELETE FROM transactions 
-                    WHERE group_id = $1 AND business_date = $2
-                `, [chatId, date]);
+                await client.query(`INSERT INTO historical_archives (group_id, business_date, type, data_json) VALUES ($1, $2, 'WIPE', $3)`, [chatId, date, JSON.stringify(txRes.rows)]);
+                await client.query(`DELETE FROM transactions WHERE group_id = $1 AND business_date = $2`, [chatId, date]);
             }
-
             await client.query('COMMIT');
             return await Ledger.generateBill(chatId);
-        } catch (e) {
-            await client.query('ROLLBACK');
-            throw e;
         } finally {
             client.release();
         }
     },
 
     /**
-     * Generate Bill with Display Mode Support
+     * GENIUS GRADE RENDERING: Dynamic View Modes
      */
     async generateBillWithMode(chatId: number, mode?: number): Promise<string> {
         const client = await db.getClient();
         try {
-            const groupRes = await client.query('SELECT timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
-            const timezone = groupRes.rows[0]?.timezone || 'Asia/Shanghai';
-            const resetHour = groupRes.rows[0]?.reset_hour || 4;
-            const date = getBusinessDate(timezone, resetHour);
+            const meta = await Ledger._getMeta(chatId);
+            const date = getBusinessDate(meta.timezone, meta.resetHour);
 
-            // Ensure settings exist
             await Settings.ensureSettings(chatId);
-
-            const txRes = await client.query(`
-                SELECT * FROM transactions 
-                WHERE group_id = $1 AND business_date = $2 
-                ORDER BY recorded_at ASC
-            `, [chatId, date]);
-
+            const txRes = await client.query(`SELECT * FROM transactions WHERE group_id = $1 AND business_date = $2 ORDER BY recorded_at ASC`, [chatId, date]);
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
-            const settings = settingsRes.rows[0] || { rate_in: 0, rate_out: 0, display_mode: 1, show_decimals: true };
+            const settings = settingsRes.rows[0] || { display_mode: 1, show_decimals: true };
+
             const displayMode = mode || settings.display_mode || 1;
             const showDecimals = settings.show_decimals !== false;
 
-            // Aggregate
-            const deposits = txRes.rows.filter(t => t.type === 'DEPOSIT');
-            const payouts = txRes.rows.filter(t => t.type === 'PAYOUT');
-            const returns = txRes.rows.filter(t => t.type === 'RETURN');
+            const txs = txRes.rows;
+            const deposits = txs.filter(t => t.type === 'DEPOSIT');
+            const payouts = txs.filter(t => t.type === 'PAYOUT');
+            const returns = txs.filter(t => t.type === 'RETURN');
 
             let totalInRaw = new Decimal(0);
             let totalInNet = new Decimal(0);
             let totalOut = new Decimal(0);
             let totalReturn = new Decimal(0);
 
-            deposits.forEach(t => {
-                totalInRaw = totalInRaw.add(new Decimal(t.amount_raw));
-                totalInNet = totalInNet.add(new Decimal(t.net_amount));
-            });
-            payouts.forEach(t => {
-                totalOut = totalOut.add(new Decimal(t.amount_raw));
-            });
-            returns.forEach(t => {
-                totalReturn = totalReturn.add(new Decimal(t.amount_raw));
-            });
+            deposits.forEach(t => { totalInRaw = totalInRaw.add(new Decimal(t.amount_raw)); totalInNet = totalInNet.add(new Decimal(t.net_amount)); });
+            payouts.forEach(t => { totalOut = totalOut.add(new Decimal(t.amount_raw)); });
+            returns.forEach(t => { totalReturn = totalReturn.add(new Decimal(t.amount_raw)); });
 
             const balance = totalInNet.sub(totalOut).add(totalReturn);
             const format = (val: Decimal) => formatNumber(val, showDecimals ? 2 : 0);
 
-            // Render based on mode
             let msg = '';
-
             if (displayMode === 4) {
-                // Mode 4: Summary Only
-                msg = `📅 **Ledger Update**\n`;
-                msg += `总入款 (IN): ${format(totalInRaw)}\n`;
-                msg += `总下发 (OUT): -${format(totalOut)}\n`;
-                msg += `余额 (TOTAL): ${format(balance)}`;
+                msg = `📅 **Ledger Summary**\nIN: ${format(totalInRaw)}\nOUT: -${format(totalOut)}\nTOTAL: ${format(balance)}`;
             } else if (displayMode === 5) {
-                // Mode 5: Count Mode
-                msg = `**Transaction Count**\n\n`;
-                txRes.rows.forEach((t, i) => {
-                    const sign = t.type === 'DEPOSIT' ? '➕' : '➖';
-                    msg += `${i + 1}. ${sign} ${format(new Decimal(t.amount_raw))}\n`;
-                });
-                msg += `\n余额 (TOTAL): ${format(balance)}`;
+                msg = `**Count Mode**\n\n`;
+                txs.forEach((t, i) => msg += `${i + 1}. ${t.type === 'DEPOSIT' ? '➕' : '➖'} ${format(new Decimal(t.amount_raw))}\n`);
+                msg += `\nTOTAL: ${format(balance)}`;
             } else {
-                // DEFAULT / MODE 1: Show latest 5 for conciseness
-                const depositLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
-                const payoutLimit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
-
-                const [y, m, d_part] = date.split('-');
-                const displayDate = `${d_part}-${m}-${y}`;
-
-                msg = `📅 **${displayDate}**\n\n`;
-
-                const displayDeposits = deposits.slice(-depositLimit);
-                const displayPayouts = payouts.slice(-payoutLimit);
-
-                msg += `📥 **入款 (IN)** （${deposits.length}笔）：\n`;
-                displayDeposits.forEach(t => {
-                    const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
+                const limit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 5;
+                const [y, m, d] = date.split('-');
+                msg = `📅 **${d}-${m}-${y}**\n\n📥 **入款 (IN)** (${deposits.length}):\n`;
+                deposits.slice(-limit).forEach(t => {
+                    const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: meta.timezone });
                     msg += `${time}  ${format(new Decimal(t.amount_raw))}\n`;
                 });
-                if (deposits.length === 0) msg += ` (无)\n`;
 
-                msg += `\n📤 **下发 (OUT)** （${payouts.length}笔）：\n`;
-                displayPayouts.forEach(t => {
-                    const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
+                msg += `\n📤 **下发 (OUT)** (${payouts.length}):\n`;
+                payouts.slice(-limit).forEach(t => {
+                    const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: meta.timezone });
                     msg += `${time}  -${format(new Decimal(t.amount_raw))}\n`;
                 });
-                if (payouts.length === 0) msg += ` (无)\n`;
 
-                // SUMMARY BLOCK (Clean and Simple)
-                msg += `━━━━━━━━━━━━━━━━\n`;
-                msg += `总入款 (IN)： ${format(totalInRaw)}\n`;
-                msg += `费率： ${formatNumber(new Decimal(settings.rate_in || 0), 2)}%\n`;
+                msg += `━━━━━━━━━━━━━━━━\nIN: ${format(totalInRaw)}\nRate: ${formatNumber(new Decimal(settings.rate_in || 0), 2)}%\n`;
 
-                // ACTIVE FOREX DETECTION (Multiple Currencies)
-                const activeRates = [];
-                if (new Decimal(settings.rate_usd || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_usd), suffix: 'USD', label: 'USD汇率' });
-                if (new Decimal(settings.rate_myr || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_myr), suffix: 'MYR', label: 'MYR汇率' });
-                if (new Decimal(settings.rate_php || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_php), suffix: 'PHP', label: 'PHP汇率' });
-                if (new Decimal(settings.rate_thb || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_thb), suffix: 'THB', label: '泰铢汇率' });
+                const fxRates = [];
+                if (new Decimal(settings.rate_usd || 0).gt(0)) fxRates.push({ rate: new Decimal(settings.rate_usd), suf: 'USD' });
+                if (new Decimal(settings.rate_myr || 0).gt(0)) fxRates.push({ rate: new Decimal(settings.rate_myr), suf: 'MYR' });
 
-                if (activeRates.length > 0) {
-                    activeRates.forEach(fx => {
-                        const conv = (val: Decimal) => formatNumber(val.div(fx.rate), showDecimals ? 2 : 0);
-
-                        msg += `\n${fx.label}： ${formatNumber(fx.rate, 2)}\n`;
-                        msg += `应下发 (IN)： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
-                        msg += `总下发 (OUT)： -${format(totalOut)} | -${conv(totalOut)} ${fx.suffix}\n`;
-                        msg += `余额 (TOTAL)： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;
-                    });
-                } else {
-                    msg += `净入款 (IN)： ${format(totalInNet)}\n`;
-                    msg += `总下发 (OUT)： -${format(totalOut)}\n`;
-                    msg += `余额 (TOTAL)： ${format(balance)}\n`;
-                }
+                fxRates.forEach(fx => {
+                    const conv = (v: Decimal) => formatNumber(v.div(fx.rate), showDecimals ? 2 : 0);
+                    msg += `\nIN: ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suf}\nOUT: -${format(totalOut)} | -${conv(totalOut)} ${fx.suf}\nTOTAL: ${format(balance)} | ${conv(balance)} ${fx.suf}\n`;
+                });
+                if (fxRates.length === 0) msg += `IN: ${format(totalInNet)}\nOUT: -${format(totalOut)}\nTOTAL: ${format(balance)}\n`;
             }
-
             return msg;
         } finally {
             client.release();

@@ -84,6 +84,16 @@ worker.on('failed', async (job, err) => {
     }
 });
 
+import { Security } from '../utils/security';
+
+// ... existing code ...
+
+// --- CONSTANTS ---
+const DASHBOARD_TEXT = `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
+    `欢迎使用专业级账本管理系统。请选择功能模块：\n` +
+    `Welcome to the professional system. Select a module:\n\n` +
+    `💡 *Status: System Online 🟢*`;
+
 // --- MENU SYSTEM MARKUPS (PHASE 4) ---
 const MainMenuMarkup = {
     inline_keyboard: [
@@ -94,9 +104,7 @@ const MainMenuMarkup = {
 
 const CalcMenuMarkup = {
     inline_keyboard: [
-        [
-            { text: "⬅️ BACK TO MENU", callback_data: "menu_main" }
-        ]
+        [{ text: "⬅️ BACK TO MENU", callback_data: "menu_main" }]
     ]
 };
 
@@ -105,12 +113,11 @@ bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
     const chatId = ctx.chat?.id;
     const userId = ctx.from.id;
-    const username = ctx.from.username || ctx.from.first_name;
 
     if (!chatId) return;
 
-    // Security Check for any action inside the menu
-    const isOwner = (process.env.OWNER_ID || '').includes(userId.toString());
+    // Security Check
+    const isOwner = Security.isSystemOwner(userId);
     const isOperator = await RBAC.isAuthorized(chatId, userId);
 
     if (!isOwner && !isOperator) {
@@ -118,13 +125,7 @@ bot.on('callback_query:data', async (ctx) => {
     }
 
     if (data === "menu_main") {
-        return ctx.editMessageText(
-            `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
-            `欢迎使用专业级账本管理系统。请选择功能模块：\n` +
-            `Welcome to the professional system. Select a module:\n\n` +
-            `💡 *Status: System Online 🟢*`,
-            { parse_mode: 'Markdown', reply_markup: MainMenuMarkup }
-        );
+        return ctx.editMessageText(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
     }
 
     if (data === "menu_calc") {
@@ -135,33 +136,13 @@ bot.on('callback_query:data', async (ctx) => {
             `• \`结束记录\`: End day & Archive PDF\n\n` +
             `💰 **RECORDING (实时记账)**\n` +
             `• \`+100\` / \`入款 100\`: Record Deposit\n` +
-            `• \`-50\` / \`下发 50\` / \`取 50\`: Record Payout\n` +
-            `• \`-50u\`: Record Payout (USDT Mode)\n` +
-            `• \`回款 200\`: Record Return\n\n` +
-            `❌ **CORRECTIONS (账目纠错)**\n` +
-            `• \`入款-50\`: Void a Deposit entry\n` +
-            `• \`下发-20\`: Void a Payout entry\n\n` +
-            `⚙️ **FINANCIAL SETTINGS (费率/汇率设置)**\n` +
-            `• \`设置费率 0.03\`: Set Inbound Rate (3%)\n` +
-            `• \`设置下发费率 0.02\`: Set Outbound Rate (2%)\n` +
-            `• \`设置美元汇率 7.2\`: Set USD Rate\n` +
-            `• \`设置马币汇率 0.65\`: Set MYR Rate\n` +
-            `• \`设置[\u6bd4\u7d22/\u6cf0\u94e2]汇率 [值]\`: Set PHP/THB\n` +
-            `• \`删除美元汇率\`: Reset/Delete a specific rate\n\n` +
-            `🖥️ **DISPLAY MODES (显示与格式)**\n` +
-            `• \`设置为无小数\`: Hide decimal points\n` +
-            `• \`设置为计数模式\`: Simplified list view\n` +
-            `• \`设置显示模式 [2/3/4]\`: Toggle UI detail level\n` +
-            `• \`设置为原始模式\`: Restore default display\n\n` +
-            `� **TEAM (团队管理)**\n` +
-            `• \`设置操作人 @tag\`: Add Operator (tag or reply)\n` +
-            `• \`删除操作人 @tag\`: Remove permissions\n` +
-            `• \`显示操作人\`: View authorized team list\n\n` +
-            `📊 **REPORTS (数据报表)**\n` +
+            `• \`-50\` / \`下发 50\` / \`取 50\`: Record Payout\n\n` +
+            `⚙️ **SETTINGS (费率/汇率设置)**\n` +
+            `• \`设置费率 0.03\`: Set Inbound Rate\n` +
+            `• \`设置美元汇率 7.2\`: Set USD Rate\n\n` +
+            ` **REPORTS (数据报表)**\n` +
             `• \`显示账单\`: View balance & ledger summary\n` +
-            `• \`下载报表\`: Export daily PDF\n` +
-            `• \`导出Excel\`: Export CSV spreadsheet\n` +
-            `• \`清理今天数据\`: Full reset of active day\n\n` +
+            `• \`下载报表\`: Export daily PDF\n\n` +
             `💡 *Pro-Tip: You can use any command by typing it directly in the chat.*`,
             { parse_mode: 'Markdown', reply_markup: CalcMenuMarkup }
         );
@@ -171,25 +152,6 @@ bot.on('callback_query:data', async (ctx) => {
         return ctx.answerCallbackQuery({
             text: "🛡️ GUARDIAN SYSTEM\nComing soon in the next update.",
             show_alert: true
-        });
-    }
-
-    // Map buttons to internal commands
-    const cmdMap: Record<string, string> = {
-        'calc_start': '开始',
-        'calc_stop': '结束记录',
-        'calc_bill': '显示账单',
-        'calc_pdf': '下载报表',
-        'calc_wipe': '清理今天数据'
-    };
-
-    if (cmdMap[data]) {
-        await ctx.answerCallbackQuery({ text: "Processing..." });
-
-        // Add to queue just like a text command
-        await commandQueue.add('cmd', {
-            chatId, userId, username, text: cmdMap[data],
-            messageId: ctx.callbackQuery.message?.message_id
         });
     }
 });
@@ -202,16 +164,13 @@ bot.on('message:text', async (ctx) => {
     const username = ctx.from.username || ctx.from.first_name;
     const messageId = ctx.message.message_id;
 
-    // 🛡️ MILITARY-GRADE SECURITY: System Owner Validation
-    const rawOwnerEnv = (process.env.OWNER_ID || '').replace(/['"\[\]\s]+/g, '').trim();
-    const ownerList = rawOwnerEnv.split(',').map(id => id.replace(/\D/g, '')).filter(id => id.length > 0);
-    const isOwner = ownerList.length > 0 && ownerList.includes(userId.toString());
+    const isOwner = Security.isSystemOwner(userId);
 
-    // AUDIT LOG: Record all authorization checks for security monitoring
+    // AUDIT LOG
     if (text.startsWith('/generate_key') || text.startsWith('/super_activate')) {
         const timestamp = new Date().toISOString();
         const authResult = isOwner ? '✅ AUTHORIZED' : '❌ DENIED';
-        console.log(`[SECURITY AUDIT] ${timestamp} | User: ${userId} (${username}) | Command: ${text.split(' ')[0]} | Result: ${authResult} | Registry: [${ownerList.join('|')}]`);
+        console.log(`[SECURITY AUDIT] ${timestamp} | User: ${userId} (${username}) | Command: ${text.split(' ')[0]} | Result: ${authResult}`);
     }
 
     // 0. UPDATE USER CACHE
@@ -222,7 +181,7 @@ bot.on('message:text', async (ctx) => {
             ON CONFLICT (group_id, username) 
             DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
         `, [chatId, userId, ctx.from.username]).catch((err) => {
-            console.error('[USER_CACHE] Failed to update:', err.message);
+            console.error('[USER_CACHE] Error:', err.message);
         });
     }
 
@@ -232,21 +191,14 @@ bot.on('message:text', async (ctx) => {
     }
 
     if (text === '/menu' || text === '/help') {
-        return ctx.reply(
-            `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
-            `欢迎使用专业级账本管理系统。请选择功能模块：\n` +
-            `Welcome to the professional system. Select a module:\n\n` +
-            `💡 *Status: System Online 🟢*`,
-            { parse_mode: 'Markdown', reply_markup: MainMenuMarkup }
-        );
+        return ctx.reply(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
     }
 
     // Diagnostic: /whoami
     if (text.startsWith('/whoami')) {
+        const owners = Security.getOwnerRegistry();
         const statusIcon = isOwner ? "✅" : "👤";
-        const ownerStatus = isOwner ? "**System Owner**" : "**Regular User**";
-        const configStatus = ownerList.length > 0 ? `${ownerList.length} ID(s) configured` : '⚠️ NOT CONFIGURED';
-        return ctx.reply(`${statusIcon} **User Diagnostics**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${ownerStatus}\n\n**Registry:** \`${configStatus}\``, { parse_mode: 'Markdown' });
+        return ctx.reply(`${statusIcon} **User Diagnostics**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${isOwner ? '**System Owner**' : '**Regular User**'}\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
     }
 
     // /recover [group_id] (OWNER ONLY - Retrieve from Vault)
@@ -275,8 +227,9 @@ bot.on('message:text', async (ctx) => {
     }
     if (text.startsWith('/generate_key')) {
         if (!isOwner) {
-            console.log(`[SECURITY] Unauthorized user ${username} tried to generate key.`);
-            return ctx.reply(`❌ **权限错误 (Security Error)**\n\n您的 ID (\`${userId}\`) 不在系统管理员名单中。\n\n**当前授权名单 (Registry):** \`${ownerList.join(', ') || 'NONE'}\`\n\n如果您是群主，请在 Railway 设置中的 \`OWNER_ID\` 填入您的 ID 即可。`, { parse_mode: 'Markdown' });
+            const owners = Security.getOwnerRegistry();
+            console.log(`[SECURITY] Unauthorized: ${username} tried to generate key.`);
+            return ctx.reply(`❌ **权限错误 (Security Error)**\n\n您的 ID (\`${userId}\`) 不在系统管理员名单中。\n\n**当前授权名单 (Registry):** \`${owners.join(', ') || 'NONE'}\``, { parse_mode: 'Markdown' });
         }
         const parts = text.split(/\s+/);
         const days = parseInt(parts[1]) || 30;
