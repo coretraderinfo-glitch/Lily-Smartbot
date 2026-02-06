@@ -74,7 +74,16 @@ export const PDFExport = {
         // 4. TABLE
         const table = {
             title: "交易详情 (Transaction Details)",
-            headers: ["时间", "类型", "原始金额", "费率", "手续费", "净额", "币种", "操作人"],
+            headers: [
+                { label: "时间", property: 'time', width: 60, align: 'left' },
+                { label: "类型", property: 'type', width: 50, align: 'left' },
+                { label: "原始金额", property: 'amount_raw', width: 80, align: 'right' },
+                { label: "费率", property: 'fee_rate', width: 40, align: 'right' },
+                { label: "手续费", property: 'fee_amount', width: 70, align: 'right' },
+                { label: "净额", property: 'net_amount', width: 80, align: 'right' },
+                { label: "币种", property: 'currency', width: 40, align: 'center' },
+                { label: "操作人", property: 'operator', width: 80, align: 'left' }
+            ],
             rows: txRes.rows.map(t => [
                 new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),
                 t.type === 'DEPOSIT' ? '入款' : t.type === 'PAYOUT' ? '下发' : '回款',
@@ -114,19 +123,18 @@ export const PDFExport = {
         });
 
         const balance = totalInNet.sub(totalOut).add(totalReturn);
-        const baseSymbol = group.currency_symbol || '';
 
         doc.addPage();
         doc.fillColor('#2c3e50').fontSize(16).text('财务摘要 (Financial Summary)', { underline: true });
         doc.moveDown(0.5);
 
         doc.fontSize(12);
-        doc.text(`总入款 (Total Deposits): ${formatNumber(totalInRaw, 2)} ${baseSymbol}`);
+        doc.text(`总入款 (Total Deposits): ${formatNumber(totalInRaw, 2)}`);
         doc.text(`平均费率 (Base Fee Rate): ${formatNumber(new Decimal(settings.rate_in || 0), 2)} %`);
-        doc.text(`应下发 (Net Deposits): ${formatNumber(totalInNet, 2)} ${baseSymbol}`);
-        doc.fillColor('#e74c3c').text(`总下发 (Total Payouts): -${formatNumber(totalOut, 2)} ${baseSymbol}`);
-        doc.fillColor('#2c3e50').text(`回款 (Total Returns): ${formatNumber(totalReturn, 2)} ${baseSymbol}`);
-        doc.fontSize(14).fillColor('#27ae60').text(`余 (Final Balance): ${formatNumber(balance, 2)} ${baseSymbol}`, { stroke: true });
+        doc.text(`应下发 (Net Deposits): ${formatNumber(totalInNet, 2)}`);
+        doc.fillColor('#e74c3c').text(`总下发 (Total Payouts): -${formatNumber(totalOut, 2)}`);
+        doc.fillColor('#2c3e50').text(`回款 (Total Returns): ${formatNumber(totalReturn, 2)}`);
+        doc.fontSize(14).fillColor('#27ae60').text(`余 (Final Balance): ${formatNumber(balance, 2)}`, { stroke: true });
 
         // Forex info (Only show active rates)
         const fxRates = [
