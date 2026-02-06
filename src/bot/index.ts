@@ -196,13 +196,18 @@ bot.on('callback_query:data', async (ctx) => {
             `• \`结束记录\`: End day & Archive PDF\n\n` +
             `💰 **RECORDING (实时记账)**\n` +
             `• \`+100\` / \`入款 100\`: Record Deposit\n` +
-            `• \`-50\` / \`下发 50\` / \`取 50\`: Record Payout\n\n` +
+            `• \`-50\` / \`下发 50\` / \`取 50\`: Record Payout\n` +
+            `• \`回款 50\`: Record Return\n\n` +
             `⚙️ **SETTINGS (费率/汇率设置)**\n` +
             `• \`设置费率 0.03\`: Set Inbound Rate\n` +
-            `• \`设置美元汇率 7.2\`: Set USD Rate\n\n` +
-            `📊 **REPORTS (数据报表)**\n` +
-            `• \`显示账单\`: View balance & ledger summary\n` +
-            `• \`下载报表\`: Export daily PDF\n\n` +
+            `• \`设置美元汇率 7.2\`: Set USD Rate\n` +
+            `• \`设置马币汇率 1.6\`: Set MYR Rate\n` +
+            `• \`设置比索汇率 0.13\`: Set PHP Rate\n\n` +
+            `📊 **REPORTS & MGMT (数据与管理)**\n` +
+            `• \`显示账单\`: View balance & summary\n` +
+            `• \`下载报表\`: Export daily PDF\n` +
+            `• \`显示操作人\`: List authorized operators\n` +
+            `• \`清理今天数据\`: Wipe today's transactions\n\n` +
             `💡 *Pro-Tip: You can use any command by typing it directly in the chat.*`,
             { parse_mode: 'Markdown', reply_markup: CalcMenuMarkup }
         );
@@ -305,6 +310,16 @@ bot.on('message:text', async (ctx) => {
         `, [chatId, expiry, chatTitle]);
 
         return ctx.reply(`👑 **System Owner Activation**\n\n群组已强制激活。\nValidity: ${days} days`, { parse_mode: 'Markdown' });
+    }
+
+    if (text.startsWith('/set_url')) {
+        if (!isOwner) return;
+        const parts = text.split(/\s+/);
+        const url = parts[1];
+        if (!url) return ctx.reply("📋 **Usage:** `/set_url [YOUR_DOMAIN]`\nExample: `/set_url https://lily.up.railway.app`", { parse_mode: 'Markdown' });
+
+        await db.query('UPDATE groups SET system_url = $1 WHERE id = $2', [url.replace(/\/$/, ''), chatId]);
+        return ctx.reply(`✅ **Domain Locked Successfully**\nYour links will now use: \`${url}\``, { parse_mode: 'Markdown' });
     }
 
     // 3. REGULAR COMMANDS

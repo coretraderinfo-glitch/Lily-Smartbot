@@ -38,13 +38,14 @@ export const Ledger = {
     /**
      * Get metadata for a group
      */
-    async _getMeta(chatId: number): Promise<{ timezone: string, resetHour: number, baseSymbol: string }> {
-        const res = await db.query('SELECT timezone, reset_hour, currency_symbol FROM groups WHERE id = $1', [chatId]);
+    async _getMeta(chatId: number): Promise<{ timezone: string, resetHour: number, baseSymbol: string, systemUrl?: string }> {
+        const res = await db.query('SELECT timezone, reset_hour, currency_symbol, system_url FROM groups WHERE id = $1', [chatId]);
         const row = res.rows[0];
         return {
             timezone: row?.timezone || 'Asia/Shanghai',
             resetHour: row?.reset_hour || 4,
-            baseSymbol: row?.currency_symbol || 'CNY'
+            baseSymbol: row?.currency_symbol || 'CNY',
+            systemUrl: row?.system_url
         };
     },
 
@@ -233,12 +234,14 @@ export const Ledger = {
             if (showMore) {
                 const securityToken = Security.generateReportToken(chatId, date);
 
-                // Prioritize Official Railway Public Domain (the one shown in your browser)
-                let baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN ||
+                // Priority 1: User-Set Domain (/set_url) - 100% Reliable
+                // Priority 2: Standard Railway Public Domains
+                let baseUrl = meta.systemUrl ||
+                    process.env.RAILWAY_PUBLIC_DOMAIN ||
                     process.env.PUBLIC_URL ||
                     process.env.RAILWAY_STATIC_URL;
 
-                // Fallback Logic: If no domain is found, we use a generic placeholder that prompts the developer
+                // Fallback Logic: Generic guess if all else fails
                 if (!baseUrl) {
                     baseUrl = process.env.RAILWAY_SERVICE_NAME ?
                         `${process.env.RAILWAY_SERVICE_NAME}.up.railway.app` :

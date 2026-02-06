@@ -42,6 +42,11 @@ BEGIN
     EXCEPTION
         WHEN duplicate_column THEN NULL;
     END;
+    BEGIN
+        ALTER TABLE groups ADD COLUMN system_url VARCHAR(255);
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
 END $$;
 
 -- 2. Configuration (Settings)
