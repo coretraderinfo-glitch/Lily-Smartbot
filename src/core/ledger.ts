@@ -250,34 +250,30 @@ export const Ledger = {
             if (showMore) {
                 const securityToken = Security.generateReportToken(chatId, date);
 
-                // World-Class URL Detection
-                // 1. PUBLIC_URL (Manual override)
-                // 2. RAILWAY_PUBLIC_DOMAIN (Railway assigned domain)
-                // 3. RAILWAY_STATIC_URL (Railway internal static domain)
-                let baseUrl = process.env.PUBLIC_URL ||
-                    process.env.RAILWAY_PUBLIC_DOMAIN ||
-                    process.env.RAILWAY_STATIC_URL;
+                // World-Class URL Detection & Diagnostics
+                const envPublicUrl = process.env.PUBLIC_URL;
+                const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+                const railwayStatic = process.env.RAILWAY_STATIC_URL;
 
-                // Fallback for local development
-                if (!baseUrl && (process.env.NODE_ENV !== 'production')) {
-                    baseUrl = 'localhost:3000';
+                let baseUrl = envPublicUrl || railwayDomain || railwayStatic;
+
+                // DIAGNOSTIC LOG: Help the user understand why the link might be broken
+                if (!baseUrl) {
+                    console.warn(`[WEB_READER] No public URL found in environment! (PUBLIC_URL, RAILWAY_PUBLIC_DOMAIN, RAILWAY_STATIC_URL are all empty)`);
+                    baseUrl = 'localhost:3000'; // Default fallback
                 }
 
-                if (baseUrl) {
-                    if (!baseUrl.startsWith('http')) {
-                        baseUrl = `https://${baseUrl}`;
-                    }
-                    const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`).toString('base64');
-                    reportUrl = `${baseUrl}/v/${tokenBase64}`;
+                if (!baseUrl.startsWith('http')) {
+                    baseUrl = `https://${baseUrl}`;
+                }
 
-                    // Final sanity check for Telegram (no localhost in buttons)
-                    if (reportUrl.includes('localhost') && process.env.NODE_ENV === 'production') {
-                        showMore = false;
-                        reportUrl = '';
-                    }
-                } else {
-                    // No public URL available, hide the button to prevent crash
-                    showMore = false;
+                const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`).toString('base64');
+                reportUrl = `${baseUrl}/v/${tokenBase64}`;
+
+                // If we are on Railway but still using localhost, it's a configuration issue.
+                // We keep showMore=true because the user requested it, but we log the risk.
+                if (reportUrl.includes('localhost') && (railwayDomain || railwayStatic)) {
+                    console.warn(`[WEB_READER] Warning: Using localhost link on Railway. This button will likely fail in Telegram!`);
                 }
             }
 
