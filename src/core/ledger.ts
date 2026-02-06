@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { getBusinessDate } from '../utils/time';
+import { formatNumber } from '../utils/format';
 import Decimal from 'decimal.js';
 import { randomUUID } from 'crypto';
 import { Settings } from './settings';
@@ -245,7 +246,7 @@ export const Ledger = {
             });
 
             const balance = totalInNet.sub(totalOut).add(totalReturn);
-            const format = (val: Decimal) => showDecimals ? val.toFixed(2) : val.toFixed(0);
+            const format = (val: Decimal) => formatNumber(val, showDecimals ? 2 : 0);
 
             // Render based on mode
             let msg = '';

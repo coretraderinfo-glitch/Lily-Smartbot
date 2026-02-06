@@ -23,7 +23,7 @@ export const Licensing = {
     /**
      * Activate a License for a Group
      */
-    async activateGroup(chatId: number, key: string, groupTitle: string = 'Unnamed Group'): Promise<{ success: boolean; message: string }> {
+    async activateGroup(chatId: number, key: string, groupTitle: string = 'Unnamed Group', activatorId: number, activatorName: string): Promise<{ success: boolean; message: string }> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
@@ -66,6 +66,13 @@ export const Licensing = {
                 INSERT INTO group_settings (group_id) VALUES ($1) ON CONFLICT DO NOTHING
             `, [chatId]);
 
+            // 🔥 CRITICAL FIX: Auto-add activator as first operator
+            await client.query(`
+                INSERT INTO group_operators (group_id, user_id, username, added_by)
+                VALUES ($1, $2, $3, $2)
+                ON CONFLICT (group_id, user_id) DO NOTHING
+            `, [chatId, activatorId, activatorName]);
+
             await client.query('COMMIT');
 
             // Calculate days remaining for display
@@ -74,7 +81,7 @@ export const Licensing = {
 
             return {
                 success: true,
-                message: `✨ **欢迎加入 Lily 智能账本系统！**\n**Welcome to Lily Smart Ledger!**\n\n🎉 您的服务已成功激活，祝您工作顺利，生意兴隆！\n(Your service is now active. Wishing you smooth operations and prosperous business!)\n\n📅 **授权期限 (License Period):** ${daysRemaining} 天 (Days)\n🗓️ **到期日期 (Expiry Date):** ${expiryDate}\n\n💼 现在您可以开始使用完整功能了！\n(You can now access all features!)`
+                message: `✨ **欢迎加入 Lily 智能账本系统！**\n**Welcome to Lily Smart Ledger!**\n\n🎉 您的服务已成功激活，祝您工作顺利，生意兴隆！\n(Your service is now active. Wishing you smooth operations and prosperous business!)\n\n📅 **授权期限 (License Period):** ${daysRemaining} 天 (Days)\n🗓️ **到期日期 (Expiry Date):** ${expiryDate}\n\n👤 **您已自动设为操作人 (Auto-added as Operator)**\n💼 现在您可以开始使用完整功能了！\n(You can now access all features!)`
             };
 
         } catch (e) {

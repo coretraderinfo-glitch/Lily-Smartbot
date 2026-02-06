@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { getBusinessDate } from '../utils/time';
+import { formatNumber } from '../utils/format';
 import Decimal from 'decimal.js';
 import { DateTime } from 'luxon';
 import path from 'path';
@@ -77,10 +78,10 @@ export const PDFExport = {
             rows: txRes.rows.map(t => [
                 new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),
                 t.type === 'DEPOSIT' ? '入款' : t.type === 'PAYOUT' ? '下发' : '回款',
-                new Decimal(t.amount_raw).toFixed(2),
-                `${new Decimal(t.fee_rate).toFixed(2)}%`,
-                new Decimal(t.fee_amount).toFixed(2),
-                new Decimal(t.net_amount).toFixed(2),
+                formatNumber(new Decimal(t.amount_raw), 2),
+                `${formatNumber(new Decimal(t.fee_rate), 2)}%`,
+                formatNumber(new Decimal(t.fee_amount), 2),
+                formatNumber(new Decimal(t.net_amount), 2),
                 t.currency,
                 t.operator_name
             ]),
@@ -120,12 +121,12 @@ export const PDFExport = {
         doc.moveDown(0.5);
 
         doc.fontSize(12);
-        doc.text(`总入款 (Total Deposits): ${totalInRaw.toFixed(2)} ${baseSymbol}`);
-        doc.text(`平均费率 (Base Fee Rate): ${new Decimal(settings.rate_in || 0).toFixed(2)} %`);
-        doc.text(`应下发 (Net Deposits): ${totalInNet.toFixed(2)} ${baseSymbol}`);
-        doc.fillColor('#e74c3c').text(`总下发 (Total Payouts): -${totalOut.toFixed(2)} ${baseSymbol}`);
-        doc.fillColor('#2c3e50').text(`回款 (Total Returns): ${totalReturn.toFixed(2)} ${baseSymbol}`);
-        doc.fontSize(14).fillColor('#27ae60').text(`余 (Final Balance): ${balance.toFixed(2)} ${baseSymbol}`, { stroke: true });
+        doc.text(`总入款 (Total Deposits): ${formatNumber(totalInRaw, 2)} ${baseSymbol}`);
+        doc.text(`平均费率 (Base Fee Rate): ${formatNumber(new Decimal(settings.rate_in || 0), 2)} %`);
+        doc.text(`应下发 (Net Deposits): ${formatNumber(totalInNet, 2)} ${baseSymbol}`);
+        doc.fillColor('#e74c3c').text(`总下发 (Total Payouts): -${formatNumber(totalOut, 2)} ${baseSymbol}`);
+        doc.fillColor('#2c3e50').text(`回款 (Total Returns): ${formatNumber(totalReturn, 2)} ${baseSymbol}`);
+        doc.fontSize(14).fillColor('#27ae60').text(`余 (Final Balance): ${formatNumber(balance, 2)} ${baseSymbol}`, { stroke: true });
 
         // Forex info (Only show active rates)
         const fxRates = [
@@ -139,8 +140,8 @@ export const PDFExport = {
             const rate = new Decimal(settings[`rate_${fx.key}`] || 0);
             if (rate.gt(0)) {
                 doc.moveDown(0.5);
-                doc.fontSize(12).fillColor('#2c3e50').text(`${fx.label}: ${rate.toFixed(2)}`);
-                const equiv = balance.div(rate).toFixed(2);
+                doc.fontSize(12).fillColor('#2c3e50').text(`${fx.label}: ${formatNumber(rate, 2)}`);
+                const equiv = formatNumber(balance.div(rate), 2);
                 doc.text(`余额换算 (${fx.suffix} Equivalent): ${equiv} ${fx.suffix}`);
             }
         });

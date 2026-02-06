@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { getBusinessDate } from '../utils/time';
+import { formatNumber } from '../utils/format';
 import Decimal from 'decimal.js';
 
 /**
@@ -70,12 +71,12 @@ export const ExcelExport = {
 
         // Summary Section
         csv += '\n财务摘要 (Financial Summary)\n';
-        csv += `总入款 (Total Deposits),${totalInRaw.toFixed(2)},CNY\n`;
+        csv += `总入款 (Total Deposits),${formatNumber(totalInRaw, 2)},CNY\n`;
         csv += `费率 (Fee Rate),${settings.rate_in || 0},%\n`;
-        csv += `应下发 (Net Deposits),${totalInNet.toFixed(2)},CNY\n`;
-        csv += `总下发 (Total Payouts),${totalOut.toFixed(2)},CNY\n`;
-        csv += `回款 (Total Returns),${totalReturn.toFixed(2)},CNY\n`;
-        csv += `余 (Balance),${balance.toFixed(2)},CNY\n`;
+        csv += `应下发 (Net Deposits),${formatNumber(totalInNet, 2)},CNY\n`;
+        csv += `总下发 (Total Payouts),${formatNumber(totalOut, 2)},CNY\n`;
+        csv += `回款 (Total Returns),${formatNumber(totalReturn, 2)},CNY\n`;
+        csv += `余 (Balance),${formatNumber(balance, 2)},CNY\n`;
 
         // Forex info if set (Multiple)
         const fxRates = [
@@ -88,8 +89,8 @@ export const ExcelExport = {
         fxRates.forEach(fx => {
             const rate = new Decimal(settings[`rate_${fx.key}`] || 0);
             if (rate.gt(0)) {
-                csv += `${fx.label},${rate.toFixed(2)},\n`;
-                const equiv = balance.div(rate).toFixed(2);
+                csv += `${fx.label},${formatNumber(rate, 2)},\n`;
+                const equiv = formatNumber(balance.div(rate), 2);
                 csv += `余额 (${fx.suffix} Equivalent),${equiv},${fx.suffix}\n`;
             }
         });

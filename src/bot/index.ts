@@ -327,7 +327,7 @@ bot.on('message:text', async (ctx) => {
         key = key.trim().toUpperCase();
 
         const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat';
-        const result = await Licensing.activateGroup(chatId, key, chatTitle);
+        const result = await Licensing.activateGroup(chatId, key, chatTitle, userId, username);
 
         // If activation successful, send welcome + setup reminder
         if (result.success) {
