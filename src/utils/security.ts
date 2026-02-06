@@ -1,7 +1,4 @@
-/**
- * Security Utilities
- * Handles Owner ID verification and Registry Management
- */
+import { createHmac } from 'crypto';
 
 export const Security = {
     /**
@@ -20,5 +17,22 @@ export const Security = {
     isSystemOwner(userId: number | string): boolean {
         const owners = this.getOwnerRegistry();
         return owners.includes(userId.toString());
+    },
+
+    /**
+     * Generate a secure token for the web report
+     */
+    generateReportToken(chatId: number, date: string): string {
+        const secret = process.env.WEB_SECRET || 'lily-secret-token-2024';
+        const data = `${chatId}:${date}`;
+        return createHmac('sha256', secret).update(data).digest('hex').substring(0, 16);
+    },
+
+    /**
+     * Verify the report token
+     */
+    verifyReportToken(chatId: number, date: string, token: string): boolean {
+        const expected = this.generateReportToken(chatId, date);
+        return expected === token;
     }
 };

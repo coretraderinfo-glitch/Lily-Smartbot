@@ -6,6 +6,7 @@ import { db } from '../db';
 import { Licensing } from '../core/licensing';
 import { RBAC } from '../core/rbac';
 import { Chronos } from '../core/scheduler';
+import { startWebServer } from '../web/server';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
 
@@ -35,17 +36,18 @@ const worker = new Worker('lily-commands', async job => {
 
 worker.on('completed', async (job, returnValue) => {
     if (returnValue && job.data.chatId) {
-        // Check if it's a PDF export
+        const { InputFile, InlineKeyboard } = await import('grammy');
+
+        // Check if it's a PDF export (manual /export command)
         if (typeof returnValue === 'string' && returnValue.startsWith('PDF_EXPORT:')) {
             const base64 = returnValue.replace('PDF_EXPORT:', '');
             const date = new Date().toISOString().split('T')[0];
             const filename = `Lily_Statement_${date}.pdf`;
 
-            const { InputFile } = await import('grammy');
             await bot.api.sendDocument(job.data.chatId,
                 new InputFile(Buffer.from(base64, 'base64'), filename),
                 {
-                    caption: `📄 **Daily Statement (PDF)**\nDate: ${date}\n\nHere is your world-class financial report.`,
+                    caption: `📄 **Daily Statement (PDF)**\nDate: ${date}`,
                     reply_to_message_id: job.data.messageId
                 }
             );
@@ -55,18 +57,29 @@ worker.on('completed', async (job, returnValue) => {
             const date = new Date().toISOString().split('T')[0];
             const filename = `Lily_Report_${date}.csv`;
 
-            // Send as document (using InputFile)
-            const { InputFile } = await import('grammy');
             await bot.api.sendDocument(job.data.chatId,
                 new InputFile(Buffer.from(csv, 'utf-8'), filename),
                 {
-                    caption: `📊 **Daily Report**\nDate: ${date}\n\nOpen in Excel for full details.`,
+                    caption: `📊 **Daily Report**\nDate: ${date}`,
                     reply_to_message_id: job.data.messageId
                 }
             );
+        } else if (typeof returnValue === 'object' && returnValue.text) {
+            // Handle Rich Bill Result
+            const { text, showMore, url } = returnValue;
+            const options: any = {
+                reply_to_message_id: job.data.messageId,
+                parse_mode: 'Markdown'
+            };
+
+            if (showMore && url) {
+                options.reply_markup = new InlineKeyboard().url("检查明细（More)", url);
+            }
+
+            await bot.api.sendMessage(job.data.chatId, text, options);
         } else {
             // Send normal text reply
-            await bot.api.sendMessage(job.data.chatId, returnValue, {
+            await bot.api.sendMessage(job.data.chatId, returnValue as string, {
                 reply_to_message_id: job.data.messageId,
                 parse_mode: 'Markdown'
             });
@@ -427,6 +440,9 @@ async function start() {
 
     // Start Auto-Rollover Engine
     await Chronos.init(bot);
+
+    // Start Web Reader Platform
+    startWebServer();
 
     // 🏁 CLEAN UI: Set Minimal Command List (PHASE 4)
     // We only show /menu to keep the interface professional and clutter-free

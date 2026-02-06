@@ -4,6 +4,13 @@ import { formatNumber } from '../utils/format';
 import Decimal from 'decimal.js';
 import { randomUUID } from 'crypto';
 import { Settings } from './settings';
+import { Security } from '../utils/security';
+
+export interface BillResult {
+    text: string;
+    showMore?: boolean;
+    url?: string;
+}
 
 /**
  * THE LEDGER ENGINE: World-Class Financial Processing
@@ -33,7 +40,7 @@ export const Ledger = {
     /**
      * Start the Business Day
      */
-    async startDay(chatId: number): Promise<string> {
+    async startDay(chatId: number): Promise<BillResult | string> {
         const client = await db.getClient();
         try {
             const exists = (await client.query('SELECT count(*) FROM groups WHERE id = $1', [chatId])).rows[0].count > 0;
@@ -41,7 +48,12 @@ export const Ledger = {
                 await client.query('INSERT INTO groups (id, title) VALUES ($1, $2)', [chatId, 'Group ' + chatId]);
             }
             await client.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['RECORDING', chatId]);
-            return `🥂 **系统已开启 (New day started!)**\n\n数据录入已激活，请开始您的操作。\n\n${await Ledger.generateBill(chatId)}`;
+            const bill = await Ledger.generateBill(chatId);
+            return {
+                text: `🥂 **系统已开启 (New day started!)**\n\n数据录入已激活，请开始您的操作。\n\n${bill.text}`,
+                showMore: bill.showMore,
+                url: bill.url
+            };
         } finally {
             client.release();
         }
@@ -50,7 +62,7 @@ export const Ledger = {
     /**
      * Stop the Business Day & Finalize Ledger
      */
-    async stopDay(chatId: number): Promise<string> {
+    async stopDay(chatId: number): Promise<BillResult> {
         await db.query('UPDATE groups SET current_state = $1 WHERE id = $2', ['ENDED', chatId]);
         return await Ledger.generateBill(chatId);
     },
@@ -59,7 +71,7 @@ export const Ledger = {
      * CORE RECORDING ENGINE: Processes Deposits and Payouts
      * Implements strict numerical validation and precise fee calculation.
      */
-    async addTransaction(chatId: number, userId: number, username: string, type: 'DEPOSIT' | 'PAYOUT', amountStr: string, currency: string = 'CNY'): Promise<string> {
+    async addTransaction(chatId: number, userId: number, username: string, type: 'DEPOSIT' | 'PAYOUT', amountStr: string, currency: string = 'CNY'): Promise<BillResult | string> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
@@ -113,7 +125,7 @@ export const Ledger = {
     /**
      * Add Correction (Manual Voids)
      */
-    async addCorrection(chatId: number, userId: number, username: string, type: 'DEPOSIT' | 'PAYOUT', amountStr: string): Promise<string> {
+    async addCorrection(chatId: number, userId: number, username: string, type: 'DEPOSIT' | 'PAYOUT', amountStr: string): Promise<BillResult> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
@@ -139,7 +151,7 @@ export const Ledger = {
         }
     },
 
-    async addReturn(chatId: number, userId: number, username: string, amountStr: string): Promise<string> {
+    async addReturn(chatId: number, userId: number, username: string, amountStr: string): Promise<BillResult | string> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
@@ -163,11 +175,11 @@ export const Ledger = {
         }
     },
 
-    async generateBill(chatId: number): Promise<string> {
+    async generateBill(chatId: number): Promise<BillResult> {
         return await Ledger.generateBillWithMode(chatId, 1);
     },
 
-    async clearToday(chatId: number): Promise<string> {
+    async clearToday(chatId: number): Promise<BillResult> {
         const client = await db.getClient();
         try {
             await client.query('BEGIN');
@@ -189,7 +201,7 @@ export const Ledger = {
     /**
      * GENIUS GRADE RENDERING: Dynamic View Modes
      */
-    async generateBillWithMode(chatId: number, mode?: number): Promise<string> {
+    async generateBillWithMode(chatId: number, mode?: number): Promise<{ text: string, showMore?: boolean, url?: string }> {
         const client = await db.getClient();
         try {
             const meta = await Ledger._getMeta(chatId);
@@ -221,6 +233,17 @@ export const Ledger = {
             const format = (val: Decimal) => formatNumber(val, showDecimals ? 2 : 0);
 
             let msg = '';
+            // Determine if we should show the "More" button (>= 5 entries today)
+            const showMore = txs.length >= 5;
+            let reportUrl = '';
+
+            if (showMore) {
+                const securityToken = Security.generateReportToken(chatId, date);
+                const baseUrl = process.env.WEB_BASE_URL || 'https://lily-bot.up.railway.app';
+                const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`).toString('base64');
+                reportUrl = `${baseUrl}/v/${tokenBase64}`;
+            }
+
             if (displayMode === 4) {
                 msg = `📅 **Ledger Summary**\nIN: ${format(totalInRaw)}\nOUT: -${format(totalOut)}\nTOTAL: ${format(balance)}`;
             } else if (displayMode === 5) {
@@ -254,7 +277,7 @@ export const Ledger = {
                 });
                 if (fxRates.length === 0) msg += `IN: ${format(totalInNet)}\nOUT: -${format(totalOut)}\nTOTAL: ${format(balance)}\n`;
             }
-            return msg;
+            return { text: msg, showMore, url: reportUrl };
         } finally {
             client.release();
         }

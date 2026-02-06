@@ -95,21 +95,16 @@ export const Chronos = {
                     console.log(`[CHRONOS] Auto-Rollover triggering for Group ${group.id}`);
 
                     // 3. EXECUTE CLOSURE
-                    const bill = await Ledger.generateBill(group.id);
+                    await Ledger.generateBill(group.id); // Triggers internal checks
                     const pdf = await PDFExport.generateDailyPDF(group.id);
                     const date = DateTime.now().setZone(tz).minus({ days: 1 }).toFormat('yyyy-MM-dd');
                     const filename = `Lily_Final_Statement_${date}.pdf`;
 
-                    const finalMsg = `🏁 **系统自动结算** (Time: ${resetHour}:00)\n\n本日记录已截止。请查收附件中的最终账单 PDF。\n\n📅 **新的一天已开始。**\n请输入 "开始" 来记录新账单。`;
+                    const finalMsg = `🏁 **系统自动结算** (Time: ${resetHour}:00)\n\n本日记录已截止。最终 PDF 已存档至系统后台。`;
 
                     try {
                         // Send Text
                         await bot.api.sendMessage(group.id, finalMsg, { parse_mode: 'Markdown' });
-
-                        // Send PDF
-                        await bot.api.sendDocument(group.id, new InputFile(pdf, filename), {
-                            caption: `📄 **Lily Smartbot: Final Statement (${date})**\nEverything finalized for the day.`
-                        });
 
                         // 4. Archive Snapshot in Vault (DB)
                         await client.query(`
