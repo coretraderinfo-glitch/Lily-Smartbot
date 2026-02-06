@@ -12,12 +12,3 @@ export function getBusinessDate(timezone: string = 'Asia/Shanghai', resetHour: n
     }
     return now.toISODate()!;
 }
-
-// Helper to format money cleanly
-export function formatMoney(amount: number, currency: string = 'CNY'): string {
-    return new Intl.NumberFormat('en-US', {
-        style: 'decimal',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2
-    }).format(amount);
-}

@@ -221,7 +221,9 @@ bot.on('message:text', async (ctx) => {
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (group_id, username) 
             DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
-        `, [chatId, userId, ctx.from.username]).catch(() => { });
+        `, [chatId, userId, ctx.from.username]).catch((err) => {
+            console.error('[USER_CACHE] Failed to update:', err.message);
+        });
     }
 
     // 1. HEALTH CHECK & SYSTEM COMMANDS

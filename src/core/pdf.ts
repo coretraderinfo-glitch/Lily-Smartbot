@@ -94,10 +94,12 @@ export const PDFExport = {
             ]),
         };
 
-        // Create the table
+        // Create the table with proper spacing
         await doc.table(table, {
             prepareHeader: () => doc.font(fontPath || 'Helvetica').fontSize(10).fillColor('#2c3e50'),
             prepareRow: (row: any, index: any, column: any, rect: any, fontWeight: any) => doc.font(fontPath || 'Helvetica').fontSize(9).fillColor('#2c3e50'),
+            padding: 5, // Add padding between cells
+            columnsSize: [65, 55, 95, 50, 85, 95, 115], // Explicit column sizes
         });
 
         doc.moveDown();
