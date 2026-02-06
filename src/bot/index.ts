@@ -182,7 +182,7 @@ bot.on('callback_query:data', async (ctx) => {
             `⚙️ **SETTINGS (费率/汇率设置)**\n` +
             `• \`设置费率 0.03\`: Set Inbound Rate\n` +
             `• \`设置美元汇率 7.2\`: Set USD Rate\n\n` +
-            ` **REPORTS (数据报表)**\n` +
+            `📊 **REPORTS (数据报表)**\n` +
             `• \`显示账单\`: View balance & ledger summary\n` +
             `• \`下载报表\`: Export daily PDF\n\n` +
             `💡 *Pro-Tip: You can use any command by typing it directly in the chat.*`,
