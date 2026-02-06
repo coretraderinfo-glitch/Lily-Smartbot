@@ -228,11 +228,14 @@ export const Ledger = {
 
             let msg = '';
             let reportUrl = '';
-            let showMore = txs.length >= 5;
+            let showMore = txs.length >= 1; // Lowered threshold to 1 so the button appears consistently
 
             if (showMore) {
                 const securityToken = Security.generateReportToken(chatId, date);
-                let baseUrl = process.env.PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_STATIC_URL;
+                let baseUrl = process.env.PUBLIC_URL ||
+                    process.env.RAILWAY_PUBLIC_DOMAIN ||
+                    process.env.RAILWAY_STATIC_URL ||
+                    process.env.RAILWAY_STAGING_DOMAIN;
 
                 if (!baseUrl && (process.env.NODE_ENV !== 'production')) {
                     baseUrl = 'localhost:3000';
