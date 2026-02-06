@@ -232,13 +232,17 @@ export const Ledger = {
 
             if (showMore) {
                 const securityToken = Security.generateReportToken(chatId, date);
-                let baseUrl = process.env.PUBLIC_URL ||
-                    process.env.RAILWAY_PUBLIC_DOMAIN ||
-                    process.env.RAILWAY_STATIC_URL ||
-                    process.env.RAILWAY_STAGING_DOMAIN;
 
+                // Prioritize Official Railway Public Domain (the one shown in your browser)
+                let baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN ||
+                    process.env.PUBLIC_URL ||
+                    process.env.RAILWAY_STATIC_URL;
+
+                // Fallback Logic: If no domain is found, we use a generic placeholder that prompts the developer
                 if (!baseUrl) {
-                    baseUrl = `${process.env.RAILWAY_SERVICE_NAME || 'lily'}.up.railway.app`;
+                    baseUrl = process.env.RAILWAY_SERVICE_NAME ?
+                        `${process.env.RAILWAY_SERVICE_NAME}.up.railway.app` :
+                        'lily-smartbot.up.railway.app';
                 }
 
                 if (baseUrl) {
