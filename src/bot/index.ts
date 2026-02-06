@@ -368,11 +368,14 @@ bot.on('message:text', async (ctx) => {
         text.startsWith('设置操作人') ||
         text.startsWith('删除操作人') ||
 
-        // Transaction Pattern (Strict regex)
-        /^[+\-取]\s*\d/.test(text) ||
-        text.startsWith('下发') ||
-        text.startsWith('回款') ||
-        text.startsWith('入款-');
+        // Transaction Pattern (Strict regex - MUST MATCH processor.ts patterns)
+        /^\+\s*\d/.test(text) ||                    // Deposit: +100 or + 100
+        /^-\s*\d/.test(text) ||                     // Payout: -100 or - 100
+        /^取\s*\d/.test(text) ||                    // Payout: 取100
+        text.startsWith('下发') ||                  // Payout: 下发100
+        text.startsWith('回款') ||                  // Return: 回款100
+        /^入款\s*-\s*\d/.test(text) ||              // Correction: 入款-100
+        /^下发\s*-\s*\d/.test(text);                // Correction: 下发-100
 
     // 5. LICENSE CHECK (Redirect if Inactive)
     if (isCommand) {
@@ -434,7 +437,14 @@ bot.on('message:text', async (ctx) => {
         // 7. Activation Check
         const groupRes = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
         const state = groupRes.rows[0]?.current_state || 'WAITING_FOR_START';
-        const isTransaction = text.startsWith('+') || text.startsWith('-') || text.startsWith('下发') || text.startsWith('取') || text.startsWith('回款');
+        const isTransaction =
+            text.startsWith('+') ||
+            text.startsWith('-') ||
+            text.startsWith('下发') ||
+            text.startsWith('取') ||
+            text.startsWith('回款') ||
+            /^入款\s*-/.test(text) ||
+            /^下发\s*-/.test(text);
 
         if (isTransaction && state !== 'RECORDING') {
             return ctx.reply("⚠️ **请先输入 “开始” 以开启今日记录。**\nPlease send '开始' to activate the ledger first.", { parse_mode: 'Markdown' });
