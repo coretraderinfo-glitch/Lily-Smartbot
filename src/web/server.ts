@@ -23,7 +23,9 @@ app.get('/v/:token', async (req, res) => {
     // 1. Decode and verify token
     // The token is group_id:business_date:hash
     try {
-        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        // Restore standard Base64 characters (+ and /) before decoding
+        const normalizedToken = token.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = Buffer.from(normalizedToken, 'base64').toString('utf-8');
         const [chatIdStr, date, hash] = decoded.split(':');
         const chatId = parseInt(chatIdStr);
 
@@ -229,7 +231,8 @@ app.get('/v/:token', async (req, res) => {
 app.get('/pdf/:token', async (req, res) => {
     const { token } = req.params;
     try {
-        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const normalizedToken = token.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = Buffer.from(normalizedToken, 'base64').toString('utf-8');
         const [chatIdStr, date, hash] = decoded.split(':');
         const chatId = parseInt(chatIdStr);
 

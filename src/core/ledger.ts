@@ -243,7 +243,12 @@ export const Ledger = {
 
                 if (baseUrl) {
                     if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
-                    const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`).toString('base64');
+                    // World-Class URL-Safe Base64: Prevents "Not Found" by removing slashes
+                    const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`)
+                        .toString('base64')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=+$/, '');
                     reportUrl = `${baseUrl}/v/${tokenBase64}`;
                 }
             }
