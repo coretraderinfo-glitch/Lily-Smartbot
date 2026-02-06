@@ -84,6 +84,96 @@ worker.on('failed', async (job, err) => {
     }
 });
 
+// --- MENU SYSTEM MARKUPS (PHASE 4) ---
+const MainMenuMarkup = {
+    inline_keyboard: [
+        [{ text: "📊 CALC", callback_data: "menu_calc" }],
+        [{ text: "🛡️ GUARDIAN (Coming Soon)", callback_data: "menu_guardian" }]
+    ]
+};
+
+const CalcMenuMarkup = {
+    inline_keyboard: [
+        [
+            { text: "🚀 START", callback_data: "calc_start" },
+            { text: "🛑 STOP", callback_data: "calc_stop" }
+        ],
+        [
+            { text: "📝 BILL", callback_data: "calc_bill" },
+            { text: "📄 PDF", callback_data: "calc_pdf" }
+        ],
+        [
+            { text: "🧹 WIPE TODAY", callback_data: "calc_wipe" }
+        ],
+        [
+            { text: "⬅️ BACK TO MENU", callback_data: "menu_main" }
+        ]
+    ]
+};
+
+// --- CALLBACK QUERY HANDLER ---
+bot.on('callback_query:data', async (ctx) => {
+    const data = ctx.callbackQuery.data;
+    const chatId = ctx.chat?.id;
+    const userId = ctx.from.id;
+    const username = ctx.from.username || ctx.from.first_name;
+
+    if (!chatId) return;
+
+    // Security Check for any action inside the menu
+    const isOwner = (process.env.OWNER_ID || '').includes(userId.toString());
+    const isOperator = await RBAC.isAuthorized(chatId, userId);
+
+    if (!isOwner && !isOperator) {
+        return ctx.answerCallbackQuery({ text: "❌ Unauthorized Access", show_alert: true });
+    }
+
+    if (data === "menu_main") {
+        return ctx.editMessageText(
+            `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
+            `欢迎使用专业级账本管理系统。请选择功能模块：\n` +
+            `Welcome to the professional system. Select a module:\n\n` +
+            `💡 *Status: System Online 🟢*`,
+            { parse_mode: 'Markdown', reply_markup: MainMenuMarkup }
+        );
+    }
+
+    if (data === "menu_calc") {
+        return ctx.editMessageText(
+            `📊 **CALCULATION ENGINE**\n\n` +
+            `Daily Ledger Workspace. Use buttons below or manual input (e.g. \`+100\`) to record.\n\n` +
+            `💡 *Mode: Native Ledger*`,
+            { parse_mode: 'Markdown', reply_markup: CalcMenuMarkup }
+        );
+    }
+
+    if (data === "menu_guardian") {
+        return ctx.answerCallbackQuery({
+            text: "🛡️ GUARDIAN SYSTEM\nComing soon in the next update.",
+            show_alert: true
+        });
+    }
+
+    // Map buttons to internal commands
+    const cmdMap: Record<string, string> = {
+        'calc_start': '开始',
+        'calc_stop': '结束记录',
+        'calc_bill': '显示账单',
+        'calc_pdf': '下载报表',
+        'calc_wipe': '清理今天数据'
+    };
+
+    if (cmdMap[data]) {
+        await ctx.answerCallbackQuery({ text: "Processing..." });
+
+        // Add to queue just like a text command
+        await commandQueue.add('cmd', {
+            chatId, userId, username, text: cmdMap[data],
+            messageId: ctx.callbackQuery.message?.message_id
+        });
+    }
+});
+
 // Bot Ingress
 bot.on('message:text', async (ctx) => {
     const text = ctx.message.text.trim();
@@ -93,13 +183,8 @@ bot.on('message:text', async (ctx) => {
     const messageId = ctx.message.message_id;
 
     // 🛡️ MILITARY-GRADE SECURITY: System Owner Validation
-    // ZERO-TRUST ARCHITECTURE - No bypasses, no shortcuts, no exceptions
     const rawOwnerEnv = (process.env.OWNER_ID || '').replace(/['"\[\]\s]+/g, '').trim();
-
-    // Parse OWNER_ID into clean numeric array (supports comma-separated list)
     const ownerList = rawOwnerEnv.split(',').map(id => id.replace(/\D/g, '')).filter(id => id.length > 0);
-
-    // STRICT VALIDATION: User must be in the authorized list
     const isOwner = ownerList.length > 0 && ownerList.includes(userId.toString());
 
     // AUDIT LOG: Record all authorization checks for security monitoring
@@ -122,6 +207,16 @@ bot.on('message:text', async (ctx) => {
     // 1. HEALTH CHECK & SYSTEM COMMANDS
     if (text === '/ping') {
         return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
+    }
+
+    if (text === '/menu' || text === '/help') {
+        return ctx.reply(
+            `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
+            `欢迎使用专业级账本管理系统。请选择功能模块：\n` +
+            `Welcome to the professional system. Select a module:\n\n` +
+            `💡 *Status: System Online 🟢*`,
+            { parse_mode: 'Markdown', reply_markup: MainMenuMarkup }
+        );
     }
 
     // Diagnostic: /whoami
@@ -357,6 +452,13 @@ async function start() {
 
     // Start Auto-Rollover Engine
     await Chronos.init(bot);
+
+    // 🏁 CLEAN UI: Set Minimal Command List (PHASE 4)
+    // We only show /menu to keep the interface professional and clutter-free
+    console.log('🧹 Cleaning command suggestion list...');
+    await bot.api.setMyCommands([
+        { command: 'menu', description: 'Open Lily Dashboard' }
+    ]);
 
     // RESET WEBHOOK (Fixes "Deaf Bot" issue if webhook was ever set)
     console.log('🔄 Resetting Telegram Webhook...');
