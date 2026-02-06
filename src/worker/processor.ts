@@ -205,8 +205,8 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         // PHASE D: REAL-TIME LEDGER
         // ============================================
 
-        // DEPOSIT (+100 or +100u)
-        const depositMatch = text.match(/^\+\s*(\d+(\.\d+)?[uU]?)$/);
+        // DEPOSIT (+100 or 入款 100)
+        const depositMatch = text.match(/^(?:\+|入款)\s*(\d+(\.\d+)?[uU]?)$/);
         if (depositMatch) {
             const valStr = depositMatch[1];
             let currency = 'CNY';

@@ -354,7 +354,7 @@ bot.on('message:text', async (ctx) => {
         text === '显示账单' || text === '显示操作人' || text === '清理今天数据' ||
         text === '下载报表' || text === '导出Excel' ||
         text.startsWith('设置') || text.startsWith('删除') ||
-        /^[+\-取]\s*\d/.test(text) || text.startsWith('下发') || text.startsWith('回款');
+        /^[+\-取]\s*\d/.test(text) || text.startsWith('下发') || text.startsWith('回款') || text.startsWith('入款');
 
     if (isCommand) {
         if (text.startsWith('/start')) {
