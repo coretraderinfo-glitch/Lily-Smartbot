@@ -228,7 +228,7 @@ export const Ledger = {
 
             let msg = '';
             let reportUrl = '';
-            let showMore = txs.length >= 1; // Lowered threshold to 1 so the button appears consistently
+            let showMore = txs.length >= 1;
 
             if (showMore) {
                 const securityToken = Security.generateReportToken(chatId, date);
@@ -237,8 +237,8 @@ export const Ledger = {
                     process.env.RAILWAY_STATIC_URL ||
                     process.env.RAILWAY_STAGING_DOMAIN;
 
-                if (!baseUrl && (process.env.NODE_ENV !== 'production')) {
-                    baseUrl = 'localhost:3000';
+                if (!baseUrl) {
+                    baseUrl = `${process.env.RAILWAY_SERVICE_NAME || 'lily'}.up.railway.app`;
                 }
 
                 if (baseUrl) {
@@ -255,7 +255,7 @@ export const Ledger = {
                 txs.forEach((t, i) => msg += `${i + 1}. ${t.type === 'DEPOSIT' ? '➕' : '➖'} ${format(new Decimal(t.amount_raw))}\n`);
                 msg += `\n**总额:** ${format(balance)}`;
             } else {
-                const limit = displayMode === 2 ? 3 : displayMode === 3 ? 1 : 10;
+                const limit = 5; // STRICT WORLD-CLASS TRUNCATION
                 const [y, m, d] = date.split('-');
                 msg = `📅 **${d}-${m}-${y}**\n\n`;
 
