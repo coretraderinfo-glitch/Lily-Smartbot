@@ -32,7 +32,12 @@ This document tracks the evolution of Lily. It is updated during "Brainstorm Mod
 - [ ] **On-Demand PDF (Inside Web)**: PDF is only generated/downloaded when the user clicks a button *inside* the web reader.
 - [ ] **Smart Trigger**: Auto-show the "Jump" button after 5+ daily entries to keep the chat clean.
 
-### 3. Developer Standards
+### 3. Data Retention & Security
+- [ ] **Extended Archives**: Increase PDF/Snapshot retention from 3 days to 30+ days.
+- [ ] **Cloud Vault (S3)**: Store PDF reports in professional cloud storage for "Forever" access.
+- [ ] **Automated Off-site Backups**: Hour-by-hour database mirroring for 100% disaster recovery.
+
+### 4. Developer Standards
 - [ ] **Global Enterprise JSDoc**: Standardizing documentation across all `src/` modules.
 - [ ] **Internal Test Suite**: Automated math verification for the Ledger engine.
 

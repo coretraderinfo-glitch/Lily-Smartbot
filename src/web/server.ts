@@ -8,7 +8,8 @@ import Decimal from 'decimal.js';
 import path from 'path';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// Railway provides PORT automatically. If not set (local dev), default to 3000
+const PORT = parseInt(process.env.PORT || '3000');
 
 /**
  * THE LILY WEB READER: Secure Financial Platform

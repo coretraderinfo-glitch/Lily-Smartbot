@@ -239,7 +239,10 @@ export const Ledger = {
 
             if (showMore) {
                 const securityToken = Security.generateReportToken(chatId, date);
-                const baseUrl = process.env.WEB_BASE_URL || 'https://lily-bot.up.railway.app';
+                // Railway provides RAILWAY_STATIC_URL or we construct from RAILWAY_PUBLIC_DOMAIN
+                const baseUrl = process.env.PUBLIC_URL ||
+                    process.env.RAILWAY_STATIC_URL ||
+                    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
                 const tokenBase64 = Buffer.from(`${chatId}:${date}:${securityToken}`).toString('base64');
                 reportUrl = `${baseUrl}/v/${tokenBase64}`;
             }
