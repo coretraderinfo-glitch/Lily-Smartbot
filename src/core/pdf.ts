@@ -76,12 +76,12 @@ export const PDFExport = {
             title: "交易详情 (Transaction Details)",
             headers: [
                 { label: "时间", property: 'time', width: 65, align: 'left' },
-                { label: "类型", property: 'type', width: 55, align: 'left' },
-                { label: "原始金额", property: 'amount_raw', width: 95, align: 'right' },
-                { label: "费率", property: 'fee_rate', width: 50, align: 'right' },
-                { label: "手续费", property: 'fee_amount', width: 85, align: 'right' },
-                { label: "净额", property: 'net_amount', width: 95, align: 'right' },
-                { label: "操作人", property: 'operator', width: 115, align: 'left' }
+                { label: "类型", property: 'type', width: 50, align: 'left' },
+                { label: "原始金额", property: 'amount_raw', width: 85, align: 'left' },
+                { label: "费率", property: 'fee_rate', width: 45, align: 'left' },
+                { label: "手续费", property: 'fee_amount', width: 75, align: 'left' },
+                { label: "净额", property: 'net_amount', width: 85, align: 'left' },
+                { label: "操作人", property: 'operator', width: 125, align: 'left' }
             ],
             rows: txRes.rows.map(t => [
                 new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),
@@ -99,7 +99,7 @@ export const PDFExport = {
             prepareHeader: () => doc.font(fontPath || 'Helvetica').fontSize(10).fillColor('#2c3e50'),
             prepareRow: (row: any, index: any, column: any, rect: any, fontWeight: any) => doc.font(fontPath || 'Helvetica').fontSize(9).fillColor('#2c3e50'),
             padding: 5, // Add padding between cells
-            columnsSize: [65, 55, 95, 50, 85, 95, 115], // Explicit column sizes
+            columnsSize: [65, 50, 85, 45, 75, 85, 125], // Explicit column sizes with better spacing
         });
 
         doc.moveDown();
