@@ -295,7 +295,7 @@ export const Ledger = {
                 // SUMMARY BLOCK (Match Photo Guideline)
                 msg += `━━━━━━━━━━━━━━━━\n`;
                 msg += `总入款 (IN)： ${format(totalInRaw)}\n`;
-                msg += `费率： ${new Decimal(settings.rate_in || 0).toFixed(2)}%\n`;
+                msg += `费率： ${formatNumber(new Decimal(settings.rate_in || 0), 2)}%\n`;
 
                 // ACTIVE FOREX DETECTION (Multiple Currencies)
                 const activeRates = [];
@@ -306,9 +306,9 @@ export const Ledger = {
 
                 if (activeRates.length > 0) {
                     activeRates.forEach(fx => {
-                        const conv = (val: Decimal) => val.div(fx.rate).toFixed(showDecimals ? 2 : 0);
+                        const conv = (val: Decimal) => formatNumber(val.div(fx.rate), showDecimals ? 2 : 0);
 
-                        msg += `\n${fx.label}： ${fx.rate.toFixed(2)}\n`;
+                        msg += `\n${fx.label}： ${formatNumber(fx.rate, 2)}\n`;
                         msg += `应下发 (IN)： ${format(totalInNet)} | ${conv(totalInNet)} ${fx.suffix}\n`;
                         msg += `总下发 (OUT)： -${format(totalOut)} | -${conv(totalOut)} ${fx.suffix}\n`;
                         msg += `余额 (TOTAL)： ${format(balance)} | ${conv(balance)} ${fx.suffix}\n`;

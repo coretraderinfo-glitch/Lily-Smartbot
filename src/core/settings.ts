@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { formatNumber } from '../utils/format';
 import Decimal from 'decimal.js';
 
 /**
@@ -69,7 +70,7 @@ export const Settings = {
             return `ℹ️ **Currency Layout Updated**\n${currencyName} has been hidden from reports.`;
         }
 
-        return `✅ **汇率同步成功 (Forex Synchronized)**\n💱 币种: ${currencyName}\n💹 汇率: ${rate.toFixed(2)}\n\n*账单数据已实时更新。*`;
+        return `✅ **汇率同步成功 (Forex Synchronized)**\n💱 币种: ${currencyName}\n💹 汇率: ${formatNumber(rate, 2)}\n\n*账单数据已实时更新。*`;
     },
 
     /**

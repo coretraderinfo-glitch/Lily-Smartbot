@@ -1,14 +1,11 @@
 import Decimal from 'decimal.js';
+import { formatNumber } from '../utils/format';
 
 /**
  * Exchange Engine - USDT P2P Pricing & Calculations
- * 
- * Phase 1: Hardcoded rates (for immediate functionality)
- * Phase 2: Live OKX API integration (future enhancement)
  */
 
 // Simulated P2P Rates (CNY per USDT)
-// In production, these would be fetched from OKX API
 const MOCK_RATES = {
     bank: 7.28,      // 银行卡
     alipay: 7.26,    // 支付宝
@@ -22,8 +19,8 @@ export const Exchange = {
     async getBankRate(): Promise<string> {
         const rate = MOCK_RATES.bank;
         return `🏦 **OKX P2P - Bank Card**\n` +
-            `Buy: ¥${rate} / USDT\n` +
-            `Sell: ¥${(rate - 0.02).toFixed(2)} / USDT\n\n` +
+            `Buy: ¥${formatNumber(rate, 2)} / USDT\n` +
+            `Sell: ¥${formatNumber(rate - 0.02, 2)} / USDT\n\n` +
             `_Live data coming soon_`;
     },
 
@@ -33,8 +30,8 @@ export const Exchange = {
     async getAlipayRate(): Promise<string> {
         const rate = MOCK_RATES.alipay;
         return `💳 **OKX P2P - Alipay**\n` +
-            `Buy: ¥${rate} / USDT\n` +
-            `Sell: ¥${(rate - 0.02).toFixed(2)} / USDT\n\n` +
+            `Buy: ¥${formatNumber(rate, 2)} / USDT\n` +
+            `Sell: ¥${formatNumber(rate - 0.02, 2)} / USDT\n\n` +
             `_Live data coming soon_`;
     },
 
@@ -44,8 +41,8 @@ export const Exchange = {
     async getWeChatRate(): Promise<string> {
         const rate = MOCK_RATES.wechat;
         return `💚 **OKX P2P - WeChat**\n` +
-            `Buy: ¥${rate} / USDT\n` +
-            `Sell: ¥${(rate - 0.02).toFixed(2)} / USDT\n\n` +
+            `Buy: ¥${formatNumber(rate, 2)} / USDT\n` +
+            `Sell: ¥${formatNumber(rate - 0.02, 2)} / USDT\n\n` +
             `_Live data coming soon_`;
     },
 
@@ -57,8 +54,8 @@ export const Exchange = {
         const usdt = new Decimal(cny).div(rate);
 
         return `🏦 **Bank Card Calculation**\n` +
-            `¥${cny} = ${usdt.toFixed(2)} USDT\n` +
-            `Rate: ¥${rate} per USDT`;
+            `¥${formatNumber(cny, 2)} = ${formatNumber(usdt, 2)} USDT\n` +
+            `Rate: ¥${formatNumber(rate, 2)} per USDT`;
     },
 
     /**
@@ -69,8 +66,8 @@ export const Exchange = {
         const usdt = new Decimal(cny).div(rate);
 
         return `💳 **Alipay Calculation**\n` +
-            `¥${cny} = ${usdt.toFixed(2)} USDT\n` +
-            `Rate: ¥${rate} per USDT`;
+            `¥${formatNumber(cny, 2)} = ${formatNumber(usdt, 2)} USDT\n` +
+            `Rate: ¥${formatNumber(rate, 2)} per USDT`;
     },
 
     /**
@@ -81,8 +78,8 @@ export const Exchange = {
         const usdt = new Decimal(cny).div(rate);
 
         return `💚 **WeChat Calculation**\n` +
-            `¥${cny} = ${usdt.toFixed(2)} USDT\n` +
-            `Rate: ¥${rate} per USDT`;
+            `¥${formatNumber(cny, 2)} = ${formatNumber(usdt, 2)} USDT\n` +
+            `Rate: ¥${formatNumber(rate, 2)} per USDT`;
     },
 
     /**

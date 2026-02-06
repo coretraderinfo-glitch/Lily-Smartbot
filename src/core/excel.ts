@@ -64,7 +64,7 @@ export const ExcelExport = {
                 totalReturn = totalReturn.add(amount);
             }
 
-            csv += `${safe(time)},${safe(type)},${safe(t.amount_raw)},${safe(t.fee_rate)}%,${safe(t.fee_amount)},${safe(t.net_amount)},${safe(t.currency)},${safe(t.operator_name)}\n`;
+            csv += `${safe(time)},${safe(type)},${safe(formatNumber(t.amount_raw, 2))},${safe(formatNumber(t.fee_rate, 2))}%,${safe(formatNumber(t.fee_amount, 2))},${safe(formatNumber(t.net_amount, 2))},${safe(t.currency)},${safe(t.operator_name)}\n`;
         });
 
         const balance = totalInNet.sub(totalOut).add(totalReturn);
