@@ -141,8 +141,12 @@ bot.on('callback_query:data', async (ctx) => {
     if (data === "menu_calc") {
         return ctx.editMessageText(
             `📊 **CALCULATION ENGINE**\n\n` +
-            `Daily Ledger Workspace. Use buttons below or manual input (e.g. \`+100\`) to record.\n\n` +
-            `💡 *Mode: Native Ledger*`,
+            `World-class ledger tracking. You can use the buttons below **OR** type these manual commands directly:\n\n` +
+            `📥 **Deposits (入款):** \`+100\` or \`入款 100\`\n` +
+            `📤 **Payouts (下发):** \`-50\`, \`下发 50\` or \`取 50\`\n` +
+            `🔄 **Returns (回款):** \`回款 200\`\n` +
+            `❌ **Corrections:** \`入款-50\` or \`下发-20\`\n\n` +
+            `💡 *Note: You must click "START" before recording.*`,
             { parse_mode: 'Markdown', reply_markup: CalcMenuMarkup }
         );
     }

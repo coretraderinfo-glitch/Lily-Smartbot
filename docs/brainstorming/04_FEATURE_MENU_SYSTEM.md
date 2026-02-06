@@ -34,16 +34,21 @@ Clicking the `[ 📊 计算系统 (Calculation) ]` button opens the sub-dashboar
 
 **Layout Concept:**
 ```
-📊 计算系统 (Calculation Engine)
+📊 CALC (Calculation Engine)
 
-操作指南 (Operations):
-• 输入 +1000： 记录入款 (Deposit)
-• 输入 -500： 记录下发 (Payout)
-• 输入 回款100： 记录回单 (Return)
+World-class ledger tracking. You can use the buttons below **OR** type these manual commands directly:
 
-[ 🏁 开始记录 ]  [ 🏁 结束记录 ]
-[ 📄 账单详情 ]  [ 📥 下载报表 ]
-[ ⬅️ 返回主菜单 (Back) ]
+📥 **Deposits (入款):** `+100` or `入款 100`
+📤 **Payouts (下发):** `-50`, `下发 50` or `取 50`
+🔄 **Returns (回款):** `回款 200`
+❌ **Corrections:** `入款-50` or `下发-20`
+
+💡 *Note: You must click "START" before recording.*
+
+[ 🚀 START ]  [ 🛑 STOP ]
+[ 📝 BILL ]  [ 📄 PDF ]
+[ 🧹 WIPE TODAY ]
+[ ⬅️ BACK TO MENU ]
 ```
 
 ---

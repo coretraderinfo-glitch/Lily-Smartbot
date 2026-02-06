@@ -71,7 +71,7 @@ All financial entries are wrapped in **SQL Transactions (BEGIN/COMMIT)**.
 *   **Interaction Model:** Inline Keyboards (Clickable Buttons).
 *   **Clean UI:** Used `setMyCommands` to clear the messy suggestion list, leaving only `/menu`.
 *   **Module Isolation:**
-    *   **[ 📊 CALC ]**: Ledger management.
+    *   **[ 📊 CALC ]**: Ledger management. Now includes a **built-in Command Cheat Sheet** directly in the menu text, teaching users how to use manual inputs (`+100`, `-50`, `回款`, `入款-50`) without needing a manual.
     *   **[ 🛡️ GUARDIAN ]**: Future-proofed security module.
 
 ### 5.2 Navigation Flow
