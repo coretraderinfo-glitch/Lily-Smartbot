@@ -1,6 +1,10 @@
-import { Bot, Context, InputFile, InlineKeyboard } from 'grammy';
+import { Bot, Context, InputFile, InlineKeyboard, GrammyError, HttpError } from 'grammy';
 import { Worker, Queue } from 'bullmq';
 import IORedis from 'ioredis';
+import dotenv from 'dotenv';
+import checkEnv from 'check-env';
+
+// Internal Logic
 import { processCommand } from '../worker/processor';
 import { db } from '../db';
 import { Licensing } from '../core/licensing';
@@ -8,8 +12,7 @@ import { RBAC } from '../core/rbac';
 import { Chronos } from '../core/scheduler';
 import { startWebServer } from '../web/server';
 import { BillResult } from '../core/ledger';
-import dotenv from 'dotenv';
-import checkEnv from 'check-env';
+import { Security } from '../utils/security';
 
 dotenv.config();
 checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
@@ -17,20 +20,41 @@ checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
 // Security Warning for Missing Owner
 if (!process.env.OWNER_ID) {
     console.error('🛑 [CRITICAL WARNING] OWNER_ID is not set in environment variables!');
-    console.error('System Owner features (License Generation) will be disabled until OWNER_ID is configured.');
 }
 
-// Init Dependencies
+// 1. Connection Pools
 const bot = new Bot(process.env.BOT_TOKEN!);
 
-// Queue Setup (Corrected Redis Connection)
+// ioredis connection with better stability
 const connection = new IORedis(process.env.REDIS_URL!, {
-    maxRetriesPerRequest: null
+    maxRetriesPerRequest: null,
+    connectTimeout: 10000,
+    retryStrategy(times) {
+        return Math.min(times * 50, 2000);
+    }
+});
+
+connection.on('error', (err) => {
+    console.error('❌ Redis Connection Error:', err.message);
 });
 
 const commandQueue = new Queue('lily-commands', { connection });
 
-// Worker Setup (Running in same process for Railway simplicity)
+// 2. Global Bot Error Handler (ROOT CAUSE PROTECTION)
+bot.catch((err) => {
+    const ctx = err.ctx;
+    console.error(`❌ Error while handling update ${ctx.update.update_id}:`);
+    const e = err.error;
+    if (e instanceof GrammyError) {
+        console.error("Error in request:", e.description);
+    } else if (e instanceof HttpError) {
+        console.error("Could not contact Telegram:", e);
+    } else {
+        console.error("Unknown error:", e);
+    }
+});
+
+// 3. Worker Setup
 const worker = new Worker('lily-commands', async job => {
     return await processCommand(job);
 }, { connection });
@@ -39,7 +63,7 @@ worker.on('completed', async (job, returnValue) => {
     if (!returnValue || !job.data.chatId) return;
 
     try {
-        // 1. Handle PDF Exports (Direct PDF result)
+        // Handle PDF Exports
         if (typeof returnValue === 'string' && returnValue.startsWith('PDF_EXPORT:')) {
             const base64 = returnValue.replace('PDF_EXPORT:', '');
             const date = new Date().toISOString().split('T')[0];
@@ -55,18 +79,16 @@ worker.on('completed', async (job, returnValue) => {
             return;
         }
 
-        // 2. Handle Composite Results (Object with Text + PDF)
+        // Handle Composite Results (Object with Text + PDF)
         if (typeof returnValue === 'object' && returnValue !== null && (returnValue as any).pdf) {
             const { text, pdf } = returnValue as any;
             const date = new Date().toISOString().split('T')[0];
 
-            // Send text first
             await bot.api.sendMessage(job.data.chatId, text, {
                 reply_to_message_id: job.data.messageId,
                 parse_mode: 'Markdown'
             });
 
-            // Then send PDF
             await bot.api.sendDocument(job.data.chatId,
                 new InputFile(Buffer.from(pdf, 'base64'), `Lily_Final_${date}.pdf`),
                 { caption: `📄 **Final Daily Archive**` }
@@ -74,7 +96,7 @@ worker.on('completed', async (job, returnValue) => {
             return;
         }
 
-        // 3. Handle Rich Bill Results (Object with metadata for "More" button)
+        // Handle Rich Bill Results
         if (typeof returnValue === 'object' && returnValue !== null) {
             const result = returnValue as BillResult;
             if (result.text) {
@@ -90,21 +112,19 @@ worker.on('completed', async (job, returnValue) => {
                 try {
                     await bot.api.sendMessage(job.data.chatId, result.text, options);
                 } catch (sendErr: any) {
-                    // Safety Fallback: If Telegram rejects the bill (likely due to a bad URL), 
-                    // send the text WITHOUT the button so the system still "works"
                     if (options.reply_markup) {
-                        console.error('Telegram rejected URL button, sending without keyboard:', sendErr.message);
+                        console.error('Telegram rejected URL button, falling back to text only');
                         delete options.reply_markup;
                         await bot.api.sendMessage(job.data.chatId, result.text, options);
                     } else {
-                        throw sendErr; // Real error, let it bubble
+                        throw sendErr;
                     }
                 }
                 return;
             }
         }
 
-        // 4. Handle Standard Text Replies
+        // Standard Text Replies
         if (typeof returnValue === 'string') {
             await bot.api.sendMessage(job.data.chatId, returnValue, {
                 reply_to_message_id: job.data.messageId,
@@ -119,16 +139,16 @@ worker.on('completed', async (job, returnValue) => {
 worker.on('failed', async (job, err) => {
     console.error(`Job ${job?.id} failed:`, err);
     if (job?.data.chatId) {
-        await bot.api.sendMessage(job.data.chatId, `⚠️ **System Error**: ${err.message}`, {
-            reply_to_message_id: job.data.messageId,
-            parse_mode: 'Markdown'
-        });
+        try {
+            await bot.api.sendMessage(job.data.chatId, `⚠️ **System Error**: ${err.message}`, {
+                reply_to_message_id: job.data.messageId,
+                parse_mode: 'Markdown'
+            });
+        } catch (msgErr) {
+            console.error('Failed to report job failure to user');
+        }
     }
 });
-
-import { Security } from '../utils/security';
-
-// ... existing code ...
 
 // --- CONSTANTS ---
 const DASHBOARD_TEXT = `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
@@ -136,7 +156,6 @@ const DASHBOARD_TEXT = `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
     `Welcome to the professional system. Select a module:\n\n` +
     `💡 *Status: System Online 🟢*`;
 
-// --- MENU SYSTEM MARKUPS (PHASE 4) ---
 const MainMenuMarkup = {
     inline_keyboard: [
         [{ text: "📊 CALC", callback_data: "menu_calc" }],
@@ -158,7 +177,6 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (!chatId) return;
 
-    // Security Check
     const isOwner = Security.isSystemOwner(userId);
     const isOperator = await RBAC.isAuthorized(chatId, userId);
 
@@ -222,19 +240,12 @@ bot.on('message:text', async (ctx) => {
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (group_id, username) 
             DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
-        `, [chatId, userId, ctx.from.username]).catch((err) => {
-            console.error('[USER_CACHE] Error:', err.message);
-        });
+        `, [chatId, userId, ctx.from.username]).catch(() => { });
     }
 
-    // 1. HEALTH CHECK & SYSTEM COMMANDS
-    if (text === '/ping') {
-        return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
-    }
-
-    if (text === '/menu' || text === '/help') {
-        return ctx.reply(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
-    }
+    // 1. HEALTH CHECK
+    if (text === '/ping') return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
+    if (text === '/menu' || text === '/help') return ctx.reply(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
 
     // Diagnostic: /whoami
     if (text.startsWith('/whoami')) {
@@ -243,7 +254,7 @@ bot.on('message:text', async (ctx) => {
         return ctx.reply(`${statusIcon} **User Diagnostics**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${isOwner ? '**System Owner**' : '**Regular User**'}\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
     }
 
-    // /recover [group_id] (OWNER ONLY - Retrieve from Vault)
+    // 2. OWNER COMMANDS
     if (text.startsWith('/recover')) {
         if (!isOwner) return;
         const parts = text.split(/\s+/);
@@ -256,182 +267,81 @@ bot.on('message:text', async (ctx) => {
             ORDER BY archived_at DESC LIMIT 1
         `, [targetGroupId]);
 
-        if (archiveRes.rows.length === 0) {
-            return ctx.reply("❌ **Vault Empty**: No recent reports found for this group ID.");
-        }
-
+        if (archiveRes.rows.length === 0) return ctx.reply("❌ **Vault Empty**: No recent reports found.");
         const { pdf_blob, business_date } = archiveRes.rows[0];
         const dateStr = new Date(business_date).toISOString().split('T')[0];
-        const { InputFile } = await import('grammy');
-
-        await ctx.reply(`🛡️ **Vault Extraction Successful**\nGroup: \`${targetGroupId}\`\nDate: ${dateStr}\n\n*Sending report...*`);
         return ctx.replyWithDocument(new InputFile(pdf_blob, `Recovered_Report_${dateStr}.pdf`));
     }
+
     if (text.startsWith('/generate_key')) {
-        if (!isOwner) {
-            const owners = Security.getOwnerRegistry();
-            console.log(`[SECURITY] Unauthorized: ${username} tried to generate key.`);
-            return ctx.reply(`❌ **权限错误 (Security Error)**\n\n您的 ID (\`${userId}\`) 不在系统管理员名单中。\n\n**当前授权名单 (Registry):** \`${owners.join(', ') || 'NONE'}\``, { parse_mode: 'Markdown' });
-        }
+        if (!isOwner) return;
         const parts = text.split(/\s+/);
         const days = parseInt(parts[1]) || 30;
         const maxUsers = parseInt(parts[2]) || 100;
-        const customKey = parts[3]; // Optional CUSTOM Key
+        const customKey = parts[3];
 
-        // If customKey exists, use it, otherwise random
         const key = customKey ? customKey.toUpperCase() : await Licensing.generateKey(days, maxUsers, userId);
-
-        // If it was a custom key, we need to manually insert it into DB
         if (customKey) {
             await db.query(`
                 INSERT INTO licenses (key, duration_days, max_users, created_by)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (key) DO NOTHING
+                VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO NOTHING
             `, [key, days, maxUsers, userId]);
         }
-
-        return ctx.reply(`🔑 **New License Key Prepared**\nKey: \`${key}\`\nDays: ${days}\nUsers: ${maxUsers}\n\nUse \`/activate ${key}\` in the client group.`, { parse_mode: 'Markdown' });
+        return ctx.reply(`🔑 **License Key Ready**\nKey: \`${key}\` (${days} days)`, { parse_mode: 'Markdown' });
     }
 
-    // /super_activate [days] (OWNER ONLY - Instant Bypass)
     if (text.startsWith('/super_activate')) {
         if (!isOwner) return;
         const parts = text.split(/\s+/);
         const days = parseInt(parts[1]) || 365;
-        const key = "MASTER-PASS-" + Math.random().toString(36).substring(7).toUpperCase();
-
-        // Directly update the group without checking for a license code
         const expiry = new Date();
         expiry.setDate(expiry.getDate() + days);
-
         const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat';
+
         await db.query(`
             INSERT INTO groups (id, status, license_key, license_expiry, title)
-            VALUES ($1, 'ACTIVE', $2, $3, $4)
-            ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE', license_key = $2, license_expiry = $3, title = $4
-        `, [chatId, key, expiry, chatTitle]);
+            VALUES ($1, 'ACTIVE', 'SUPER-PASS', $2, $3)
+            ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE', license_expiry = $2, title = $3
+        `, [chatId, expiry, chatTitle]);
 
-        return ctx.reply(`👑 **尊享特权激活 (System Owner Activation)**\n\n✨ **服务已开启 (Service Active)**\n本群组已由系统管理员强制激活。\n\n📅 **有效期 (Validity):** ${days} 天 (Days)\n🔐 **到期日期 (Expiry):** ${expiry.toISOString().split('T')[0]}`, { parse_mode: 'Markdown' });
+        return ctx.reply(`👑 **System Owner Activation**\n\n群组已强制激活。\nValidity: ${days} days`, { parse_mode: 'Markdown' });
     }
 
-    // /activate [key] (Bypasses License Check by nature)
+    // 3. REGULAR COMMANDS
     if (text.startsWith('/activate')) {
-        const parts = text.split(/\s+/); // Use regex for robust splitting
+        const parts = text.split(/\s+/);
         let key = parts[1];
-        if (!key) return ctx.reply("📋 **请提供授权码 (Please provide activation key)**\n\n格式 (Format): `/activate LILY-XXXX`", { parse_mode: 'Markdown' });
-
-        // Normalize key: uppercase and trim
+        if (!key) return ctx.reply("📋 请提供授权码 (Please provide key)");
         key = key.trim().toUpperCase();
-
-        const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat';
+        const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private ';
         const result = await Licensing.activateGroup(chatId, key, chatTitle, userId, username);
-
-        // If activation successful, send welcome + setup reminder
-        if (result.success) {
-            await ctx.reply(result.message, { parse_mode: 'Markdown' });
-
-            // Prompt for rate setup
-            return ctx.reply(
-                `📌 **温馨提示 (Friendly Reminder)**\n\n` +
-                `为了开始使用，请先设置您的费率：\n` +
-                `(To begin using the system, please set your rates first)\n\n` +
-                `💡 **快速设置 (Quick Setup):**\n` +
-                `• 入款费率: \`设置费率 0.03\` (3%)\n` +
-                `• 下发费率: \`设置下发费率 0.02\` (2%)\n` +
-                `• 美元汇率: \`设置美元汇率 7.2\`\n\n` +
-                `设置完成后，发送 \`开始\` 即可开始记录。`,
-                { parse_mode: 'Markdown' }
-            );
-        } else {
-            return ctx.reply(result.message, { parse_mode: 'Markdown' });
-        }
+        return ctx.reply(result.message, { parse_mode: 'Markdown' });
     }
 
-
-    // 4. BUSINESS LOGIC (Recognize Commands)
-    const isCommand =
-        text.startsWith('/') || // Catch-all for any slash command
-        // Core commands (Bilingual)
-        text === '开始' || text.toLowerCase() === 'start' ||
+    // 4. BUSINESS LOGIC
+    const isCommand = text.startsWith('/') || text === '开始' || text.toLowerCase() === 'start' ||
         text === '结束记录' || text.toLowerCase() === 'stop' ||
-        text === '显示账单' || text === '显示操作人' ||
-        text === '清理今天数据' ||
+        text === '显示账单' || text === '显示操作人' || text === '清理今天数据' ||
         text === '下载报表' || text === '导出Excel' ||
+        text.startsWith('设置') || text.startsWith('删除') ||
+        /^[+\-取]\s*\d/.test(text) || text.startsWith('下发') || text.startsWith('回款');
 
-        // Settings triggers
-        text.startsWith('设置费率') ||
-        text.startsWith('设置下发费率') ||
-        text.startsWith('设置美元汇率') ||
-        text.startsWith('设置比索汇率') ||
-        text.startsWith('设置马币汇率') ||
-        text.startsWith('设置泰铢汇率') ||
-        text.startsWith('设置汇率') ||
-        text.startsWith('删除美元汇率') ||
-        text.startsWith('删除比索汇率') ||
-        text.startsWith('删除马币汇率') ||
-        text.startsWith('删除泰铢汇率') ||
-        text.startsWith('删除汇率') ||
-        text === '设置为无小数' ||
-        text === '设置为计数模式' ||
-        text.startsWith('设置显示模式') ||
-        text === '设置为原始模式' ||
-
-        // RBAC triggers
-        text.startsWith('设置操作人') ||
-        text.startsWith('删除操作人') ||
-
-        // Transaction Pattern (Strict regex - MUST MATCH processor.ts patterns)
-        /^\+\s*\d/.test(text) ||                    // Deposit: +100 or + 100
-        /^-\s*\d/.test(text) ||                     // Payout: -100 or - 100
-        /^取\s*\d/.test(text) ||                    // Payout: 取100
-        text.startsWith('下发') ||                  // Payout: 下发100
-        text.startsWith('回款') ||                  // Return: 回款100
-        /^入款\s*-\s*\d/.test(text) ||              // Correction: 入款-100
-        /^下发\s*-\s*\d/.test(text);                // Correction: 下发-100
-
-    // 5. LICENSE CHECK (Redirect if Inactive)
     if (isCommand) {
-        // Essential commands that MUST work even without a license
-        const isEssential =
-            text.startsWith('/activate') ||
-            text.startsWith('/start') ||
-            text.startsWith('/whoami') ||
-            text === '/ping';
-
-        // /start logic for onboarding
         if (text.startsWith('/start')) {
-            return ctx.reply(
-                `✨ **欢迎使用 Lily 智能账本系统 (Lily Smart Ledger)**\n` +
-                `专业 · 高效 · 实时财务结算解决方案\n\n` +
-                `📊 **核心优势 (Core Features):**\n` +
-                `• 实时入款/下发记录与结算\n` +
-                `• 自动汇率换算与资产汇点管理\n` +
-                `• 秒级生成可视化财务报表\n` +
-                `• 军工级数据安全与权限控制\n\n` +
-                `🚀 **快速开始 (Quick Onboarding):**\n` +
-                `1. 获取授权码 (Contact System Owner for Key)\n` +
-                `2. 在群组内发送: \`/activate [您的授权码]\`\n` +
-                `3. 配置费率并点击 "开始" 即可\n\n` +
-                `💡 *ID: \`${userId}\` | Status: ${isOwner ? '👑 Owner' : '👤 User'}*`,
-                { parse_mode: 'Markdown' }
-            );
+            return ctx.reply(`✨ **Lily Smart Ledger**\nID: \`${userId}\` | Status: ${isOwner ? '👑 Owner' : '👤 User'}`, { parse_mode: 'Markdown' });
         }
 
-        // Owner Bypasses License Check, and essential commands bypass it
+        // Essential Check
+        const isEssential = text.startsWith('/activate') || text.startsWith('/whoami') || text === '/ping';
         if (!isOwner && !isEssential) {
             const isActive = await Licensing.isGroupActive(chatId);
-            if (!isActive) {
-                console.log(`[BLOCKED] Command "${text}" from ${username} in inactive group ${chatId}`);
-                return ctx.reply("⚠️ **群组未激活或授权已过期 (Group Inactive or License Expired)**\n\n请联系管理员获取授权码。\nUse `/activate [KEY]` to enable full functionality.", { parse_mode: 'Markdown' });
-            }
+            if (!isActive) return ctx.reply("⚠️ **群组未激活 (Group Inactive)**\nUse `/activate [KEY]`", { parse_mode: 'Markdown' });
         }
 
-        // 6. RBAC CHECK
+        // RBAC Check
         const isOperator = await RBAC.isAuthorized(chatId, userId);
         const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
         const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
-
-        // Bootstrapping or Owner Bypass
         let canBootsTrap = !hasOperators;
         if (canBootsTrap && !isOwner) {
             try {
@@ -443,65 +353,49 @@ bot.on('message:text', async (ctx) => {
         }
 
         if (!isOperator && !isOwner && !canBootsTrap) {
-            return ctx.reply("❌ **权限提示 (Unauthorized)**\n\n您不是经授权的操作人或管理员。\nOnly authorized operators can record transactions here.\n\n请联系群主或经办人为您开通权限。", { parse_mode: 'Markdown' });
+            return ctx.reply("❌ **权限不足 (Unauthorized)**", { parse_mode: 'Markdown' });
         }
 
-        // 7. Activation Check
+        // State Check
         const groupRes = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
         const state = groupRes.rows[0]?.current_state || 'WAITING_FOR_START';
-        const isTransaction =
-            text.startsWith('+') ||
-            text.startsWith('-') ||
-            text.startsWith('下发') ||
-            text.startsWith('取') ||
-            text.startsWith('回款') ||
-            /^入款\s*-/.test(text) ||
-            /^下发\s*-/.test(text);
+        const isTransaction = /^[+\-取]\s*\d/.test(text) || text.startsWith('下发') || text.startsWith('回款');
 
         if (isTransaction && state !== 'RECORDING') {
-            return ctx.reply("⚠️ **请先输入 “开始” 以开启今日记录。**\nPlease send '开始' to activate the ledger first.", { parse_mode: 'Markdown' });
+            return ctx.reply("⚠️ **请先输入 “开始” 以开启今日记录。**", { parse_mode: 'Markdown' });
         }
 
-        console.log(`[QUEUE] Adding command from ${username} in group ${chatId}`);
-        await commandQueue.add('cmd', {
-            chatId, userId, username, text, messageId,
-            replyToMessage: ctx.message.reply_to_message
-        });
-    } else {
-        // Log whisper-quiet for non-commands to avoid spamming console
-        if (text.length < 50) console.log(`[CHAT] ${username}: "${text}"`);
+        try {
+            await commandQueue.add('cmd', {
+                chatId, userId, username, text, messageId,
+                replyToMessage: ctx.message.reply_to_message
+            });
+        } catch (queueErr) {
+            console.error('Failed to add to queue:', queueErr);
+            ctx.reply("⚠️ **System Error**: 队列连接失败 (Queue Connection Failed).");
+        }
     }
 });
 
 // Startup
 async function start() {
-    await db.migrate();
+    try {
+        await db.migrate();
+        await Chronos.init(bot);
+        startWebServer();
 
-    // Start Auto-Rollover Engine
-    await Chronos.init(bot);
+        await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
+        await bot.api.deleteWebhook();
 
-    // Start Web Reader Platform
-    startWebServer();
-
-    // 🏁 CLEAN UI: Set Minimal Command List (PHASE 4)
-    // We only show /menu to keep the interface professional and clutter-free
-    console.log('🧹 Cleaning command suggestion list...');
-    await bot.api.setMyCommands([
-        { command: 'menu', description: 'Open Lily Dashboard' }
-    ]);
-
-    // RESET WEBHOOK (Fixes "Deaf Bot" issue if webhook was ever set)
-    console.log('🔄 Resetting Telegram Webhook...');
-    await bot.api.deleteWebhook();
-
-    // Start Bot
-    console.log('🚀 Lily Bot Starting...');
-    await bot.start({
-        onStart: (botInfo) => {
-            console.log(`✅ SUCCESS: Connected to Telegram as @${botInfo.username} (${botInfo.id})`);
-            console.log(`✅ Waiting for messages...`);
-        }
-    });
+        console.log('🚀 Lily Bot Starting...');
+        await bot.start({
+            onStart: (botInfo) => {
+                console.log(`✅ SUCCESS: Connected to Telegram as @${botInfo.username}`);
+            }
+        });
+    } catch (err) {
+        console.error('🛑 [FATAL] Startup failed:', err);
+    }
 }
 
-start().catch(console.error);
+start();
