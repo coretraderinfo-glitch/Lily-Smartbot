@@ -55,7 +55,25 @@ export const Ledger = {
     async startDay(chatId: number): Promise<string> {
         const meta = await Ledger._getMeta(chatId);
         const date = getBusinessDate(meta.timezone, meta.resetHour);
-        return `🚀 **系统已就绪 (System Ready)**\n📅 业务日期: ${date}\n💡 请开始记账 (Start recording now)`;
+
+        // Update state to RECORDING
+        await db.query(`UPDATE groups SET current_state = 'RECORDING' WHERE id = $1`, [chatId]);
+
+        // Daily rotating wishes (7 different messages)
+        const wishes = [
+            "🌟 祝您今日财源广进！May your wealth flow abundantly today!",
+            "💎 愿今天的每一笔交易都顺利！Wishing smooth transactions ahead!",
+            "🚀 新的一天，新的机遇！A new day brings new opportunities!",
+            "✨ 祝您生意兴隆，财运亨通！May prosperity follow you today!",
+            "🎯 专注目标，成功在望！Stay focused, success awaits!",
+            "🌈 愿今日充满好运与收获！May today bring fortune and rewards!",
+            "💰 祝您日进斗金，事业腾飞！Wishing you abundant success!"
+        ];
+
+        const dayOfWeek = new Date().getDay();
+        const todayWish = wishes[dayOfWeek];
+
+        return `🚀 **系统已就绪 (System Ready)**\n📅 业务日期: ${date}\n\n${todayWish}\n\n💡 请开始记账 (Start recording now)`;
     },
 
     /**
@@ -64,6 +82,9 @@ export const Ledger = {
     async stopDay(chatId: number): Promise<{ text: string, pdf: string }> {
         const bill = await Ledger.generateBill(chatId);
         const pdf = await PDFExport.generateDailyPDF(chatId);
+
+        // Reset state to WAITING_FOR_START
+        await db.query(`UPDATE groups SET current_state = 'WAITING_FOR_START' WHERE id = $1`, [chatId]);
 
         return {
             text: `🏁 **本日记录结束 (Day Ended)**\n\n${bill.text}\n\n✅ 所有数据已成功归档至 PDF。`,

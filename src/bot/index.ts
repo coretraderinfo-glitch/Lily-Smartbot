@@ -389,7 +389,7 @@ bot.on('message:text', async (ctx) => {
         // State Check
         const groupRes = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
         const state = groupRes.rows[0]?.current_state || 'WAITING_FOR_START';
-        const isTransaction = /^[+\-取]\s*\d/.test(text) || text.startsWith('下发') || text.startsWith('回款');
+        const isTransaction = /^[+\-取]\s*\d/.test(text) || text.startsWith('下发') || text.startsWith('回款') || text.startsWith('入款');
 
         if (isTransaction && state !== 'RECORDING') {
             return ctx.reply("⚠️ **请先输入 “开始” 以开启今日记录。**", { parse_mode: 'Markdown' });
