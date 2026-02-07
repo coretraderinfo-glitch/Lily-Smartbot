@@ -312,8 +312,10 @@ export const Ledger = {
                 const securityToken = Security.generateReportToken(chatId, date);
 
                 // Priority 1: User-Set Domain (/set_url) - 100% Reliable
-                // Priority 2: Standard Railway Public Domains
+                // Priority 2: Global Environment Override (SYSTEM_URL)
+                // Priority 3: Standard Railway Public Domains
                 let baseUrl = meta.systemUrl ||
+                    process.env.SYSTEM_URL ||
                     process.env.RAILWAY_PUBLIC_DOMAIN ||
                     process.env.PUBLIC_URL ||
                     process.env.RAILWAY_STATIC_URL;
