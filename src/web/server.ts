@@ -72,6 +72,13 @@ app.get('/v/:token', async (req, res) => {
         const balance = totalInNet.sub(totalOut).add(totalReturn);
         const format = (val: Decimal | number) => formatNumber(new Decimal(val), showDecimals ? 2 : 0);
 
+        // Active Rates Logic for Web View
+        const activeRates: { rate: Decimal, code: string }[] = [];
+        if (new Decimal(settings.rate_usd || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_usd), code: 'USD' });
+        if (new Decimal(settings.rate_myr || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_myr), code: 'MYR' });
+        if (new Decimal(settings.rate_php || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_php), code: 'PHP' });
+        if (new Decimal(settings.rate_thb || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_thb), code: 'THB' });
+
         const html = `
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -178,16 +185,19 @@ app.get('/v/:token', async (req, res) => {
         <div class="balance-card">
             <div class="label">当前余额 (Balance)</div>
             <div class="amount">${format(balance)}</div>
+            ${activeRates.map(r => `<div style="font-size: 14px; opacity: 0.8;">${format(balance.div(r.rate))} ${r.code}</div>`).join('')}
         </div>
 
         <div class="summary-grid">
             <div class="summary-item">
                 <span class="label">总入款 (Deposits)</span>
                 <span class="val in">${format(totalInRaw)}</span>
+                ${activeRates.map(r => `<div style="font-size: 11px; opacity: 0.7;">${format(totalInRaw.div(r.rate))} ${r.code}</div>`).join('')}
             </div>
             <div class="summary-item">
                 <span class="label">总下发 (Payouts)</span>
                 <span class="val out">-${format(totalOut)}</span>
+                ${activeRates.map(r => `<div style="font-size: 11px; opacity: 0.7;">-${format(totalOut.div(r.rate))} ${r.code}</div>`).join('')}
             </div>
         </div>
 

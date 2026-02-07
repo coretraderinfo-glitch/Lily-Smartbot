@@ -311,7 +311,7 @@ export const Ledger = {
                 msg += `\n━━━━━━━━━━━━━━━━\n`;
 
                 // 1. Exchange Rates Block (Simple Style)
-                const activeRates = [];
+                const activeRates: { rate: Decimal, code: string }[] = [];
                 if (new Decimal(settings.rate_usd || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_usd), code: 'USD' });
                 if (new Decimal(settings.rate_myr || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_myr), code: 'MYR' });
                 if (new Decimal(settings.rate_php || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_php), code: 'PHP' });
@@ -319,18 +319,24 @@ export const Ledger = {
 
                 // 2. Financial Totals (Simple Style matching Photo 1)
                 const rateIn = new Decimal(settings.rate_in || 0);
-                const conv = (v: Decimal, fx: { rate: Decimal, code: string }) => ` | ${formatNumber(v.div(fx.rate), showDecimals ? 2 : 0)} ${fx.code}`;
 
                 msg += `总入款 (IN): ${format(totalInRaw)}\n`;
                 msg += `费率: ${rateIn.toString()}%\n\n`;
 
                 if (activeRates.length > 0) {
                     activeRates.forEach(r => msg += `${r.code}汇率: ${r.rate}\n`);
+                    msg += `\n`;
                 }
 
-                msg += `应下发 (IN): ${format(totalInNet)}${activeRates.length > 0 ? conv(totalInNet, activeRates[0]) : ''}\n`;
-                msg += `总下发 (OUT): -${format(totalOut)}${activeRates.length > 0 ? conv(totalOut, activeRates[0]) : ''}\n`;
-                msg += `余额 (TOTAL): ${format(balance)}${activeRates.length > 0 ? conv(balance, activeRates[0]) : ''}\n`;
+                // Helper to convert to ALL active currencies
+                const convAll = (v: Decimal) => {
+                    if (activeRates.length === 0) return '';
+                    return activeRates.map(fx => ` | ${formatNumber(v.div(fx.rate), showDecimals ? 2 : 0)} ${fx.code}`).join('');
+                };
+
+                msg += `应下发 (IN): ${format(totalInNet)}${convAll(totalInNet)}\n`;
+                msg += `总下发 (OUT): -${format(totalOut)}${convAll(totalOut)}\n`;
+                msg += `余额 (TOTAL): ${format(balance)}${convAll(balance)}\n`;
             }
             return { text: msg, showMore, url: reportUrl };
         } finally {
