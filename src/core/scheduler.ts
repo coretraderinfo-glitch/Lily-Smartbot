@@ -52,15 +52,30 @@ export const Chronos = {
      */
     async purgeOldArchives() {
         try {
-            const res = await db.query(`
+            // 1. Purge Historical Archives (PDFs)
+            const archivesRes = await db.query(`
                 DELETE FROM historical_archives 
                 WHERE archived_at < NOW() - INTERVAL '3 days'
             `);
-            if (res.rowCount && res.rowCount > 0) {
-                console.log(`[VAULT] Cleaned up ${res.rowCount} expired archive records.`);
+
+            // 2. Purge Transactions (The main data)
+            // STRICT 3-DAY RETENTION POLICY
+            const txRes = await db.query(`
+                DELETE FROM transactions 
+                WHERE recorded_at < NOW() - INTERVAL '3 days'
+            `);
+
+            // 3. Purge Audit Logs
+            const auditRes = await db.query(`
+                DELETE FROM audit_logs 
+                WHERE created_at < NOW() - INTERVAL '3 days'
+            `);
+
+            if ((txRes.rowCount && txRes.rowCount > 0) || (archivesRes.rowCount && archivesRes.rowCount > 0)) {
+                console.log(`[CHRONOS] 3-Day Purge Complete. Cleaned ${txRes.rowCount} transactions and ${archivesRes.rowCount} archives.`);
             }
         } catch (e) {
-            console.error('[VAULT] Purge failed:', e);
+            console.error('[CHRONOS] Purge failed:', e);
         }
     },
 
