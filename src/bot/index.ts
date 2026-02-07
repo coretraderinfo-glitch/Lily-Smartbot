@@ -208,7 +208,7 @@ bot.on('callback_query:data', async (ctx) => {
             `• \`设置美元汇率 7.2\`: Set USD Rate\n` +
             `• \`设置马币汇率 0.65\`: Set MYR Rate\n` +
             `• \`设置[比索/泰铢]汇率 [值]\`: Set PHP/THB\n` +
-            `• \`删除美元汇率\`: Reset/Delete a specific rate\n\n` +
+            `• \`删除[美元/马币/...]汇率\`: Reset/Delete a specific rate\n\n` +
             `�️ **DISPLAY MODES (显示与格式)**\n` +
             `• \`设置为无小数\`: Hide decimal points\n` +
             `• \`设置为计数模式\`: Simplified list view\n` +

@@ -81,6 +81,18 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             const res = await Settings.setForexRate(chatId, 'usd', 0);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
+        if (/^(?:删除马币汇率|删除汇率MYR)$/i.test(text)) {
+            const res = await Settings.setForexRate(chatId, 'myr', 0);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+        if (/^(?:删除比索汇率|删除汇率PHP)$/i.test(text)) {
+            const res = await Settings.setForexRate(chatId, 'php', 0);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+        if (/^(?:删除泰铢汇率|删除汇率THB)$/i.test(text)) {
+            const res = await Settings.setForexRate(chatId, 'thb', 0);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
 
         // Display Modes
         if (text === '设置为无小数') {
