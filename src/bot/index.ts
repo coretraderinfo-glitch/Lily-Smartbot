@@ -333,8 +333,15 @@ bot.on('message:text', async (ctx) => {
         const url = parts[1];
         if (!url) return ctx.reply("📋 **Usage:** `/set_url [YOUR_DOMAIN]`\nExample: `/set_url https://lily.up.railway.app`", { parse_mode: 'Markdown' });
 
-        await db.query('UPDATE groups SET system_url = $1 WHERE id = $2', [url.replace(/\/$/, ''), chatId]);
-        return ctx.reply(`✅ **Domain Locked Successfully**\nYour links will now use: \`${url}\``, { parse_mode: 'Markdown' });
+        const cleanUrl = url.replace(/\/$/, '');
+        // FORENSIC FIX: Ensure group exists before updating URL
+        await db.query(`
+            INSERT INTO groups (id, title, system_url)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO UPDATE SET system_url = $3
+        `, [chatId, ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat', cleanUrl]);
+
+        return ctx.reply(`✅ **Domain Locked Successfully**\nYour links will now use: \`${cleanUrl}\``, { parse_mode: 'Markdown' });
     }
 
     // 3. REGULAR COMMANDS

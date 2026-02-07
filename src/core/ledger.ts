@@ -263,10 +263,14 @@ export const Ledger = {
     async generateBillWithMode(chatId: number, mode?: number): Promise<{ text: string, showMore?: boolean, url?: string }> {
         const client = await db.getClient();
         try {
+            // 1. INITIALIZE (Ensure group exists in both tables first)
+            await Settings.ensureSettings(chatId);
+            await db.query(`INSERT INTO groups (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, [chatId]);
+
+            // 2. FETCH DATA
             const meta = await Ledger._getMeta(chatId);
             const date = getBusinessDate(meta.timezone, meta.resetHour);
 
-            await Settings.ensureSettings(chatId);
             const txRes = await client.query(`SELECT * FROM transactions WHERE group_id = $1 AND business_date = $2 ORDER BY recorded_at ASC`, [chatId, date]);
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
             const settings = settingsRes.rows[0] || { display_mode: 1, show_decimals: true };
@@ -285,11 +289,10 @@ export const Ledger = {
             let totalReturn = new Decimal(0);
 
             txs.forEach(t => {
-                const amountRaw = new Decimal(t.amount_raw);
                 const netCNY = new Decimal(t.net_amount || 0);
 
                 if (t.type === 'DEPOSIT') {
-                    totalInRaw = totalInRaw.add(amountRaw); // Note: this is raw value which might be U or CNY, but usually we sum in CNY for summary
+                    totalInRaw = totalInRaw.add(t.amount_raw); // Note: this is raw value which might be U or CNY, but usually we sum in CNY for summary
                     totalInNet = totalInNet.add(netCNY);
                 } else if (t.type === 'PAYOUT') {
                     totalOut = totalOut.add(netCNY);
@@ -315,11 +318,11 @@ export const Ledger = {
                     process.env.PUBLIC_URL ||
                     process.env.RAILWAY_STATIC_URL;
 
-                // Fallback Logic: Generic guess if all else fails
+                // Fallback Logic: Generic guess ONLY if no environment or user setting exists
                 if (!baseUrl) {
                     baseUrl = process.env.RAILWAY_SERVICE_NAME ?
                         `${process.env.RAILWAY_SERVICE_NAME}.up.railway.app` :
-                        'lily-smartbot.up.railway.app';
+                        'lily-smartbot-production.up.railway.app';
                 }
 
                 if (baseUrl) {
