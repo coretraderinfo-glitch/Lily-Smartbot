@@ -112,10 +112,24 @@ export const Chronos = {
                     // 3. EXECUTE CLOSURE
                     await Ledger.generateBill(group.id); // Triggers internal checks
                     const pdf = await PDFExport.generateDailyPDF(group.id);
-                    const date = DateTime.now().setZone(tz).minus({ days: 1 }).toFormat('yyyy-MM-dd');
-                    const filename = `Lily_Final_Statement_${date}.pdf`;
+                    const lastDate = DateTime.now().setZone(tz).minus({ days: 1 }).toFormat('yyyy-MM-dd');
 
-                    const finalMsg = `🏁 **系统自动结算** (Time: ${resetHour}:00)\n\n本日记录已截止。最终 PDF 已存档至系统后台。`;
+                    // WORLD-CLASS ROTATING SLOGANS
+                    const slogans = [
+                        "🌙 漫长的一天辛苦了，愿您好梦相伴，我们明天再战！",
+                        "🌟 星光不问赶路人，时光不负有心人。早点休息，明天见！",
+                        "✨ 万物归于沉静，愿您神采奕奕迎接崭新的一天。好梦！",
+                        "🌙 忙碌了一天，也请给心灵放个假。祝您平安喜乐，晚安！",
+                        "🌟 愿您在这静谧的夜里彻底放松，明天又是元气满满的一天！",
+                        "✨ 每一个奋斗的明天，都始于今晚的高质量休息。祝好梦！",
+                        "🌙 无论今天如何，都请温柔地对待今晚的自己。晚安，朋友！"
+                    ];
+                    const slogan = slogans[Math.floor(Math.random() * slogans.length)];
+
+                    const finalMsg = `🏁 **系统自动结算 (Time: ${resetHour}:00)**\n\n` +
+                        `本日记录已正式截止并存入云端。\n\n` +
+                        `${slogan}\n\n` +
+                        `📢 **温馨提示：** 明天上班请记得回复 **“开始”** 以激活新的账单记录副本。`;
 
                     try {
                         // Send Text
@@ -125,7 +139,7 @@ export const Chronos = {
                         await client.query(`
                             INSERT INTO historical_archives (group_id, business_date, type, pdf_blob)
                             VALUES ($1, $2, 'DAILY_SNAPSHOT', $3)
-                        `, [group.id, date, pdf]);
+                        `, [group.id, lastDate, pdf]);
 
                         // 5. UPDATE STATE
                         await client.query(`
