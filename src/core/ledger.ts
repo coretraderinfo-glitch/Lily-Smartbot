@@ -292,7 +292,9 @@ export const Ledger = {
                 msg = `**计数模式 (Count Mode)**\n\n`;
                 txs.forEach((t, i) => {
                     const suffix = t.currency === 'USDT' ? 'u' : '';
-                    msg += `${i + 1}. ${t.type === 'DEPOSIT' ? '➕' : '➖'} ${format(new Decimal(t.amount_raw))}${suffix}\n`;
+                    const val = new Decimal(t.amount_raw);
+                    const formatted = val.lt(0) ? `(${format(val.abs())})` : format(val);
+                    msg += `${i + 1}. ${t.type === 'DEPOSIT' ? '➕' : '➖'} ${formatted}${suffix}\n`;
                 });
                 msg += `\n**总额:** ${format(balance)}`;
             } else {
@@ -305,7 +307,9 @@ export const Ledger = {
                     deposits.slice(-limit).forEach(t => {
                         const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: meta.timezone });
                         const suffix = t.currency === 'USDT' ? 'u' : '';
-                        msg += `\`${time}\`    **${format(new Decimal(t.amount_raw))}${suffix}**\n`;
+                        const val = new Decimal(t.amount_raw);
+                        const formatted = val.lt(0) ? `(${format(val.abs())})` : format(val);
+                        msg += `\`${time}\`    **${formatted}${suffix}**\n`;
                     });
                 }
 
@@ -314,7 +318,9 @@ export const Ledger = {
                     payouts.slice(-limit).forEach(t => {
                         const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: meta.timezone });
                         const suffix = t.currency === 'USDT' ? 'u' : '';
-                        msg += `\`${time}\`    **-${format(new Decimal(t.amount_raw))}${suffix}**\n`;
+                        const val = new Decimal(t.amount_raw);
+                        const formatted = val.lt(0) ? `(${format(val.abs())})` : `-${format(val)}`;
+                        msg += `\`${time}\`    **${formatted}${suffix}**\n`;
                     });
                 }
 

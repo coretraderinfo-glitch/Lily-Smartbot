@@ -211,7 +211,7 @@ app.get('/v/:token', async (req, res) => {
                         <span class="tx-op">Op: ${t.operator_name}</span>
                     </div>
                     <div class="tx-amount ${t.type === 'DEPOSIT' ? 'in' : 'out'}">
-                        ${t.type === 'PAYOUT' ? '-' : ''}${format(t.amount_raw)}
+                        ${new Decimal(t.amount_raw).lt(0) ? `(${format(new Decimal(t.amount_raw).abs())})` : `${t.type === 'PAYOUT' ? '-' : ''}${format(t.amount_raw)}`}
                     </div>
                 </div>
             `).join('')}
