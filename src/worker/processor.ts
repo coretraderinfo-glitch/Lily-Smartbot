@@ -44,6 +44,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         const rateInMatch = text.match(/^设置费率\s*(\d+(\.\d+)?)%?$/);
         if (rateInMatch) {
             const res = await Settings.setInboundRate(chatId, parseFloat(rateInMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
@@ -51,6 +52,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         const rateOutMatch = text.match(/^设置下发费率\s*(\d+(\.\d+)?)%?$/);
         if (rateOutMatch) {
             const res = await Settings.setOutboundRate(chatId, parseFloat(rateOutMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
@@ -58,39 +60,47 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         const usdMatch = text.match(/^(?:设置美元汇率|\/gd|设置汇率U)\s+(\d+(\.\d+)?)$/i);
         if (usdMatch) {
             const res = await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         const phpMatch = text.match(/^(?:设置比索汇率|设置汇率PHP)\s+(\d+(\.\d+)?)$/i);
         if (phpMatch) {
             const res = await Settings.setForexRate(chatId, 'php', parseFloat(phpMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         const myrMatch = text.match(/^(?:设置马币汇率|设置汇率MYR)\s+(\d+(\.\d+)?)$/i);
         if (myrMatch) {
             const res = await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         const thbMatch = text.match(/^(?:设置泰铢汇率|设置汇率泰Bhat|设置汇率THB)\s+(\d+(\.\d+)?)$/i);
         if (thbMatch) {
             const res = await Settings.setForexRate(chatId, 'thb', parseFloat(thbMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
         // Deletion
         if (/^(?:删除美元汇率|删除汇率U)$/i.test(text)) {
             const res = await Settings.setForexRate(chatId, 'usd', 0);
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         if (/^(?:删除马币汇率|删除汇率MYR)$/i.test(text)) {
             const res = await Settings.setForexRate(chatId, 'myr', 0);
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         if (/^(?:删除比索汇率|删除汇率PHP)$/i.test(text)) {
             const res = await Settings.setForexRate(chatId, 'php', 0);
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
         if (/^(?:删除泰铢汇率|删除汇率THB)$/i.test(text)) {
             const res = await Settings.setForexRate(chatId, 'thb', 0);
+            await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
