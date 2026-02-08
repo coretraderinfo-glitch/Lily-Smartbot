@@ -28,7 +28,7 @@ The `groups` and `group_settings` tables will be expanded with "Enterprise Flags
 | `guardian_mode` | Active protection against malicious files/spam | ON / OFF | OFF |
 | `anti_swap_enabled` | Forensic check for fake screenshots | ON / OFF | OFF |
 | `usdt_tracing` | Automated blockchain verification | ON / OFF | OFF |
-| `chart_logs_enabled` | Records group talk for AI/Owner Audit | ON / OFF | OFF |
+| `chart_logs_enabled` | **PERMANENT** Staff-Only Audit for training/closing | ON / OFF | OFF |
 | `license_tier` | Defines group power level | TRIAL / STANDARD / PREMIUM | TRIAL |
 | `language_mode` | Global slogan/report language | CN / EN / MY / BILINGUAL | CN |
 | `timezone_override` | Custom time for rollover | e.g. "Asia/Dubai" | Asia/Shanghai |
