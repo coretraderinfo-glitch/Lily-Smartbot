@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { Bot, Context } from 'grammy';
+import { Security } from '../utils/security';
 
 /**
  * LILY GUARDIAN ENGINE
@@ -13,7 +14,8 @@ export const Guardian = {
      * Malware Predator: Scans messages for suspicious files
      */
     async scanMessage(ctx: Context) {
-        if (!ctx.chat || ctx.chat.type === 'private') return;
+        if (!ctx.chat || ctx.chat.type === 'private' || !ctx.from || ctx.from.is_bot) return;
+        if (Security.isSystemOwner(ctx.from.id)) return; // Owner Super Pass
 
         // 1. Check if Guardian is enabled for this group
         const settings = await db.query('SELECT guardian_enabled FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
@@ -101,18 +103,27 @@ export const Guardian = {
      * Link Shield: Prevents unauthorized links and phishing attempts
      */
     async scanLinks(ctx: Context) {
-        if (!ctx.chat || ctx.chat.type === 'private') return;
+        if (!ctx.chat || ctx.chat.type === 'private' || !ctx.from || ctx.from.is_bot) return;
+
+        // 0. Owner Super Pass
+        if (Security.isSystemOwner(ctx.from.id)) return;
 
         // 1. Check if Guardian is enabled
         const settings = await db.query('SELECT guardian_enabled FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
         if (!settings.rows[0]?.guardian_enabled) return;
 
         const text = ctx.message?.text || ctx.message?.caption || '';
-        const hasLink = /https?:\/\/[^\s]+/.test(text) || text.includes('t.me/');
 
-        if (hasLink) {
-            const userId = ctx.from?.id;
-            if (!userId) return;
+        // WORLD-CLASS URL DETECTION
+        // Check Telegram Entities first (most accurate)
+        const hasEntityLink = ctx.entities('url').length > 0 || ctx.entities('text_link').length > 0;
+
+        // Aggressive Regex Fallback (Catches www. and t.me without protocol)
+        const linkRegex = /(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+|t\.me\/[^\s]+)/i;
+        const hasRegexLink = linkRegex.test(text);
+
+        if (hasEntityLink || hasRegexLink) {
+            const userId = ctx.from.id;
 
             // 2. Authorization Check (Only Admins & Operators can post links)
             const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
