@@ -190,15 +190,15 @@ bot.command('admin', async (ctx) => {
         return ctx.reply("ℹ️ No groups registered yet.");
     }
 
-    let msg = `👑 **Lily Master Control Center**\nSelect a group to manage remotely:\n\n`;
+    let msg = `👑 **Lily Master Control Center**\n\nGreetings, **Master Robin**. Your empire awaits your command. Select a group to manage remotely:\n\n`;
     const keyboard = new InlineKeyboard();
 
-    groups.rows.forEach((g, i) => {
+    groups.rows.forEach((g: any, i: number) => {
         const title = g.title || `Group ${g.id}`;
         keyboard.text(`${i + 1}. ${title}`, `manage_group:${g.id}`).row();
     });
 
-    await ctx.reply(msg, { reply_markup: keyboard });
+    await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
 });
 
 // --- CALLBACK QUERY HANDLER ---
@@ -298,13 +298,48 @@ bot.on('callback_query:data', async (ctx) => {
 
         const s = settings.rows[0];
         const title = group.rows[0]?.title || 'Group';
-        let msg = `🛠️ **Managing: ${title}**\nGroup ID: \`${id}\`\n\n`;
+        let msg = `🛠️ **Master Console: ${title}**\nGroup ID: \`${id}\`\n\n`;
         msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
         msg += `🧠 AI Brain: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
+        msg += `🌐 Language: **${s.language_mode || 'CN'}**\n`;
 
         const keyboard = new InlineKeyboard()
             .text(s.guardian_enabled ? "🔴 Disable Guardian" : "🟢 Enable Guardian", `toggle:guardian:${id}`).row()
             .text(s.ai_brain_enabled ? "🔴 Disable AI Brain" : "🟢 Enable AI Brain", `toggle:ai:${id}`).row()
+            .text("🌍 Cycle Language (CN/EN/MY)", `cycle_lang:${id}`).row()
+            .text("⬅️ Back to List", "admin_list");
+
+        return ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
+    }
+
+    if (data.startsWith('cycle_lang:') && Security.isSystemOwner(userId)) {
+        const id = data.split(':')[1];
+        const settings = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [id]);
+        const current = settings.rows[0]?.language_mode || 'CN';
+
+        let next = 'CN';
+        if (current === 'CN') next = 'EN';
+        else if (current === 'EN') next = 'MY';
+
+        await db.query('UPDATE group_settings SET language_mode = $1 WHERE group_id = $2', [next, id]);
+
+        ctx.answerCallbackQuery({ text: `🌐 Language set to ${next}` });
+
+        // RE-RENDER MANAGEMENT VIEW
+        const group = await db.query('SELECT title FROM groups WHERE id = $1', [id]);
+        const updatedSettings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
+        const s = updatedSettings.rows[0];
+        const title = group.rows[0]?.title || 'Group';
+
+        let msg = `🛠️ **Master Console: ${title}**\nGroup ID: \`${id}\`\n\n`;
+        msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
+        msg += `🧠 AI Brain: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
+        msg += `🌐 Language: **${s.language_mode || 'CN'}**\n`;
+
+        const keyboard = new InlineKeyboard()
+            .text(s.guardian_enabled ? "🔴 Disable Guardian" : "🟢 Enable Guardian", `toggle:guardian:${id}`).row()
+            .text(s.ai_brain_enabled ? "🔴 Disable AI Brain" : "🟢 Enable AI Brain", `toggle:ai:${id}`).row()
+            .text("🌍 Cycle Language (CN/EN/MY)", `cycle_lang:${id}`).row()
             .text("⬅️ Back to List", "admin_list");
 
         return ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
@@ -446,8 +481,11 @@ bot.on('message:text', async (ctx) => {
     // Diagnostic: /whoami
     if (text.startsWith('/whoami')) {
         const owners = Security.getOwnerRegistry();
-        const statusIcon = isOwner ? "✅" : "👤";
-        return ctx.reply(`${statusIcon} **User Diagnostics**\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${isOwner ? '**System Owner**' : '**Regular User**'}\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
+        const statusIcon = isOwner ? "👑" : "👤";
+        const title = isOwner ? "**System Master**" : "**Regular User**";
+        const greeting = isOwner ? "Greetings, Master Robin. Lily is at your service." : "Hello user.";
+
+        return ctx.reply(`${statusIcon} **User Diagnostics**\n\n${greeting}\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${title}\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
     }
 
     // 2. OWNER COMMANDS
