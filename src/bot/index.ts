@@ -324,11 +324,25 @@ bot.on('callback_query:data', async (ctx) => {
         await db.query(`UPDATE group_settings SET ${column} = NOT ${column} WHERE group_id = $1`, [id]);
         ctx.answerCallbackQuery({ text: "✅ Setting Updated Instantly" });
 
-        // Refresh view
+        // Refresh view & Handle Group Announcement
         const group = await db.query('SELECT title FROM groups WHERE id = $1', [id]);
         const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
         const s = settings.rows[0];
         const title = group.rows[0]?.title || 'Group';
+
+        // 📢 ANNOUNCEMENT: If Guardian was just enabled, notify the group!
+        if (type === 'guardian' && s.guardian_enabled) {
+            const announcement = `🛡️ **Lily Guardian Shield: ACTIVATED**\n\n` +
+                `Lily 已正式接管本群安全。为了保障所有成员的资产与账户安全，Lily 现已开启以下功能：\n` +
+                `Lily has officially taken over group security. To protect all members, the following are now active:\n\n` +
+                `✅ **Malware Predator**: 自动删除危险文件 (.apk, .zip, .exe)。\n` +
+                `✅ **Link Shield**: 拦截非授权链接与钓鱼诈骗。\n\n` +
+                `💡 **Note**: 请确保 Lily 拥有“删除消息 (Delete Messages)”权限，以便执行防护任务。`;
+
+            ctx.api.sendMessage(id, announcement, { parse_mode: 'Markdown' }).catch(err => {
+                console.error(`Failed to send activation announcement to group ${id}:`, err);
+            });
+        }
 
         let msg = `🛠️ **Managing: ${title}**\nGroup ID: \`${id}\`\n\n`;
         msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
