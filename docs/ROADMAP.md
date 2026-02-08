@@ -62,7 +62,7 @@ This document tracks the evolution of Lily. It is updated during "Brainstorm Mod
 *Current state of the project development.*
 
 1.  **[DONE] Phase 4, Step 1: Master System Specification**: [View Doc Here](/Users/robinang/Desktop/SYSTEM/Lily/docs/specs/SYSTEM_SPEC.md)
-2.  **[READY] Phase 4, Step 2: Database Infrastructure**: SQL Blueprint [View Here](/Users/robinang/Desktop/SYSTEM/Lily/db/migrations/01_enterprise_upgrade.sql)
+2.  **[DONE] Phase 4, Step 2: Database Infrastructure**: Deployed & Verified on Railway.
 3.  **[PENDING] Phase 4, Step 3: Logic Separation**: Creating the new `enterprise` folder for the "Brain."
 
 ---
