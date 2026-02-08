@@ -52,7 +52,13 @@ This document tracks the evolution of Lily. It is updated during "Brainstorm Mod
 - [ ] **Anti-Hopping Registry (Security)**: Link trials to unique User IDs and Group Creator IDs to prevent multiple trials for the same client.
 - [ ] **Manual Override Console**: Special commands for the System Owner (Robin) to manually grant, extend, or revoke trials instantly.
 
-### 6. Global Operational Flexibility
+### 6. The Guardian Shield (Security Module)
+- [ ] **Malware Predator**: Auto-detect and instant-delete `.apk`, `.zip`, `.exe` files with admin warning alerts.
+- [ ] **Admin Sentinel**: Use `/setadmin` to register supervisors; Lily auto-tags them when any new member joins the group.
+- [ ] **Dynamic Welcome Engine**: Multilingual greetings for new members with rotating slogans to keep the chat fresh.
+- [ ] **Gated Guard**: Guardian features remain 100% dormant until Robin (System Owner) activates them via the Backend Switch.
+
+### 7. Global Operational Flexibility
 - [ ] **Individual "Island" Timezones**: Support per-group timezone settings (e.g., `设置时区 Asia/Dubai`).
 - [ ] **Custom Reset Hours**: Allow groups to change the 4 AM auto-rollover to any hour (e.g., 6 AM or 8 AM for late-night teams).
 
