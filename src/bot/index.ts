@@ -13,6 +13,7 @@ import { Chronos } from '../core/scheduler';
 import { startWebServer } from '../web/server';
 import { BillResult } from '../core/ledger';
 import { Security } from '../utils/security';
+import { Guardian } from '../guardian/engine';
 
 dotenv.config();
 checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
@@ -169,6 +170,31 @@ const CalcMenuMarkup = {
     ]
 };
 
+// --- BOSS CONTROL PANEL (PRIVATE DM ONLY) ---
+bot.command('admin', async (ctx) => {
+    const userId = ctx.from?.id;
+    if (!userId || !Security.isSystemOwner(userId)) return;
+
+    if (ctx.chat.type !== 'private') {
+        return ctx.reply("⚠️ **Security Notice**: This command can ONLY be used in private DM to protect your business secrets.", { reply_to_message_id: ctx.message?.message_id });
+    }
+
+    const groups = await db.query('SELECT id, title FROM groups ORDER BY title ASC');
+    if (groups.rows.length === 0) {
+        return ctx.reply("ℹ️ No groups registered yet.");
+    }
+
+    let msg = `👑 **Lily Master Control Center**\nSelect a group to manage remotely:\n\n`;
+    const keyboard = new InlineKeyboard();
+
+    groups.rows.forEach((g, i) => {
+        const title = g.title || `Group ${g.id}`;
+        keyboard.text(`${i + 1}. ${title}`, `manage_group:${g.id}`).row();
+    });
+
+    await ctx.reply(msg, { reply_markup: keyboard });
+});
+
 // --- CALLBACK QUERY HANDLER ---
 bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
@@ -230,13 +256,115 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (data === "menu_guardian") {
         return ctx.answerCallbackQuery({
-            text: "🛡️ GUARDIAN SYSTEM\nComing soon in the next update.",
+            text: "🛡️ GUARDIAN SYSTEM\nPlease use /admin in private DM to manage security.",
             show_alert: true
         });
+    }
+
+    // --- REMOTE MANAGEMENT BUTTONS ---
+    if (data.startsWith('manage_group:') && Security.isSystemOwner(userId)) {
+        const id = data.split(':')[1];
+        const group = await db.query('SELECT title FROM groups WHERE id = $1', [id]);
+        const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
+
+        // Ensure settings exists
+        if (settings.rows.length === 0) {
+            await db.query('INSERT INTO group_settings (group_id) VALUES ($1)', [id]);
+            const retry = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
+            settings.rows[0] = retry.rows[0];
+        }
+
+        const s = settings.rows[0];
+        const title = group.rows[0]?.title || 'Group';
+        let msg = `🛠️ **Managing: ${title}**\nGroup ID: \`${id}\`\n\n`;
+        msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
+        msg += `🧠 AI Brain: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
+
+        const keyboard = new InlineKeyboard()
+            .text(s.guardian_enabled ? "🔴 Disable Guardian" : "🟢 Enable Guardian", `toggle:guardian:${id}`).row()
+            .text(s.ai_brain_enabled ? "🔴 Disable AI Brain" : "🟢 Enable AI Brain", `toggle:ai:${id}`).row()
+            .text("⬅️ Back to List", "admin_list");
+
+        return ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
+    }
+
+    if (data === "admin_list" && Security.isSystemOwner(userId)) {
+        const groups = await db.query('SELECT id, title FROM groups ORDER BY title ASC');
+        const keyboard = new InlineKeyboard();
+        groups.rows.forEach((g, i) => keyboard.text(`${i + 1}. ${g.title || g.id}`, `manage_group:${g.id}`).row());
+        return ctx.editMessageText(`👑 **Lily Master Control Center**\nSelect a group:`, { reply_markup: keyboard });
+    }
+
+    if (data.startsWith('toggle:') && Security.isSystemOwner(userId)) {
+        const [_, type, id] = data.split(':');
+        const column = type === 'guardian' ? 'guardian_enabled' : 'ai_brain_enabled';
+
+        await db.query(`UPDATE group_settings SET ${column} = NOT ${column} WHERE group_id = $1`, [id]);
+        ctx.answerCallbackQuery({ text: "✅ Setting Updated Instantly" });
+
+        // Refresh view
+        const group = await db.query('SELECT title FROM groups WHERE id = $1', [id]);
+        const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
+        const s = settings.rows[0];
+        const title = group.rows[0]?.title || 'Group';
+
+        let msg = `🛠️ **Managing: ${title}**\nGroup ID: \`${id}\`\n\n`;
+        msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
+        msg += `🧠 AI Brain: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
+
+        const keyboard = new InlineKeyboard()
+            .text(s.guardian_enabled ? "🔴 Disable Guardian" : "🟢 Enable Guardian", `toggle:guardian:${id}`).row()
+            .text(s.ai_brain_enabled ? "🔴 Disable AI Brain" : "🟢 Enable AI Brain", `toggle:ai:${id}`).row()
+            .text("⬅️ Back to List", "admin_list");
+
+        return ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
     }
 });
 
 // Bot Ingress
+bot.on('message', async (ctx, next) => {
+    // A. GUARDIAN SCAN (NO-SKIP SECURITY)
+    try {
+        await Guardian.scanMessage(ctx);
+        if (ctx.message?.new_chat_members) {
+            await Guardian.handleNewMember(ctx);
+        }
+    } catch (e) {
+        console.error('[Guardian] Runtime Error:', e);
+    }
+
+    // B. SENTINEL REGISTRY (/setadmin)
+    const text = ctx.message?.text || '';
+    if (text.startsWith('设置管理员') || text.startsWith('/setadmin')) {
+        const userId = ctx.from?.id;
+        const chatId = ctx.chat.id;
+        if (!userId || (!Security.isSystemOwner(userId) && !await RBAC.isAuthorized(chatId, userId))) {
+            return ctx.reply("❌ **Unauthorized**");
+        }
+
+        let targetId: number | undefined;
+        let targetName: string | undefined;
+
+        if (ctx.message?.reply_to_message?.from) {
+            targetId = ctx.message.reply_to_message.from.id;
+            targetName = ctx.message.reply_to_message.from.username || ctx.message.reply_to_message.from.first_name;
+        } else {
+            const parts = text.split(' ');
+            if (parts[1] && parts[1].startsWith('@')) {
+                // In a real scenario, we'd need to resolve the tag, but for simplicity we use reply-to mostly
+                return ctx.reply("💡 **Tip**: Please reply to the user message with `设置管理员` to activate them.");
+            }
+        }
+
+        if (targetId && targetName) {
+            await db.query('INSERT INTO group_admins (group_id, user_id, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chatId, targetId, targetName]);
+            return ctx.reply(`✅ **Sentinel Activated**\n👤 @${targetName} has been registered as a Group Admin of the Guardian Shield.`);
+        }
+    }
+
+    await next();
+});
+
 bot.on('message:text', async (ctx) => {
     const text = ctx.message.text.trim();
     const chatId = ctx.chat.id;
