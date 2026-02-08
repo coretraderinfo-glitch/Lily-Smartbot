@@ -25,6 +25,10 @@ The `groups` and `group_settings` tables will be expanded with "Enterprise Flags
 | Toggle ID | Function | Options | Default |
 | :--- | :--- | :--- | :--- |
 | `ai_brain_enabled` | Activates Google Gemini AI Brain | ON / OFF | OFF |
+| `guardian_mode` | Active protection against malicious files/spam | ON / OFF | OFF |
+| `anti_swap_enabled` | Forensic check for fake screenshots | ON / OFF | OFF |
+| `usdt_tracing` | Automated blockchain verification | ON / OFF | OFF |
+| `chart_logs_enabled` | Records group talk for AI/Owner Audit | ON / OFF | OFF |
 | `license_tier` | Defines group power level | TRIAL / STANDARD / PREMIUM | TRIAL |
 | `language_mode` | Global slogan/report language | CN / EN / MY / BILINGUAL | CN |
 | `timezone_override` | Custom time for rollover | e.g. "Asia/Dubai" | Asia/Shanghai |

@@ -14,7 +14,11 @@ ADD COLUMN IF NOT EXISTS timezone_str TEXT DEFAULT 'Asia/Shanghai'; -- Independe
 
 -- 2. EXTEND GROUP_SETTINGS TABLE (The Feature Toggles)
 ALTER TABLE group_settings
-ADD COLUMN IF NOT EXISTS ai_brain_enabled BOOLEAN DEFAULT FALSE; -- Toggle for Gemini AI
+ADD COLUMN IF NOT EXISTS ai_brain_enabled BOOLEAN DEFAULT FALSE, -- Toggle for Gemini AI
+ADD COLUMN IF NOT EXISTS guardian_enabled BOOLEAN DEFAULT FALSE, -- General group protection
+ADD COLUMN IF NOT EXISTS anti_swap_enabled BOOLEAN DEFAULT FALSE, -- Prevent fake screenshot scams
+ADD COLUMN IF NOT EXISTS usdt_trace_enabled BOOLEAN DEFAULT FALSE, -- Blockchain payment verification
+ADD COLUMN IF NOT EXISTS collect_chat_logs BOOLEAN DEFAULT FALSE; -- Audit trail of group talk
 
 -- 3. CREATE TRIAL REGISTRY (The "Anti-Hopping" Database)
 -- This table tracks every User ID that has ever used a trial across ALL groups.
@@ -32,4 +36,14 @@ CREATE TABLE IF NOT EXISTS boss_sessions (
     expires_at TIMESTAMPTZ NOT NULL,
     is_used BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. CREATE CHART_HISTORY_VAULT (The "Memory" for AI & Audits)
+CREATE TABLE IF NOT EXISTS group_chat_logs (
+    id SERIAL PRIMARY KEY,
+    group_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    username TEXT,
+    message_text TEXT,
+    recorded_at TIMESTAMPTZ DEFAULT NOW()
 );
