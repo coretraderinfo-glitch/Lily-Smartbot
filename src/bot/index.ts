@@ -372,11 +372,22 @@ bot.on('message', async (ctx, next) => {
             targetId = ctx.message.reply_to_message.from.id;
             targetName = ctx.message.reply_to_message.from.username || ctx.message.reply_to_message.from.first_name;
         } else {
-            const parts = text.split(' ');
-            if (parts[1] && parts[1].startsWith('@')) {
-                // In a real scenario, we'd need to resolve the tag, but for simplicity we use reply-to mostly
-                return ctx.reply("💡 **Tip**: Please reply to the user message with `设置管理员` to activate them.");
+            const parts = text.split(/\s+/);
+            const tag = parts.find(p => p.startsWith('@'));
+            if (tag) {
+                const username = tag.replace('@', '');
+                const cached = await db.query('SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2', [chatId, username]);
+                if (cached.rows.length > 0) {
+                    targetId = parseInt(cached.rows[0].user_id);
+                    targetName = username;
+                } else {
+                    return ctx.reply(`⚠️ **无法识别 (Unknown User)**\n\nLily 还没见过 @${username}。请让该用户先在群里说句话，或者直接**回复**其消息进行设置。`, { parse_mode: 'Markdown' });
+                }
             }
+        }
+
+        if (!targetId || !targetName) {
+            return ctx.reply("💡 **提示 (Tip)**: 请回复该用户的消息，或者直接输入 `设置管理员 @用户名` 来激活哨兵权限。", { parse_mode: 'Markdown' });
         }
 
         if (targetId && targetName) {
