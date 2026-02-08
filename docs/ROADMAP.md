@@ -45,12 +45,24 @@ This document tracks the evolution of Lily. It is updated during "Brainstorm Mod
 - [ ] **Multi-Page Support**: Improved table splitting for very long daily reports.
 - [ ] **Custom Branding**: Allow groups to upload their own logo for the PDF header.
 
+### 5. Advanced Monetization & Scaling
+- [ ] **Lily AI "Brain" (Special License)**: Integrate Google Gemini for human-like financial analysis and client chat (Gated by Premium Key).
+- [ ] **Lily "Persona" Customization**: Allow Owners to define Lily's personality (Professional/Friendly/Protective).
+- [ ] **Auto-Trial Engine**: 48-hour full-access trials for new groups, auto-activating on the first "开始" command.
+- [ ] **Anti-Hopping Registry (Security)**: Link trials to unique User IDs and Group Creator IDs to prevent multiple trials for the same client.
+- [ ] **Manual Override Console**: Special commands for the System Owner (Robin) to manually grant, extend, or revoke trials instantly.
+
+### 6. Global Operational Flexibility
+- [ ] **Individual "Island" Timezones**: Support per-group timezone settings (e.g., `设置时区 Asia/Dubai`).
+- [ ] **Custom Reset Hours**: Allow groups to change the 4 AM auto-rollover to any hour (e.g., 6 AM or 8 AM for late-night teams).
+
 ---
 
-## 🛠️ PENDING APPROVAL
-*Current focus of brainstorming. Once the user says "Approve [X]", work begins.*
+## 🛠️ PENDING APPROVAL & CURRENT FOCUS
+*Current state of the project development.*
 
-1. **[None currently approved]**
+1.  **[DONE] Phase 4, Step 1: Master System Specification**: [View Doc Here](/Users/robinang/Desktop/SYSTEM/Lily/docs/specs/SYSTEM_SPEC.md)
+2.  **[PENDING] Phase 4, Step 2: Database Infrastructure**: Preparing the new "Hidden Switch" columns on Railway.
 
 ---
 
