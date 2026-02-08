@@ -88,5 +88,31 @@ export const Personality = {
 
         const list = slots[lang as keyof typeof slots] || slots.CN;
         return list[Math.floor(Math.random() * list.length)];
+    },
+
+    /**
+     * Get a warning when Lily is being spammed
+     */
+    getSpamWarning(lang: string, name: string): string {
+        const slots = {
+            CN: [
+                `💢 **老板，慢一点哈！**\n\n用户: **${name}**\nLily 只是个 AI，手速没你那么快。等 10 秒再来哈，乖。`,
+                `🛑 **停停停！你是要弄断 Lily 的 CPU 吗？**\n\n用户: **${name}**\n发太快我记不到账啦！先休息一下，待会再试。`,
+                `😤 **急什么急？账又不会跑。**\n\n用户: **${name}**\n由于你发太快，Lily 现在不想理你。10 秒后再说！`
+            ],
+            EN: [
+                `💢 **Oi boss, chill lah!**\n\nUser: **${name}**\nLily isn't going anywhere. Give me 10 seconds to breathe!`,
+                `🛑 **Slow down! You're making me dizzy.**\n\nUser: **${name}**\nCommand frequency too high. I'm locking your access for 10 seconds.`,
+                `😤 **Patience is a virtue, Sir.**\n\nUser: **${name}**\nLily is currently cooling down. Try again in a bit, okay?`
+            ],
+            MY: [
+                `💢 **Adoi boss, chill la sikit!**\n\nUser: **${name}**\nLily pun pening kepala kalau laju sangat ni. Tunggu 10 saat k boss?`,
+                `🛑 **Kejap kejap! Lily nak meletup dah ni.**\n\nUser: **${name}**\nHantar laju-laju Lily takleh proses la. Sabar jap ya bossku.`,
+                `😤 **Pening kepala Lily layan boss ni...**\n\nUser: **${name}**\nRelaks la dulu, Lily nak rest 10 saat. Jangan spam k!`
+            ]
+        };
+
+        const list = slots[lang as keyof typeof slots] || slots.CN;
+        return list[Math.floor(Math.random() * list.length)];
     }
 };

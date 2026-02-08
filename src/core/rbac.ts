@@ -13,7 +13,16 @@ export const RBAC = {
         try {
             await client.query('BEGIN');
 
-            // Check if already exists
+            // 1. LIMIT CHECK: MAX 5 OPERATORS (SIR'S POLICY)
+            const countRes = await client.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
+            const count = parseInt(countRes.rows[0].count);
+
+            if (count >= 5) {
+                await client.query('ROLLBACK');
+                return `🛑 **席位已满 (Seat Limit Reached)**\n\n本群组已达到 **5名** 操作员的上限。为了确保服务质量，暂不支持增加更多席位。`;
+            }
+
+            // 2. Check if already exists
             const existing = await client.query(`
                 SELECT * FROM group_operators 
                 WHERE group_id = $1 AND user_id = $2
@@ -24,7 +33,7 @@ export const RBAC = {
                 return `ℹ️ **@${username}** is already an operator.`;
             }
 
-            // Add operator
+            // 3. Add operator
             await client.query(`
                 INSERT INTO group_operators (group_id, user_id, username, role, added_by)
                 VALUES ($1, $2, $3, 'OPERATOR', $4)

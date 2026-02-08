@@ -14,6 +14,7 @@ import { startWebServer } from '../web/server';
 import { BillResult } from '../core/ledger';
 import { Security } from '../utils/security';
 import { Guardian } from '../guardian/engine';
+import { Personality } from '../utils/personality';
 
 dotenv.config();
 checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
@@ -392,8 +393,37 @@ bot.on('callback_query:data', async (ctx) => {
     }
 });
 
-// Bot Ingress
 bot.on('message', async (ctx, next) => {
+    const userId = ctx.from?.id;
+    if (!userId) return await next();
+
+    // --- 🛡️ SPAM SHIELD (RATE LIMITER) ---
+    if (!Security.isSystemOwner(userId)) {
+        const spamKey = `spam_shield:${userId}`;
+        const currentCount = await connection.incr(spamKey);
+
+        if (currentCount === 1) {
+            await connection.expire(spamKey, 2); // 2 Second Window
+        }
+
+        // Check if Admin/Operator (Higher limit)
+        const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
+        const isOperator = await RBAC.isAuthorized(ctx.chat.id, userId);
+        const limit = (isAdmin.rows.length > 0 || isOperator) ? 5 : 1;
+
+        if (currentCount > limit) {
+            if (currentCount === limit + 1) {
+                // Determine Language
+                const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
+                const lang = settingsRes.rows[0]?.language_mode || 'CN';
+                const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'Boss');
+
+                await ctx.reply(Personality.getSpamWarning(lang, name), { parse_mode: 'Markdown' });
+            }
+            return; // Block execution
+        }
+    }
+
     // A. GUARDIAN SCAN (NO-SKIP SECURITY)
     try {
         await Guardian.scanMessage(ctx);
@@ -440,6 +470,12 @@ bot.on('message', async (ctx, next) => {
         }
 
         if (targetId && targetName) {
+            // CHECK LIMIT (MAX 5)
+            const adminCount = await db.query('SELECT count(*) FROM group_admins WHERE group_id = $1', [chatId]);
+            if (parseInt(adminCount.rows[0].count) >= 5) {
+                return ctx.reply("🛑 **席位已满 (Sentinel Seats Full)**\n\n本群组已达到 **5名** 管理员的上限。请先移除旧的管理员后再添加新成员。");
+            }
+
             await db.query('INSERT INTO group_admins (group_id, user_id, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chatId, targetId, targetName]);
             return ctx.reply(`✅ **Sentinel Activated**\n👤 @${targetName} has been registered as a Group Admin of the Guardian Shield.`);
         }
