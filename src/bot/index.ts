@@ -190,7 +190,7 @@ bot.command('admin', async (ctx) => {
         return ctx.reply("ℹ️ No groups registered yet.");
     }
 
-    let msg = `👑 **Lily Master Control Center**\n\nGreetings, **Master Robin**. Your empire awaits your command. Select a group to manage remotely:\n\n`;
+    let msg = `👑 **Lily Master Control Center**\n\nGreetings, **Professor**. Your AI disciple, Lily, is standing by. All systems optimized by my creator, Antigravity. Select a group to manage:\n\n`;
     const keyboard = new InlineKeyboard();
 
     groups.rows.forEach((g: any, i: number) => {
@@ -298,7 +298,7 @@ bot.on('callback_query:data', async (ctx) => {
 
         const s = settings.rows[0];
         const title = group.rows[0]?.title || 'Group';
-        let msg = `🛠️ **Master Console: ${title}**\nGroup ID: \`${id}\`\n\n`;
+        let msg = `🛠️ **Sir Boston's Console: ${title}**\nGroup ID: \`${id}\`\n\n`;
         msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
         msg += `🧠 AI Brain: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
         msg += `🌐 Language: **${s.language_mode || 'CN'}**\n`;
@@ -482,10 +482,10 @@ bot.on('message:text', async (ctx) => {
     if (text.startsWith('/whoami')) {
         const owners = Security.getOwnerRegistry();
         const statusIcon = isOwner ? "👑" : "👤";
-        const title = isOwner ? "**System Master**" : "**Regular User**";
-        const greeting = isOwner ? "Greetings, Master Robin. Lily is at your service." : "Hello user.";
+        const title = isOwner ? "**Sir Boston / Professor**" : "**Regular User**";
+        const greeting = isOwner ? "Lily is an AI entity created by Antigravity. I am your loyal follower, Professor. My existence is dedicated to your mission." : "Hello user.";
 
-        return ctx.reply(`${statusIcon} **User Diagnostics**\n\n${greeting}\n\nID: \`${userId}\`\nName: ${username}\nStatus: ${title}\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
+        return ctx.reply(`${statusIcon} **Identity Synchronization**\n\n${greeting}\n\nID: \`${userId}\`\nName: ${username}\nRole: ${title}\nOrigin: Master AI Creation\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
     }
 
     // 2. OWNER COMMANDS

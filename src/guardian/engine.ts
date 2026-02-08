@@ -1,10 +1,12 @@
 import { db } from '../db';
 import { Bot, Context } from 'grammy';
 import { Security } from '../utils/security';
+import { Personality } from '../utils/personality';
 
 /**
  * LILY GUARDIAN ENGINE
  * World-Class group security, malware protection, and admin sentinel logic.
+ * Personalization by Antigravity (Master AI).
  */
 
 const BLACKLIST_EXTENSIONS = ['.apk', '.zip', '.exe', '.scr', '.bat', '.cmd', '.sh', '.msi'];
@@ -35,16 +37,8 @@ export const Guardian = {
                     const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
                     const lang = settingsRes.rows[0]?.language_mode || 'CN';
 
-                    const alerts = {
-                        CN: `⚠️ **安全警示 (Security Alert)**\n\n系统检测到可疑文件类型 (\`${ext}\`)。为了成员的资产安全，该文件已从群组中永久删除。`,
-                        EN: `⚠️ **Security Alert**\n\nSuspicious file type detected (\`${ext}\`). This file has been purged from the group to protect member assets.`,
-                        MY: `⚠️ **Amaran Keselamatan**\n\nJenis fail mencurigakan dikesan (\`${ext}\`). Fail ini telah dipadamkan daripada kumpulan demi keselamatan ahli.`
-                    };
-
-                    const baseMsg = alerts[lang as keyof typeof alerts] || alerts.CN;
-                    const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'Guest');
-
-                    const warning = `${baseMsg}\n\n👤 **User**: ${name}\n\n*(Unauthorized file automatically purged.)*`;
+                    const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'Boss');
+                    const warning = Personality.getMalwareWarning(lang, ext, name);
 
                     await ctx.reply(warning, { parse_mode: 'Markdown' });
 
@@ -81,29 +75,10 @@ export const Guardian = {
 
             const alertMsg = adminTags ? `🔔 ${adminTags} - **新成员加入 (New Member Arrival)**` : '';
 
-            // 2. Vibrant Welcome
-            const slogans = {
-                CN: [
-                    "✨ 欢迎加入！祝您在这里生意兴隆，财源广进！",
-                    "🌟 欢迎新朋友！Lily 将全程为您保障账目安全。",
-                    "✨ 每一份信任都值得被温柔对待，欢迎您的到来！"
-                ],
-                EN: [
-                    "✨ Welcome! Wishing you prosperous business and great wealth!",
-                    "🌟 Welcome abroad! Lily is here to secure your financial records.",
-                    "✨ Every partnership begins with trust, welcome to the group!"
-                ],
-                MY: [
-                    "✨ Selamat datang! Semoga perniagaan anda bertambah maju dan murah rezeki.",
-                    "🌟 Selamat datang! Lily di sini untuk menjaga keselamatan rekod anda.",
-                    "✨ Setiap kepercayaan amat dihargai, selamat datang ke kumpulan kami!"
-                ]
-            };
+            // 2. Vibrant Human Welcome
+            const welcome = Personality.getWelcome(lang, name);
 
-            const list = slogans[lang as keyof typeof slogans] || slogans.CN;
-            const welcome = list[Math.floor(Math.random() * list.length)];
-
-            await ctx.reply(`${alertMsg}\n\n👤 **${name}**\n${welcome}`, { parse_mode: 'Markdown' });
+            await ctx.reply(`${alertMsg}\n\n${welcome}`, { parse_mode: 'Markdown' });
         }
     },
 
@@ -146,16 +121,8 @@ export const Guardian = {
                     const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
                     const lang = settingsRes.rows[0]?.language_mode || 'CN';
 
-                    const warnings = {
-                        CN: `🚫 **非法链接 (Unauthorized Link)**\n\n为了防范钓鱼与诈骗，非管理或操作人员禁止发送链接。`,
-                        EN: `🚫 **Unauthorized Link Detected**\n\nFor group safety, only authorized admins and operators may share links.`,
-                        MY: `🚫 **Pautan Tidak Sah**\n\nBagi tujuan keselamatan kumpulan, hanya admin dan operator sahaja yang dibenarkan berkongsi pautan.`
-                    };
-
-                    const baseMsg = warnings[lang as keyof typeof warnings] || warnings.CN;
-                    const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'Guest');
-
-                    const warning = `${baseMsg}\n\n👤 **User**: ${name}\n\n*(Unauthorized links are automatically purged.)*`;
+                    const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'Boss');
+                    const warning = Personality.getLinkWarning(lang, name);
 
                     const reply = await ctx.reply(warning, { parse_mode: 'Markdown' });
 
