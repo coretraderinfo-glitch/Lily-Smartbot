@@ -91,7 +91,13 @@ The Guardian Module is a high-security layer that operates independently of the 
     - **Action**: Immediate delete + Bot warning message targeting the sender.
     - **Alert**: Tag all registered admins with a "⚠️ SECURITY ALERT" notice.
 
-2.  **Admin Sentinel & Onboarding**
+2.  **Link Shield (Anti-Phishing)**
+    - **Trigger**: Any message containing a URL (`http`, `https`, or `t.me/`) from a non-authorized user.
+    - **Authorization**: Only registered **Admins** and **Operators** may post links.
+    - **Action**: Immediate delete + 10-second temporary warning message.
+    - **Purpose**: Prevents staff from accidentally clicking malicious phishing or malware links.
+
+3.  **Admin Sentinel & Onboarding**
     - **Command**: `/setadmin` (Reply to user or tag). Stores admins in `group_admins` table.
     - **Join Event**: When a new member joins, Lily retrieves the Admin list and tags them: *"📢 @admin1 @admin2 - New member arrived!"*
     - **Welcome Message**: Sends a rotating slogan in the group's active `language_mode`.

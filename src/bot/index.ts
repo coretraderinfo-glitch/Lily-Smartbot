@@ -267,14 +267,13 @@ bot.on('callback_query:data', async (ctx) => {
             `Lily has evolved with top-tier security for your group:\n\n` +
             `🚀 **MALWARE PREDATOR (文件拦截)**\n` +
             `• 自动检测并秒删 \`.apk\`, \`.zip\`, \`.exe\` 等可疑文件。\n` +
-            `• Auto-detect and delete suspicious files like .apk, .zip, .exe.\n` +
-            `• 保护群组免受病毒与木马攻击。\n` +
-            `• Protect your group from viruses and malware.\n\n` +
+            `• Auto-detect and delete suspicious files like .apk, .zip, .exe.\n\n` +
+            `🛡️ **LINK SHIELD (链接防护)**\n` +
+            `• 禁止非管理/操作人员发送任何链接，防止钓鱼诈骗。\n` +
+            `• Block unauthorized links to prevent phishing and scams.\n\n` +
             `🔔 **ADMIN SENTINEL (管理员哨兵)**\n` +
             `• 当新成员加入时，Lily 会自动提醒并 @ 管理员。\n` +
-            `• Automatically notify admins when a new member joins.\n` +
-            `• 确保护理团队第一时间介入并提供服务。\n` +
-            `• Ensures the support team provides immediate assistance.\n\n` +
+            `• Automatically notify admins when a new member joins.\n\n` +
             `🔑 **COMMAND KEYS (指令)**\n` +
             `• \`设置管理员\` / \`/setadmin\`: (回复用户) 注册为 Sentinel 管理员。\n` +
             `• \`设置管理员\` / \`/setadmin\`: (Reply to user) Register as a Sentinel Admin.\n\n` +
@@ -349,6 +348,7 @@ bot.on('message', async (ctx, next) => {
     // A. GUARDIAN SCAN (NO-SKIP SECURITY)
     try {
         await Guardian.scanMessage(ctx);
+        await Guardian.scanLinks(ctx);
         if (ctx.message?.new_chat_members) {
             await Guardian.handleNewMember(ctx);
         }

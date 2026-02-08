@@ -98,6 +98,52 @@ export const Guardian = {
     },
 
     /**
+     * Link Shield: Prevents unauthorized links and phishing attempts
+     */
+    async scanLinks(ctx: Context) {
+        if (!ctx.chat || ctx.chat.type === 'private') return;
+
+        // 1. Check if Guardian is enabled
+        const settings = await db.query('SELECT guardian_enabled FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
+        if (!settings.rows[0]?.guardian_enabled) return;
+
+        const text = ctx.message?.text || ctx.message?.caption || '';
+        const hasLink = /https?:\/\/[^\s]+/.test(text) || text.includes('t.me/');
+
+        if (hasLink) {
+            const userId = ctx.from?.id;
+            if (!userId) return;
+
+            // 2. Authorization Check (Only Admins & Operators can post links)
+            const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
+            const isOperator = await db.query('SELECT 1 FROM group_operators WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
+
+            if (isAdmin.rows.length === 0 && isOperator.rows.length === 0) {
+                try {
+                    // 🚨 ACTION: PURGE LINK
+                    await ctx.deleteMessage();
+
+                    // 📢 ACTION: WARNING
+                    const warning = `🚫 **非法链接 (Unauthorized Link)**\n\n` +
+                        `👤 用户 (User): @${ctx.from?.username || ctx.from?.first_name || 'Guest'}\n` +
+                        `为了防范钓鱼与诈骗，非管理或操作人员禁止发送链接。\n` +
+                        `*(Unauthorized links are blocked to prevent phishing and scams.)*`;
+
+                    const reply = await ctx.reply(warning, { parse_mode: 'Markdown' });
+
+                    // Auto-delete warning after 10 seconds to keep chat clean
+                    setTimeout(() => {
+                        ctx.api.deleteMessage(ctx.chat!.id, reply.message_id).catch(() => { });
+                    }, 10000);
+
+                } catch (e) {
+                    console.error('[Guardian] Failed to purge unauthorized link:', e);
+                }
+            }
+        }
+    },
+
+    /**
      * Helper: Tag all registered group admins
      */
     async alertAdmins(ctx: Context, reason: string) {
