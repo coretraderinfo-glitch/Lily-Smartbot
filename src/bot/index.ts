@@ -160,7 +160,7 @@ const DASHBOARD_TEXT = `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
 const MainMenuMarkup = {
     inline_keyboard: [
         [{ text: "📊 CALC", callback_data: "menu_calc" }],
-        [{ text: "🛡️ GUARDIAN (Coming Soon)", callback_data: "menu_guardian" }]
+        [{ text: "🛡️ GUARDIAN", callback_data: "menu_guardian" }]
     ]
 };
 
