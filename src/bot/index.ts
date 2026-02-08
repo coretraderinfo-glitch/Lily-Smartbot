@@ -170,6 +170,12 @@ const CalcMenuMarkup = {
     ]
 };
 
+const GuardianMenuMarkup = {
+    inline_keyboard: [
+        [{ text: "⬅️ BACK TO MENU", callback_data: "menu_main" }]
+    ]
+};
+
 // --- BOSS CONTROL PANEL (PRIVATE DM ONLY) ---
 bot.command('admin', async (ctx) => {
     const userId = ctx.from?.id;
@@ -255,10 +261,21 @@ bot.on('callback_query:data', async (ctx) => {
     }
 
     if (data === "menu_guardian") {
-        return ctx.answerCallbackQuery({
-            text: "🛡️ GUARDIAN SYSTEM\nPlease use /admin in private DM to manage security.",
-            show_alert: true
-        });
+        return ctx.editMessageText(
+            `🛡️ **LILY GUARDIAN - SECURITY SHIELD**\n\n` +
+            `Lily 现已进化，拥有顶尖的群组安全防护能力：\n\n` +
+            `🚀 **MALWARE PREDATOR (文件拦截)**\n` +
+            `• 自动检测并秒删 \`.apk\`, \`.zip\`, \`.exe\` 等可疑文件。\n` +
+            `• 保护群组免受病毒与木马攻击。\n\n` +
+            `🔔 **ADMIN SENTINEL (管理员哨兵)**\n` +
+            `• 当新成员加入时，Lily 会自动提醒并 @ 管理员。\n` +
+            `• 确保护理团队第一时间介入并提供服务。\n\n` +
+            `🔑 **COMMAND KEYS (指令)**\n` +
+            `• \`设置管理员\` / \`/setadmin\`: (回复用户) 注册为 Sentinel 管理员。\n` +
+            `• \`/admin\`: (私聊) 老板专用远程控制台。\n\n` +
+            `💡 **Note**: Guardian 功能由老板在后台统一开启。`,
+            { parse_mode: 'Markdown', reply_markup: GuardianMenuMarkup }
+        );
     }
 
     // --- REMOTE MANAGEMENT BUTTONS ---
