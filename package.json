@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc && cp src/db/schema.sql dist/db/ && cp -r assets dist/",
+    "build": "tsc && cp src/db/schema.sql dist/db/ && cp -r assets dist/ && mkdir -p dist/web && cp -r src/web/frontend dist/web/",
     "start": "node dist/bot/index.js",
     "dev": "nodemon src/bot/index.ts"
   },
