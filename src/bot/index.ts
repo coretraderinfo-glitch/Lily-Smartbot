@@ -24,7 +24,13 @@ if (!process.env.OWNER_ID) {
     console.error('🛑 [CRITICAL WARNING] OWNER_ID is not set in environment variables!');
 }
 
-// 1. Connection Pools
+// 1. Unified Entry Point (Bot + Web)
+import { startWebServer } from '../../frontend/server';
+
+// Start the Web Server (Dashboard & API)
+startWebServer();
+
+// Connection Pools
 const bot = new Bot(process.env.BOT_TOKEN!);
 
 // ioredis connection with better stability

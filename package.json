@@ -9,7 +9,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc && mkdir -p dist/db && cp src/db/schema.sql dist/db/ && cp -r assets dist/ && mkdir -p dist/frontend/public && cp -r frontend/public/* dist/frontend/public/",
-    "start": "node dist/bot/index.js",
+    "start": "node dist/src/bot/index.js",
     "start:frontend": "node dist/frontend/server.js",
     "dev": "nodemon src/bot/index.ts",
     "dev:frontend": "ts-node frontend/server.ts"
