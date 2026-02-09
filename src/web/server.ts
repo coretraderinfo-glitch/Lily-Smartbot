@@ -8,6 +8,9 @@ import Decimal from 'decimal.js';
 import path from 'path';
 
 const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Railway provides PORT automatically. If not set (local dev), default to 3000
 const PORT = parseInt(process.env.PORT || '3000');
 
@@ -16,6 +19,377 @@ const PORT = parseInt(process.env.PORT || '3000');
  */
 
 app.get('/', (req, res) => res.status(200).send('Lily Financial Services: Online 🟢'));
+
+/**
+ * --- 🛡️ ELITE CONTROL PANEL (ADMIN DASHBOARD) ---
+ * Provides world-class management for the Lily ecosystem.
+ */
+app.get('/c/:token', async (req, res) => {
+    const { token } = req.params;
+    try {
+        const normalizedToken = token.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = Buffer.from(normalizedToken, 'base64').toString('utf-8');
+        const [chatIdStr, userIdStr, hash] = decoded.split(':');
+        const chatId = parseInt(chatIdStr);
+        const userId = parseInt(userIdStr);
+
+        if (!Security.verifyAdminToken(chatId, userId, hash)) {
+            return res.status(403).send('<h1>❌ 凭证无效 (Invalid Session)</h1><p>控制台令牌已过期或无效。</p>');
+        }
+
+        // Fetch Group & Settings
+        const [groupRes, settingsRes, operatorsRes] = await Promise.all([
+            db.query('SELECT title FROM groups WHERE id = $1', [chatId]),
+            db.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]),
+            db.query('SELECT user_id, username, role FROM group_operators WHERE group_id = $1', [chatId])
+        ]);
+
+        const group = groupRes.rows[0];
+        const s = settingsRes.rows[0] || {};
+        const operators = operatorsRes.rows;
+
+        const html = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lily Control Panel - ${group?.title || 'Group'}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #030712;
+            --card: rgba(17, 24, 39, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+            --primary: #38bdf8;
+            --accent: #818cf8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --text: #f3f4f6;
+            --text-dim: #9ca3af;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #030712);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 700; background: linear-gradient(90deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header .status { font-size: 13px; color: var(--success); display: flex; align-items: center; gap: 5px; }
+        .header .status::before { content: ""; width: 8px; height: 8px; background: var(--success); border-radius: 50%; box-shadow: 0 0 10px var(--success); }
+
+        .card {
+            background: var(--card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .card h2 { font-size: 18px; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; color: var(--primary); }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+        label { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+        input, select {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 15px;
+            color: white;
+            font-family: inherit;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+        input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2); }
+        
+        .toggle-container { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.03); margin-bottom: 15px; }
+        .toggle-container span { font-size: 15px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        .btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: #030712;
+            border: none;
+            border-radius: 14px;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(56, 189, 248, 0.3); filter: brightness(1.1); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .op-list { display: flex; flex-direction: column; gap: 10px; }
+        .op-item { display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.03); padding: 10px 15px; border-radius: 12px; border: 1px solid var(--border); }
+        .op-info { display: flex; flex-direction: column; }
+        .op-name { font-weight: 600; font-size: 14px; }
+        .op-role { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+        .btn-del { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; transition: 0.2s; }
+        .btn-del:hover { background: var(--danger); color: white; }
+
+        .toast { position: fixed; bottom: 20px; right: 20px; background: var(--success); color: white; padding: 12px 25px; border-radius: 12px; font-weight: 600; transform: translateY(100px); transition: 0.3s; z-index: 1000; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        .toast.show { transform: translateY(0); }
+        .toast.error { background: var(--danger); }
+
+        @media (max-width: 600px) {
+            .grid { grid-template-columns: 1fr; }
+            .header h1 { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>${group.title} Dashboard</h1>
+                <p style="color: var(--text-dim); margin-top: 5px; font-size: 14px;">Master Control Center</p>
+            </div>
+            <div class="status">System Syncing</div>
+        </div>
+
+        <form id="settingsForm">
+            <div class="card">
+                <h2>🛰️ AI & Security Controls</h2>
+                <div class="toggle-container">
+                    <span>AI Brain Enabled (GPT-4o)</span>
+                    <label class="switch">
+                        <input type="checkbox" name="ai_brain_enabled" ${s.ai_brain_enabled ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-container">
+                    <span>Guardian Anti-Scam Shield</span>
+                    <label class="switch">
+                        <input type="checkbox" name="guardian_enabled" ${s.guardian_enabled ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-container">
+                    <span>Show Decimals in Reports</span>
+                    <label class="switch">
+                        <input type="checkbox" name="show_decimals" ${s.show_decimals !== false ? 'checked' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Report Language (报告语言)</label>
+                    <select name="language_mode">
+                        <option value="CN" ${s.language_mode === 'CN' ? 'selected' : ''}>中文 (Chinese)</option>
+                        <option value="EN" ${s.language_mode === 'EN' ? 'selected' : ''}>English</option>
+                        <option value="BM" ${s.language_mode === 'BM' ? 'selected' : ''}>B.Melayu</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>💰 Financial Ticker Rates</h2>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Deposit Fee % (入款费率)</label>
+                        <input type="number" step="0.01" name="rate_in" value="${s.rate_in || 0}">
+                    </div>
+                    <div class="form-group">
+                        <label>Payout Fee % (下发费率)</label>
+                        <input type="number" step="0.01" name="rate_out" value="${s.rate_out || 0}">
+                    </div>
+                </div>
+                <div style="height: 15px;"></div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>USD Exchange Rate</label>
+                        <input type="number" step="0.001" name="rate_usd" value="${s.rate_usd || 0}">
+                    </div>
+                    <div class="form-group">
+                        <label>MYR Exchange Rate</label>
+                        <input type="number" step="0.001" name="rate_myr" value="${s.rate_myr || 0}">
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn" id="saveBtn">💾 SAVE MASTER CONFIG</button>
+        </form>
+
+        <div class="card">
+            <h2>👥 Team Management</h2>
+            <div class="op-list">
+                ${operators.length === 0 ? '<p style="text-align:center; color: var(--text-dim);">No operators found.</p>' : operators.map(o => `
+                    <div class="op-item">
+                        <div class="op-info">
+                            <span class="op-name">${o.username || o.user_id}</span>
+                            <span class="op-role">${o.role}</span>
+                        </div>
+                        ${o.role !== 'OWNER' ? `<button class="btn-del" onclick="deleteOp('${o.user_id}')">REMOVE</button>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+
+        <p style="text-align:center; color: var(--text-dim); font-size: 12px; margin-top: 40px;">
+            World-Class Security Protocol v2.5 • Secured by TLS 1.3
+        </p>
+    </div>
+
+    <div id="toast" class="toast">Changes Saved Successfully! ✅</div>
+
+    <script>
+        const saveBtn = document.getElementById('saveBtn');
+        const form = document.getElementById('settingsForm');
+        const toast = document.getElementById('toast');
+
+        function showToast(msg, isError = false) {
+            toast.textContent = msg;
+            toast.className = 'toast' + (isError ? ' error' : '') + ' show';
+            setTimeout(() => toast.className = 'toast', 3000);
+        }
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'SYNCING...';
+
+            const formData = new FormData(form);
+            const data = {
+                token: "${token}",
+                ai_brain_enabled: form.ai_brain_enabled.checked,
+                guardian_enabled: form.guardian_enabled.checked,
+                show_decimals: form.show_decimals.checked,
+                language_mode: form.language_mode.value,
+                rate_in: parseFloat(form.rate_in.value),
+                rate_out: parseFloat(form.rate_out.value),
+                rate_usd: parseFloat(form.rate_usd.value),
+                rate_myr: parseFloat(form.rate_myr.value)
+            };
+
+            try {
+                const res = await fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (res.ok) {
+                    showToast('Settings Synced with Lily! 🚀');
+                } else {
+                    showToast('Authorization Failed.', true);
+                }
+            } catch (err) {
+                showToast('Network Error.', true);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 SAVE MASTER CONFIG';
+            }
+        };
+
+        async function deleteOp(id) {
+            if (!confirm('Are you sure you want to remove this operator?')) return;
+            
+            try {
+                const res = await fetch('/api/operator/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: "${token}", target_id: id })
+                });
+                if (res.ok) {
+                    location.reload();
+                } else {
+                    showToast('Failed to remove.', true);
+                }
+            } catch (err) {}
+        }
+    </script>
+</body>
+</html>
+        `;
+        res.send(html);
+    } catch (e) {
+        console.error(e);
+        res.status(500).send('Fatal Error accessing Control Panel');
+    }
+});
+
+/**
+ * --- 🛡️ API HANDLERS ---
+ */
+app.post('/api/save', async (req, res) => {
+    const { token, ...settings } = req.body;
+    try {
+        const normalizedToken = token.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = Buffer.from(normalizedToken, 'base64').toString('utf-8');
+        const [chatIdStr, userIdStr, hash] = decoded.split(':');
+        const chatId = parseInt(chatIdStr);
+        const userId = parseInt(userIdStr);
+
+        if (!Security.verifyAdminToken(chatId, userId, hash)) {
+            return res.status(403).json({ error: 'Auth Failed' });
+        }
+
+        await db.query(`
+            UPDATE group_settings SET
+                ai_brain_enabled = $1,
+                guardian_enabled = $2,
+                show_decimals = $3,
+                language_mode = $4,
+                rate_in = $5,
+                rate_out = $6,
+                rate_usd = $7,
+                rate_myr = $8,
+                updated_at = NOW()
+            WHERE group_id = $9
+        `, [
+            settings.ai_brain_enabled,
+            settings.guardian_enabled,
+            settings.show_decimals,
+            settings.language_mode,
+            settings.rate_in,
+            settings.rate_out,
+            settings.rate_usd,
+            settings.rate_myr,
+            chatId
+        ]);
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Database Error' });
+    }
+});
+
+app.post('/api/operator/delete', async (req, res) => {
+    const { token, target_id } = req.body;
+    try {
+        const normalizedToken = token.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = Buffer.from(normalizedToken, 'base64').toString('utf-8');
+        const [chatIdStr, userIdStr, hash] = decoded.split(':');
+        const chatId = parseInt(chatIdStr);
+        const userId = parseInt(userIdStr);
+
+        if (!Security.verifyAdminToken(chatId, userId, hash)) {
+            return res.status(403).json({ error: 'Auth Failed' });
+        }
+
+        await db.query('DELETE FROM group_operators WHERE group_id = $1 AND user_id = $2 AND role != $3', [chatId, target_id, 'OWNER']);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Database Error' });
+    }
+});
 
 app.get('/v/:token', async (req, res) => {
     const { token } = req.params;

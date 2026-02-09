@@ -34,5 +34,22 @@ export const Security = {
     verifyReportToken(chatId: number, date: string, token: string): boolean {
         const expected = this.generateReportToken(chatId, date);
         return expected === token;
+    },
+
+    /**
+     * Generate a secure token for the Control Panel
+     */
+    generateAdminToken(chatId: number, userId: number): string {
+        const secret = process.env.WEB_SECRET || 'lily-secret-token-2024';
+        const data = `ADMIN:${chatId}:${userId}`;
+        return createHmac('sha256', secret).update(data).digest('hex').substring(0, 24);
+    },
+
+    /**
+     * Verify the admin token
+     */
+    verifyAdminToken(chatId: number, userId: number, token: string): boolean {
+        const expected = this.generateAdminToken(chatId, userId);
+        return expected === token;
     }
 };

@@ -525,9 +525,55 @@ bot.on('message:text', async (ctx) => {
         `, [chatId, userId, ctx.from.username]).catch(() => { });
     }
 
-    // 1. HEALTH CHECK
+    // 2. HEALTH CHECK
     if (text === '/ping') return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
     if (text === '/menu' || text === '/help') return ctx.reply(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
+
+    // 3. CONTROL PANEL (NEW FEATURE)
+    if (text === '/control' || text === '/dashboard' || text === '控制台') {
+        const isOperator = await RBAC.isAuthorized(chatId, userId);
+        if (!isOwner && !isOperator) return ctx.reply("❌ **Unauthorized**: Only Owners/Operators can access the Control Panel.");
+
+        // Generate Secure Admin Link
+        const hash = Security.generateAdminToken(chatId, userId);
+        let baseUrl = process.env.SYSTEM_URL;
+        if (!baseUrl) {
+            const groupRes = await db.query('SELECT system_url FROM groups WHERE id = $1', [chatId]);
+            baseUrl = groupRes.rows[0]?.system_url || process.env.RAILWAY_STATIC_URL;
+        }
+        if (!baseUrl) {
+            baseUrl = process.env.RAILWAY_SERVICE_NAME ?
+                `${process.env.RAILWAY_SERVICE_NAME}.up.railway.app` :
+                'lily-smartbot-production.up.railway.app';
+        }
+        if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
+
+        const tokenBase64 = Buffer.from(`${chatId}:${userId}:${hash}`)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+
+        const controlUrl = `${baseUrl}/c/${tokenBase64}`;
+
+        if (ctx.chat.type !== 'private') {
+            await ctx.reply(`🛡️ **Control Panel Ready**\n\nTo protect your settings, I have sent the secure management link to your **Private DM**.`, { reply_to_message_id: messageId });
+            try {
+                await bot.api.sendMessage(userId, `🔐 **Lily Control Panel: ${ctx.chat.title}**\n\nClick the button below to manage group rates, AI settings, and team permissions.\n\n*This link is private and expires upon restart.*`, {
+                    parse_mode: 'Markdown',
+                    reply_markup: new InlineKeyboard().url("⚙️ OPEN CONTROL PANEL", controlUrl)
+                });
+            } catch (e) {
+                await ctx.reply("⚠️ **Error**: I couldn't send you a Private Message. Please start a chat with me first!");
+            }
+        } else {
+            await ctx.reply(`🔐 **Lily Control Panel**\n\nClick below to manage your settings:`, {
+                parse_mode: 'Markdown',
+                reply_markup: new InlineKeyboard().url("⚙️ OPEN CONTROL PANEL", controlUrl)
+            });
+        }
+        return;
+    }
 
     // Diagnostic: /whoami
     if (text.startsWith('/whoami')) {
