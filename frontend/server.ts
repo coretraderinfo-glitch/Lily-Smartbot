@@ -23,10 +23,17 @@ const getInfraData = () => {
     if (!cachedGitInfo) {
         cachedGitInfo = { branch: 'main', commit: 'none', repo: 'Lily-Smartbot' };
         try {
-            cachedGitInfo.branch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
-            cachedGitInfo.commit = execSync('git rev-parse --short HEAD').toString().trim();
+            // Priority 1: Railway Environment (Fastest & Safe)
+            if (process.env.RAILWAY_GIT_BRANCH) {
+                cachedGitInfo.branch = process.env.RAILWAY_GIT_BRANCH;
+                cachedGitInfo.commit = (process.env.RAILWAY_GIT_COMMIT_SHA || '').substring(0, 7);
+            } else {
+                // Priority 2: Local Git (Fallback)
+                cachedGitInfo.branch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
+                cachedGitInfo.commit = execSync('git rev-parse --short HEAD').toString().trim();
+            }
         } catch (e) {
-            console.error('Git Info Fetch Failed - Repository metadata missing');
+            // Silent fallback for clean logs
         }
     }
 
