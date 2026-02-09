@@ -7,6 +7,8 @@ import { ExcelExport } from '../core/excel';
 import { db } from '../db';
 import { Security } from '../utils/security';
 import { I18N } from '../utils/i18n';
+import { MarketData } from '../core/market';
+import { AIBrain } from '../utils/ai';
 
 interface CommandJob {
     chatId: number;
@@ -210,8 +212,12 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
         // --- 6. AI BRAIN CHAT (GPT-4o + VISION + LEDGER + MARKET DATA) ---
         if (aiEnabled && isNameTrigger) {
-            // A. Financial Ledger Context (Internal Sales)
-            const ledgerSummary = await Ledger.getDailySummary(chatId);
+            // FIRE EVERYTHING IN PARALLEL (WORLD-CLASS SPEED)
+            const [ledgerSummary, marketContext] = await Promise.all([
+                Ledger.getDailySummary(chatId),
+                MarketData.scanAndFetch(text)
+            ]);
+
             const ledgerContext = `
 Current Group Sales (Internal Ledger):
 - Total In: ${ledgerSummary.totalIn}
@@ -219,11 +225,6 @@ Current Group Sales (Internal Ledger):
 - Balance: ${ledgerSummary.balance}
             `.trim();
 
-            // B. Live Market Data (Yahoo Finance)
-            const { MarketData } = await import('../core/market');
-            const marketContext = await MarketData.scanAndFetch(text);
-
-            const { AIBrain } = await import('../utils/ai');
             return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext, marketContext);
         }
 
