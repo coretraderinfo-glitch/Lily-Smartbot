@@ -225,7 +225,8 @@ Current Group Sales (Internal Ledger):
 - Balance: ${ledgerSummary.balance}
             `.trim();
 
-            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext, marketContext);
+            const replyContext = job.data.replyToMessage?.text || job.data.replyToMessage?.caption || "";
+            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext, marketContext, replyContext);
         }
 
         return null;

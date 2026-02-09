@@ -37,7 +37,7 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 `;
 
 export const AIBrain = {
-    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string): Promise<string> {
+    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string, replyContext?: string): Promise<string> {
         if (!process.env.OPENAI_API_KEY) return "";
 
         const effectiveText = userMessage?.trim() || (imageUrl ? "Analyze this image." : "Lily standby.");
@@ -63,7 +63,8 @@ export const AIBrain = {
 - User: ${username} (ID:${userId}).
 - Group: ${groupTitle}.
 - Internal Sales: ${ledgerContext || "None"}.
-- Real-Time Market Feed: ${marketContext || "TICKER ACTIVE - USE INTERNAL DATABASE FOR RECENT TRENDS"}.`
+- Real-Time Market Feed: ${marketContext || "TICKER ACTIVE - USE INTERNAL DATABASE FOR RECENT TRENDS"}.
+${replyContext ? `- Replying to: "${replyContext}"` : ""}`
                     },
                     { role: "user", content: userContent }
                 ],
