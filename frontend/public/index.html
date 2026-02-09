@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lily OS - Master Control Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .icon {
+            font-size: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loader" class="loader-overlay">
+        <div class="logo-icon animate-pulse">L</div>
+    </div>
+
+    <aside class="sidebar">
+        <div class="logo-area">
+            <div class="logo-icon">L</div>
+            <div class="logo-text">Lily OS</div>
+        </div>
+        <nav class="nav-menu">
+            <a onclick="showTab('dashboard')" class="nav-item active" id="nav-dashboard">
+                <span class="icon">📊</span> <span>Dashboard</span>
+            </a>
+            <a onclick="showTab('groups')" class="nav-item" id="nav-groups">
+                <span class="icon">👥</span> <span>Groups</span>
+            </a>
+            <a onclick="showTab('functions')" class="nav-item" id="nav-functions">
+                <span class="icon">⚙️</span> <span>Functions</span>
+            </a>
+            <a onclick="showTab('security')" class="nav-item" id="nav-security">
+                <span class="icon">🛡️</span> <span>Security</span>
+            </a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header-bar">
+            <div>
+                <h1 id="tab-title">Master Dashboard</h1>
+                <p class="subtitle" id="tab-subtitle">Real-time system oversight & node analysis</p>
+            </div>
+            <button class="btn-primary" onclick="window.location.reload()">🔄 Refresh Node</button>
+        </header>
+
+        <!-- DASHBOARD TAB -->
+        <section id="dashboard" class="section active">
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Total Transactions</span>
+                    <span class="stat-value" id="stat-tx">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Active Groups</span>
+                    <span class="stat-value" id="stat-groups">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">System Operators</span>
+                    <span class="stat-value" id="stat-operators">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Uptime</span>
+                    <span class="stat-value" id="stat-uptime">0h</span>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <h3>🛰️ Status Logic</h3>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div
+                        style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); padding: 15px 25px; border-radius: 16px; color: var(--success); font-weight: 700;">
+                        BOT ENGINE: ONLINE 🟢
+                    </div>
+                    <div
+                        style="background: rgba(56, 189, 248, 0.1); border: 1px solid var(--primary); padding: 15px 25px; border-radius: 16px; color: var(--primary); font-weight: 700;">
+                        DATABASE: SYNCED 🌐
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- GROUPS TAB -->
+        <section id="groups" class="section">
+            <div class="glass-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Group Name</th>
+                            <th>Group ID</th>
+                            <th>Activated On</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="group-list">
+                        <!-- Groups injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- FUNCTIONS TAB -->
+        <section id="functions" class="section">
+            <div class="glass-card" style="max-width: 600px;">
+                <h3>⚙️ Master Toggles</h3>
+                <div class="toggle-row">
+                    <span>Master AI Override</span>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <span>Guardian Global Shield</span>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <span>Performance Mode</span>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECURITY TAB -->
+        <section id="security" class="section">
+            <div class="glass-card">
+                <h3>🛡️ System Security</h3>
+                <p style="color: var(--text-dim);">Owner IDs registered in environment:</p>
+                <div id="owners-list"
+                    style="padding: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; font-family: monospace;">
+                    [LILY MASTER PROTOCOL]
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/dashboard.js"></script>
+</body>
+
+</html>

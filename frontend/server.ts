@@ -25,6 +25,36 @@ app.get('/c/:token', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/control.html'));
 });
 
+/**
+ * --- 📈 GLOBAL ANALYTICS ---
+ */
+app.get('/api/stats', async (req, res) => {
+    try {
+        const [txCount, groupCount, userCount] = await Promise.all([
+            db.query('SELECT count(*) FROM transactions'),
+            db.query('SELECT count(*) FROM groups'),
+            db.query('SELECT count(DISTINCT user_id) FROM group_operators')
+        ]);
+        res.json({
+            transactions: txCount.rows[0].count,
+            groups: groupCount.rows[0].count,
+            operators: userCount.rows[0].count,
+            uptime: process.uptime()
+        });
+    } catch (e) {
+        res.status(500).json({ error: 'Stats Error' });
+    }
+});
+
+app.get('/api/groups', async (req, res) => {
+    try {
+        const resGroups = await db.query('SELECT id, title, created_at FROM groups ORDER BY created_at DESC');
+        res.json(resGroups.rows);
+    } catch (e) {
+        res.status(500).json({ error: 'Groups Error' });
+    }
+});
+
 app.get('/api/data/:token', async (req, res) => {
     try {
         const { token } = req.params;
@@ -193,5 +223,10 @@ app.get('/pdf/:token', async (req, res) => {
 });
 
 export const startWebServer = () => {
-    app.listen(PORT, () => console.log(`🚀 Lily Web Server is live at port ${PORT}`));
+    app.listen(PORT, () => console.log(`🚀 Lily Web Server is live at http://localhost:${PORT}`));
 };
+
+// Start if executed directly
+if (require.main === module) {
+    startWebServer();
+}

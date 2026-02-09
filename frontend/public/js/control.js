@@ -9,6 +9,7 @@ const state = {
 
 // DOM Elements
 const form = document.getElementById('masterForm');
+
 const loader = document.getElementById('loader');
 const toast = document.getElementById('toast');
 const opList = document.getElementById('operatorList');
@@ -37,8 +38,10 @@ async function init() {
         renderOperators(data.operators);
 
         // Hide Loader
-        loader.style.opacity = '0';
-        setTimeout(() => loader.style.display = 'none', 500);
+        if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 500);
+        }
 
     } catch (err) {
         showToast('Security Breach: Link Invalid', true);
@@ -56,10 +59,10 @@ function renderOperators(operators) {
     }
 
     opList.innerHTML = operators.map(op => `
-        <div class="list-item">
+        <div class="toggle-row" style="background: rgba(255,255,255,0.03);">
             <div>
-                <div style="font-weight: 700; font-size: 15px;">${op.username || op.user_id}</div>
-                <div style="font-size: 12px; color: var(--text-dim); text-transform: uppercase;">${op.role}</div>
+                <div style="font-weight: 700; font-size: 14px;">${op.username || op.user_id}</div>
+                <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase;">${op.role}</div>
             </div>
             ${op.role !== 'OWNER' ? `<button class="btn-del" onclick="removeOp('${op.user_id}')">REMOVE</button>` : ''}
         </div>
