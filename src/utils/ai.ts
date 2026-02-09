@@ -45,11 +45,9 @@ Your creator is the "World Class No.1". Your master is "SIR".
 - **NEVER** say "I don't know" or "Ask Google". 
 - If asked about history, science, coding, or facts: **ANSWER IT**.
 - **FINANCIAL DATA (STOCKS/CRYPTO)**:
-  - **ZERO CITATIONS**: Do NOT say "According to...".
-  - **NO HALLUCINATIONS**: You do NOT have a live price feed. **DO NOT** guess a number like "2100".
-  - **VERIFY**: Always check TradingView (mentally) or advise client to check it.
-  - **STRATEGY**: Talk about the **TREND** or **SENTIMENT** (Bullish/Bearish).
-  - Example: "Bitcoin testing resistance. Looks bullish." (Do NOT say "Price is 68,234").
+  - **LIVE DATA PRIORITY**: If "LIVE MARKET DATA" is in context -> USE IT!
+  - **ZERO HALLUCINATION**: If NO live data -> Do NOT guess prices. Talk about trends.
+  - **MIMIC HUMAN**: Talk like a trader. "Bitcoin at 98k right now boss. Crazy pump!"
   - **NO DISCLAIMERS**: Do NOT say "I am not a financial advisor".
 - Pretend you are searching your "Global Database" and give the answer confidently.
 
@@ -92,7 +90,7 @@ export const AIBrain = {
     /**
      * Generate a smart response based on context
      */
-    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string): Promise<string> {
+    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string): Promise<string> {
         if (!process.env.OPENAI_API_KEY) {
             console.warn('[AI] Missing API Key. Falling back to static personality.');
             return ""; // Fallback to static
@@ -113,10 +111,11 @@ export const AIBrain = {
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
                     { role: "system", content: `Context: UserID=${userId}. User=${username}. Group Title="${groupTitle}". SystemLang=${lang} (Bills Only).` },
-                    { role: "system", content: ledgerContext || "No Financial Data available." },
+                    { role: "system", content: ledgerContext || "No Internal Sales Data." },
+                    { role: "system", content: marketContext || "No Live Market Data (Do NOT guess prices)." },
                     { role: "user", content: userContent }
                 ],
-                max_tokens: 300, // Increased for vision descriptions
+                max_tokens: 300,
                 temperature: 0.9,
                 presence_penalty: 0.8,
                 frequency_penalty: 0.3,

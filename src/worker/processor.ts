@@ -208,20 +208,23 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             return `EXCEL_EXPORT:${csv}`;
         }
 
-        // --- 6. AI BRAIN CHAT (GPT-4o + VISION + LEDGER DATA) ---
+        // --- 6. AI BRAIN CHAT (GPT-4o + VISION + LEDGER + MARKET DATA) ---
         if (aiEnabled && isNameTrigger) {
-            // Fetch Real-Time Ledger Context
+            // A. Financial Ledger Context (Internal Sales)
             const ledgerSummary = await Ledger.getDailySummary(chatId);
             const ledgerContext = `
-Current Financial Status (Today):
+Current Group Sales (Internal Ledger):
 - Total In: ${ledgerSummary.totalIn}
 - Total Out: ${ledgerSummary.totalOut}
 - Balance: ${ledgerSummary.balance}
-- Total Tx Count: ${ledgerSummary.count}
             `.trim();
 
+            // B. Live Market Data (Yahoo Finance)
+            const { MarketData } = await import('../core/market');
+            const marketContext = await MarketData.scanAndFetch(text);
+
             const { AIBrain } = await import('../utils/ai');
-            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext);
+            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext, marketContext);
         }
 
         return null;
