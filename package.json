@@ -12,7 +12,7 @@
     "start": "node dist/bot/index.js",
     "start:frontend": "node dist/frontend/server.js",
     "dev": "nodemon src/bot/index.ts",
-    "dev:frontend": "nodemon frontend/server.ts"
+    "dev:frontend": "ts-node frontend/server.ts"
   },
   "keywords": [],
   "author": "",

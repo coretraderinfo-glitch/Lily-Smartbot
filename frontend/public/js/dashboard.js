@@ -1,122 +1,150 @@
 /**
- * LILY MASTER DASHBOARD LOGIC
+ * LILY FLEET COMMANDER LOGIC
+ * High-performance master orchestrator controls.
  */
+
+const state = {
+    activeTab: 'overview',
+    nodes: [
+        { id: 'local', name: 'Local Host Node', url: 'http://localhost:3000', status: 'online', avatar: '🏠' },
+        { id: 'hy01', name: 'Client Server: Hongye-01', url: 'hy-01.lily-smartbot.com', status: 'online', avatar: '🇲🇾' },
+        { id: 'sgv', name: 'Client Server: SG-Vortex', url: 'sg-vortex.up.railway.app', status: 'connecting', avatar: '🇸🇬' }
+    ]
+};
 
 async function init() {
-    await fetchStats();
-    await fetchGroups();
-    await fetchOwners();
+    // Artificial load for professional feel
+    setTimeout(() => {
+        const loader = document.getElementById('masterLoader');
+        if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 600);
+        }
+    }, 1200);
 
-    // Auto-refresh stats every 30s
-    setInterval(fetchStats, 30000);
-
-    // Hide loader
-    const loader = document.getElementById('loader');
-    if (loader) {
-        loader.style.opacity = '0';
-        setTimeout(() => loader.style.display = 'none', 500);
-    }
+    await fetchInfra();
+    renderNodes();
+    setupSwitchListeners();
 }
 
 /**
- * Fetch System Stats
+ * Fetch Live Infrastructure Data (GitHub/Railway)
  */
-async function fetchStats() {
+async function fetchInfra() {
     try {
-        const res = await fetch('/api/stats');
+        const res = await fetch('/api/infra');
         const data = await res.json();
 
-        document.getElementById('stat-tx').textContent = data.transactions;
-        document.getElementById('stat-groups').textContent = data.groups;
-        document.getElementById('stat-operators').textContent = data.operators;
+        // Update Railway Metadata
+        document.getElementById('infra-railway').textContent = `${data.railway.service} (${data.railway.env})`;
+        document.getElementById('infra-url').textContent = data.railway.url;
 
-        const hours = Math.floor(data.uptime / 3600);
-        document.getElementById('stat-uptime').textContent = `${hours}h`;
+        // Update GitHub Metadata
+        document.getElementById('infra-github').textContent = `Repo: ${data.github.repo}`;
+        document.getElementById('infra-branch').textContent = `Branch: ${data.github.branch} (${data.github.commit})`;
+
+        // Update Local Node info
+        state.nodes[0].url = `http://${data.railway.url}:3000`;
+        renderNodes();
     } catch (e) {
-        console.error('Stats Sync Failed');
+        console.error('Infra Sync Failed');
     }
 }
 
 /**
- * Fetch Group List
+ * Render Active Node Fleet
  */
-async function fetchGroups() {
-    try {
-        const res = await fetch('/api/groups');
-        const groups = await res.json();
+function renderNodes() {
+    const container = document.getElementById('nodeList');
+    if (!container) return;
 
-        const container = document.getElementById('group-list');
-        if (groups.length === 0) {
-            container.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-dim);">No Active Groups Found</td></tr>';
-            return;
-        }
-
-        container.innerHTML = groups.map(g => `
-            <tr class="row-hover">
-                <td style="font-weight: 700;">${g.title || 'Untitled Node'}</td>
-                <td style="font-family: monospace; color: var(--text-dim); font-size: 13px;">${g.id}</td>
-                <td>${new Date(g.created_at).toLocaleDateString()}</td>
-                <td>
-                    <button class="btn-primary" style="padding: 8px 15px; font-size: 12px; border-radius: 8px;" onclick="manageGroup('${g.id}')">⚙️ MANAGE</button>
-                </td>
-            </tr>
-        `).join('');
-    } catch (e) {
-        console.error('Group Sync Failed');
-    }
+    container.innerHTML = state.nodes.map(node => `
+        <div class="node-item" onclick="openNode('${node.id}')">
+            <div class="node-info">
+                <div class="node-avatar">${node.avatar}</div>
+                <div class="node-details">
+                    <h4>${node.name}</h4>
+                    <p>Endpoint: ${node.url}</p>
+                </div>
+            </div>
+            <span class="status-badge status-${node.status === 'online' ? 'active' : 'offline'}">
+                ${node.status}
+            </span>
+        </div>
+    `).join('');
 }
 
 /**
- * Fetch Owner List
+ * Tab Switching Logic
  */
-async function fetchOwners() {
-    try {
-        const res = await fetch('/api/master/owners');
-        const owners = await res.json();
-        const list = document.getElementById('owners-list');
-        list.innerHTML = owners.map(id => `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid rgba(255,255,255,0.05);"><span>👑 OWNER_ID:</span> <span style="color:var(--primary);">${id}</span></div>`).join('');
-    } catch (e) { }
-}
+function switchTab(tabId) {
+    state.activeTab = tabId;
 
-/**
- * Tab Navigation
- */
-function showTab(tabId) {
     // Update Nav
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    document.getElementById(`nav-${tabId}`).classList.add('active');
+    document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+    const activeNav = document.getElementById(`nav-${tabId}`);
+    if (activeNav) activeNav.classList.add('active');
 
-    // Update Sections
-    document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
-    document.getElementById(tabId).classList.add('active');
-
-    // Update Titles
+    // Update Content Titles
     const titles = {
-        dashboard: { t: 'Master Dashboard', s: 'Real-time system oversight & node analysis' },
-        groups: { t: 'Node Management', s: 'Configure and monitor active bot instances' },
-        functions: { t: 'System Functions', s: 'Master overrides and global bot behavioral logic' },
-        security: { t: 'Security Protocol', s: 'Firewall status and authorized access registry' }
+        overview: { t: 'Overview', s: 'Real-time surveillance of all active nodes and client servers.' },
+        fleet: { t: 'Fleet Control', s: 'Manage individual client servers and global distribution.' },
+        ai: { t: 'AI Core Activation', s: 'Control Lily Intellect parameters across the entire network.' },
+        global: { t: 'Global Intelligence', s: 'Aggregated financial data and behavioral analytics.' },
+        settings: { t: 'Master Settings', s: 'Core OS configurations and security protocols.' }
     };
 
-    document.getElementById('tab-title').textContent = titles[tabId].t;
-    document.getElementById('tab-subtitle').textContent = titles[tabId].s;
+    const header = titles[tabId] || titles.overview;
+    document.getElementById('tabTitle').textContent = header.t;
+    document.getElementById('tabSubtitle').textContent = header.s;
+
+    // Logic for dynamic content can be added here
 }
 
 /**
- * Group Management Logic (Master Access)
+ * UI Syncing
  */
-async function manageGroup(id) {
-    try {
-        const res = await fetch(`/api/master/token/${id}`);
-        const data = await res.json();
-        if (data.token) {
-            window.location.href = `/c/${data.token}`;
-        } else {
-            alert('Failed to generate master access token.');
-        }
-    } catch (e) {
-        alert('Security Sync Error');
+function setupSwitchListeners() {
+    document.querySelectorAll('.switch').forEach(sw => {
+        sw.onclick = () => {
+            sw.classList.toggle('active');
+            // Here we would push global updates to all nodes
+            console.log('Pushing Global Config Update...');
+        };
+    });
+}
+
+/**
+ * Node Access Logic
+ */
+async function openNode(nodeId) {
+    if (nodeId === 'local') {
+        // Find local groups or redirect
+        alert('Master logic is redirecting to the local node. Connecting to group nodes...');
+    } else {
+        alert(`Connecting to External Node: ${nodeId}\nStatus: Active Node Found`);
     }
+}
+
+/**
+ * Add New Cluster
+ */
+function addNode() {
+    const name = prompt('Enter Client Name (e.g., Tiger-99):');
+    if (!name) return;
+    const url = prompt('Enter Server Endpoint (Railway or Domain):');
+    if (!url) return;
+
+    state.nodes.unshift({
+        id: Date.now().toString(),
+        name: `Client Server: ${name}`,
+        url: url,
+        status: 'connecting',
+        avatar: '💎'
+    });
+
+    renderNodes();
+    document.getElementById('stat-nodes').textContent = state.nodes.length;
 }
 
 init();

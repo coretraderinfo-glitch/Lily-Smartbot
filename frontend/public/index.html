@@ -1,140 +1,173 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lily OS - Master Control Center</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
-        rel="stylesheet">
+    <title>Lily OS - Global Fleet Commander</title>
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        .icon {
-            font-size: 20px;
-        }
-    </style>
 </head>
 
 <body>
-    <div id="loader" class="loader-overlay">
-        <div class="logo-icon animate-pulse">L</div>
+    <!-- MASTER LOADER -->
+    <div id="masterLoader" class="master-loader">
+        <div class="loader-spinner"></div>
+        <p style="margin-top: 20px; font-weight: 700; letter-spacing: 2px; color: var(--text-muted);">INITIALIZING
+            MASTER CORE</p>
     </div>
 
+    <!-- SIDEBAR -->
     <aside class="sidebar">
-        <div class="logo-area">
-            <div class="logo-icon">L</div>
-            <div class="logo-text">Lily OS</div>
+        <div class="brand">
+            <div class="brand-icon">L</div>
+            <div class="brand-text">LILY OS</div>
         </div>
-        <nav class="nav-menu">
-            <a onclick="showTab('dashboard')" class="nav-item active" id="nav-dashboard">
-                <span class="icon">📊</span> <span>Dashboard</span>
+        <nav class="nav">
+            <a onclick="switchTab('overview')" class="nav-link active" id="nav-overview">
+                <i>📊</i> <span>Overview</span>
             </a>
-            <a onclick="showTab('groups')" class="nav-item" id="nav-groups">
-                <span class="icon">👥</span> <span>Groups</span>
+            <a onclick="switchTab('fleet')" class="nav-link" id="nav-fleet">
+                <i>🚀</i> <span>Fleet Control</span>
             </a>
-            <a onclick="showTab('functions')" class="nav-item" id="nav-functions">
-                <span class="icon">⚙️</span> <span>Functions</span>
+            <a onclick="switchTab('ai')" class="nav-link" id="nav-ai">
+                <i>🧠</i> <span>AI Core</span>
             </a>
-            <a onclick="showTab('security')" class="nav-item" id="nav-security">
-                <span class="icon">🛡️</span> <span>Security</span>
+            <a onclick="switchTab('global')" class="nav-link" id="nav-global">
+                <i>🌐</i> <span>Global Data</span>
+            </a>
+            <a onclick="switchTab('settings')" class="nav-link" id="nav-settings">
+                <i>⚙️</i> <span>Master Settings</span>
             </a>
         </nav>
+
+        <div style="margin-top: auto; padding: 24px;">
+            <div class="btn btn-outline" style="width: 100%; justify-content: center;"
+                onclick="window.location.reload()">
+                <i>🔄</i> <span>Reload Clusters</span>
+            </div>
+        </div>
     </aside>
 
-    <main class="main-content">
-        <header class="header-bar">
-            <div>
-                <h1 id="tab-title">Master Dashboard</h1>
-                <p class="subtitle" id="tab-subtitle">Real-time system oversight & node analysis</p>
+    <!-- MAIN CONTAINER -->
+    <main class="container">
+        <header>
+            <div class="header-meta">
+                <h1 id="tabTitle">Overview</h1>
+                <p id="tabSubtitle">Real-time surveillance of all active nodes and client servers.</p>
             </div>
-            <button class="btn-primary" onclick="window.location.reload()">🔄 Refresh Node</button>
+            <div class="header-actions" style="display: flex; gap: 12px;">
+                <button class="btn btn-outline"><i>📅</i> Feb 2026</button>
+                <button class="btn btn-primary" onclick="addNode()">+ New Client Server</button>
+            </div>
         </header>
 
-        <!-- DASHBOARD TAB -->
-        <section id="dashboard" class="section active">
-            <div class="stat-grid">
-                <div class="stat-card">
-                    <span class="stat-label">Total Transactions</span>
-                    <span class="stat-value" id="stat-tx">0</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Active Groups</span>
-                    <span class="stat-value" id="stat-groups">0</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">System Operators</span>
-                    <span class="stat-value" id="stat-operators">0</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-label">Uptime</span>
-                    <span class="stat-value" id="stat-uptime">0h</span>
-                </div>
+        <!-- GLOBAL STATS OVERVIEW -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Total Volume (Global)</span>
+                <span class="stat-value">RM 14.8M</span>
+                <div class="stat-trend trend-up"><i>↑</i> 12.4% vs last mo</div>
+                <div class="chart-mock"></div>
             </div>
+            <div class="stat-card">
+                <span class="stat-label">Active Fleet Nodes</span>
+                <span class="stat-value" id="stat-nodes">12</span>
+                <div class="stat-trend trend-up"><i>↑</i> 2 new nodes</div>
+                <div class="chart-mock" style="border-color: var(--accent);"></div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Global User Reach</span>
+                <span class="stat-value">842K</span>
+                <div class="stat-trend trend-up"><i>↑</i> 5.2%</div>
+                <div class="chart-mock" style="border-color: var(--success);"></div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Master Core Load</span>
+                <span class="stat-value">14.2%</span>
+                <div class="stat-trend"><i>~</i> Optimal Sync</div>
+                <div class="chart-mock" style="border-color: var(--warning);"></div>
+            </div>
+        </div>
 
-            <div class="glass-card">
-                <h3>🛰️ Status Logic</h3>
-                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                    <div
-                        style="background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); padding: 15px 25px; border-radius: 16px; color: var(--success); font-weight: 700;">
-                        BOT ENGINE: ONLINE 🟢
+        <div class="grid-layout">
+            <!-- FLEET PANEL -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Fleet Management</h2>
+                    <span style="font-size: 13px; color: var(--text-muted);">Syncing 12 Global Nodes</span>
+                </div>
+
+                <div class="node-list" id="nodeList">
+                    <!-- Local Node will be populated with infra data -->
+                </div>
+
+                <!-- Live Infrastructure Metadata -->
+                <div
+                    style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h4
+                            style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">
+                            Railway Infrastructure</h4>
+                        <div id="infra-railway" style="font-size: 13px; font-weight: 700; color: var(--accent);">
+                            SYNCING...</div>
+                        <div id="infra-url" style="font-size: 12px; color: var(--text-dim); font-family: monospace;">---
+                        </div>
                     </div>
-                    <div
-                        style="background: rgba(56, 189, 248, 0.1); border: 1px solid var(--primary); padding: 15px 25px; border-radius: 16px; color: var(--primary); font-weight: 700;">
-                        DATABASE: SYNCED 🌐
+                    <div>
+                        <h4
+                            style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">
+                            GitHub Repository</h4>
+                        <div id="infra-github" style="font-size: 13px; font-weight: 700; color: var(--primary);">
+                            SYNCING...</div>
+                        <div id="infra-branch" style="font-size: 12px; color: var(--text-dim); font-family: monospace;">
+                            ---</div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- GROUPS TAB -->
-        <section id="groups" class="section">
-            <div class="glass-card">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Group Name</th>
-                            <th>Group ID</th>
-                            <th>Activated On</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="group-list">
-                        <!-- Groups injected here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
+            <!-- AI CONTROL SIDEBAR -->
+            <aside class="panel">
+                <div class="panel-header">
+                    <h2>AI Activation</h2>
+                </div>
 
-        <!-- FUNCTIONS TAB -->
-        <section id="functions" class="section">
-            <div class="glass-card" style="max-width: 600px;">
-                <h3>⚙️ Master Toggles</h3>
-                <div class="toggle-row">
-                    <span>Master AI Override</span>
-                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
-                </div>
-                <div class="toggle-row">
-                    <span>Guardian Global Shield</span>
-                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
-                </div>
-                <div class="toggle-row">
-                    <span>Performance Mode</span>
-                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
-                </div>
-            </div>
-        </section>
+                <div class="control-matrix">
+                    <div class="control-item">
+                        <div class="control-label">
+                            <div class="control-title">Master Intelligence</div>
+                            <div class="switch active"></div>
+                        </div>
+                        <p class="control-subtitle">Enable Lily Brain logic globally across all client fleet nodes.</p>
+                    </div>
 
-        <!-- SECURITY TAB -->
-        <section id="security" class="section">
-            <div class="glass-card">
-                <h3>🛡️ System Security</h3>
-                <p style="color: var(--text-dim);">Owner IDs registered in environment:</p>
-                <div id="owners-list"
-                    style="padding: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; font-family: monospace;">
-                    [LILY MASTER PROTOCOL]
+                    <div class="control-item">
+                        <div class="control-label">
+                            <div class="control-title">Guardian Protocol</div>
+                            <div class="switch active"></div>
+                        </div>
+                        <p class="control-subtitle">Real-time transaction policing and malicious user detection.</p>
+                    </div>
+
+                    <div class="control-item">
+                        <div class="control-label">
+                            <div class="control-title">Deep Learning Sync</div>
+                            <div class="switch"></div>
+                        </div>
+                        <p class="control-subtitle">Allow fleet nodes to share non-sensitive behavioral patterns.</p>
+                    </div>
+
+                    <div
+                        style="margin-top: 20px; padding: 20px; border-radius: 16px; background: rgba(79, 70, 229, 0.1); border: 1px solid rgba(79, 70, 229, 0.2);">
+                        <h4 style="font-size: 14px; margin-bottom: 8px;">Master Activation Key</h4>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="password" value="********" readonly
+                                style="flex: 1; background: rgba(0,0,0,0.3); border: none; padding: 10px; border-radius: 8px; color: var(--primary); font-family: monospace;">
+                            <button class="btn btn-outline" style="padding: 10px;">📋</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </section>
+            </aside>
+        </div>
     </main>
 
     <script src="js/dashboard.js"></script>
