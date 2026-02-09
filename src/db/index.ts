@@ -45,11 +45,12 @@ export const db = {
 
             // 3. INLINE SAFEGUARDS (Self-Healing)
             // Ensure 'welcome_enabled' exists even if file migration missed it
+            // FIXED: Default is now FALSE (Quiet Mode) as per SIR's request
             await client.query(`
                 DO $$ 
                 BEGIN 
                     BEGIN
-                        ALTER TABLE group_settings ADD COLUMN welcome_enabled BOOLEAN DEFAULT TRUE;
+                        ALTER TABLE group_settings ADD COLUMN welcome_enabled BOOLEAN DEFAULT FALSE;
                     EXCEPTION
                         WHEN duplicate_column THEN NULL;
                     END;

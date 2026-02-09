@@ -32,11 +32,17 @@ const combine = (prefix: string, bill: BillResult): BillResult => ({
 export const processCommand = async (job: Job<CommandJob>): Promise<BillResult | string | null> => {
     const { chatId, userId, username, text } = job.data;
 
-    // 1. Settings Fetch (SAFE ACCESS)
-    const settingsRes = await db.query('SELECT language_mode, ai_brain_enabled FROM group_settings WHERE group_id = $1', [chatId]);
+    // 1. Settings Fetch (SAFE ACCESS + CONTEXT AWARENESS)
+    const settingsRes = await db.query(`
+        SELECT s.language_mode, s.ai_brain_enabled, g.title 
+        FROM group_settings s 
+        JOIN groups g ON s.group_id = g.id 
+        WHERE s.group_id = $1
+    `, [chatId]);
     const config = settingsRes.rows[0];
     const lang = config?.language_mode || 'CN';
     const aiEnabled = config?.ai_brain_enabled || false;
+    const groupTitle = config?.title || 'Unknown Group';
 
     // 2. Dynamic Mention Check (Evolved Hearing)
     // Detects: "Lily", "@LilyBot", or REPLY to a bot message
@@ -204,7 +210,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         // --- 6. AI BRAIN CHAT (GPT-4o POWERED) ---
         if (aiEnabled && isNameTrigger) {
             const { AIBrain } = await import('../utils/ai');
-            return await AIBrain.generateResponse(text, username, lang);
+            return await AIBrain.generateResponse(text, username, lang, groupTitle);
         }
 
         return null;
