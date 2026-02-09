@@ -8,9 +8,11 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc && cp src/db/schema.sql dist/db/ && cp -r assets dist/ && mkdir -p dist/web && cp -r src/web/frontend dist/web/",
+    "build": "tsc && cp src/db/schema.sql dist/db/ && cp -r assets dist/ && mkdir -p dist/frontend/public && cp -r frontend/public/* dist/frontend/public/",
     "start": "node dist/bot/index.js",
-    "dev": "nodemon src/bot/index.ts"
+    "start:frontend": "node dist/frontend/server.js",
+    "dev": "nodemon src/bot/index.ts",
+    "dev:frontend": "nodemon frontend/server.ts"
   },
   "keywords": [],
   "author": "",

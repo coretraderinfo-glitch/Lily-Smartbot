@@ -1,9 +1,9 @@
 import express from 'express';
-import { db } from '../db';
-import { Security } from '../utils/security';
-import { getBusinessDate } from '../utils/time';
-import { formatNumber } from '../utils/format';
-import { PDFExport } from '../core/pdf';
+import { db } from '../src/db';
+import { Security } from '../src/utils/security';
+import { getBusinessDate } from '../src/utils/time';
+import { formatNumber } from '../src/utils/format';
+import { PDFExport } from '../src/core/pdf';
 import Decimal from 'decimal.js';
 import path from 'path';
 
@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve Static Assets (Styles/Scripts)
-app.use(express.static(path.join(__dirname, 'frontend')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = parseInt(process.env.PORT || '3000');
 
@@ -22,7 +22,7 @@ app.get('/', (req, res) => res.status(200).send('Lily API: Online 🟢'));
  * --- 🛡️ CONTROL PANEL ROUTES ---
  */
 app.get('/c/:token', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend/control.html'));
+    res.sendFile(path.join(__dirname, 'public/control.html'));
 });
 
 app.get('/api/data/:token', async (req, res) => {
@@ -58,7 +58,7 @@ app.get('/api/data/:token', async (req, res) => {
  * --- 📊 LIVE VIEW ROUTES ---
  */
 app.get('/v/:token', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend/report.html'));
+    res.sendFile(path.join(__dirname, 'public/report.html'));
 });
 
 app.get('/api/view/:token', async (req, res) => {
