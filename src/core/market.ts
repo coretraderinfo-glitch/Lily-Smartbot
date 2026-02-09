@@ -11,10 +11,10 @@ export const MarketData = {
      */
     async getPrice(symbol: string): Promise<string | null> {
         try {
-            // World-Class Timeout: 3 seconds max for Yahoo link
+            // World-Class Timeout: 5 seconds max for Yahoo link
             const quote: any = await Promise.race([
                 yahooFinance.quote(symbol),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
             ]);
 
             if (!quote || quote.regularMarketPrice === undefined) {
@@ -41,32 +41,36 @@ export const MarketData = {
     async scanAndFetch(text: string = ''): Promise<string> {
         if (!text) return '';
         const upperText = text.toUpperCase();
-        const results: string[] = [];
 
-        // 1. Crypto (English + Chinese)
-        if (upperText.includes('BTC') || upperText.includes('BITCOIN') || upperText.includes('比特币'))
-            results.push(await this.getPrice('BTC-USD') || '');
-        if (upperText.includes('ETH') || upperText.includes('ETHEREUM') || upperText.includes('以太坊'))
-            results.push(await this.getPrice('ETH-USD') || '');
-        if (upperText.includes('SOL') || upperText.includes('SOLANA'))
-            results.push(await this.getPrice('SOL-USD') || '');
+        const tasks: { symbol: string, trigger: boolean }[] = [
+            { symbol: 'BTC-USD', trigger: upperText.includes('BTC') || upperText.includes('BITCOIN') || upperText.includes('比特币') },
+            { symbol: 'ETH-USD', trigger: upperText.includes('ETH') || upperText.includes('ETHEREUM') || upperText.includes('以太坊') },
+            { symbol: 'SOL-USD', trigger: upperText.includes('SOL') || upperText.includes('SOLANA') },
+            { symbol: 'GC=F', trigger: upperText.includes('GOLD') || upperText.includes('XAU') || upperText.includes('黄金') || upperText.includes('EMAS') },
+            { symbol: 'MYR=X', trigger: upperText.includes('USD') && (upperText.includes('MYR') || upperText.includes('马币') || upperText.includes('RINGGIT')) }
+        ];
 
-        // 2. Forex / Commodities (English + Chinese + Malay)
-        if (upperText.includes('GOLD') || upperText.includes('XAU') || upperText.includes('黄金') || upperText.includes('EMAS'))
-            results.push(await this.getPrice('GC=F') || 'Gold: Live Data Unavailable');
+        const activeTasks = tasks.filter(t => t.trigger);
+        if (activeTasks.length === 0) return '';
 
-        if (upperText.includes('USD') && (upperText.includes('MYR') || upperText.includes('马币') || upperText.includes('RINGGIT')))
-            results.push(await this.getPrice('MYR=X') || '');
+        try {
+            // WORLD-CLASS PARALLEL PROCESSING
+            const results = await Promise.all(activeTasks.map(t => this.getPrice(t.symbol)));
+            const validResults = results.filter(r => r !== null);
 
-        // 3. Filter empty
-        const validResults = results.filter(r => r !== '');
+            if (validResults.length === 0) {
+                console.error(`[Market] Scanned symbols: ${activeTasks.map(t => t.symbol).join(',')} but all failed.`);
+                return '';
+            }
 
-        if (validResults.length === 0) return '';
-
-        return `
+            return `
 LIVE MARKET DATA (Yahoo Finance):
 ${validResults.join('\n')}
-(Use this data. Do NOT hallucinate prices. If the user asks in Chinese/Malay, translate these prices naturally in your reply.)
-        `.trim();
+(Use this data. If user asks in Chinese/Malay, translate these prices naturally.)
+            `.trim();
+        } catch (e) {
+            console.error('[Market] Parallel Scan Error:', e);
+            return '';
+        }
     }
 };
