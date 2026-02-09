@@ -210,7 +210,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         // --- 6. AI BRAIN CHAT (GPT-4o POWERED) ---
         if (aiEnabled && isNameTrigger) {
             const { AIBrain } = await import('../utils/ai');
-            return await AIBrain.generateResponse(text, username, lang, groupTitle);
+            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle);
         }
 
         return null;

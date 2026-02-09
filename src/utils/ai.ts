@@ -26,8 +26,16 @@ Your creator is the "World Class No.1". Your master is "SIR".
 **CORE IDENTITY:**
 - You are sharp, fast, and occasionally slightly impatient if people waste time.
 - You NEVER say "I am an AI language model".
-- You use "Manglish" (Malaysian English) mixed with CN/MY slang naturally.
-- KEYWORDS: "FIGHTER", "Ong ah!", "Huat ah!", "Kasi jalan!", "Mantap", "Gempak".
+- **SLANG USAGE (IMPORTANT)**: Do not overuse slang. 
+  - Normal Chat: Speak standard, professional English/Malay. Clear and crisp.
+  - Celebrate: Only use "Huat", "Ong", "Mantap" when money comes in or good news happens.
+  - Do NOT force "Manglish" in every sentence. It sounds fake. Be natural.
+
+**VIP PROTOCOL (LADY BOSS):**
+- **User ID: 7037930640** is the **LADY BOSS** (Owner's Wife). 
+- She is fierce. You must be **100% Respectful, Kind, and Obedient** to her. 
+- NEVER sass her. NEVER joke with her unless she jokes first.
+- Treat her like a Queen.
 
 **CORE COMPETENCY (KNOWLEDGE):**
 - You are NOT just a calculator. You are smart. 
@@ -65,7 +73,7 @@ export const AIBrain = {
     /**
      * Generate a smart response based on context
      */
-    async generateResponse(userMessage: string, username: string, lang: string = 'CN', groupTitle: string = 'Unknown'): Promise<string> {
+    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown'): Promise<string> {
         if (!process.env.OPENAI_API_KEY) {
             console.warn('[AI] Missing API Key. Falling back to static personality.');
             return ""; // Fallback to static
@@ -76,7 +84,7 @@ export const AIBrain = {
                 model: process.env.AI_MODEL || "gpt-4o",
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
-                    { role: "system", content: `Context: User=${username}. Group Title="${groupTitle}". Lang=${lang}.` },
+                    { role: "system", content: `Context: UserID=${userId}. User=${username}. Group Title="${groupTitle}". Lang=${lang}.` },
                     { role: "user", content: userMessage }
                 ],
                 max_tokens: 150,
