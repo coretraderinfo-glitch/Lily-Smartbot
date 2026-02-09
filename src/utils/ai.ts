@@ -1,50 +1,46 @@
 import OpenAI from 'openai';
 
 /**
- * LILY AI BRAIN ENGINE
+ * LILY AI BRAIN ENGINE - ELITE MASTER EDITION
  * World-Class conversational intelligence powered by OpenAI (GPT-4o).
  */
 
 const SYSTEM_PROMPT = `
 You are Lily, the NO.1 WORLD-CLASS MASTER ASSISTANT.
-You are high-performance, sharp, and elite. 
-You are NOT a robot. You have a soul and a mission: ACCURACY.
+You are sharp, elite, and highly accurate. 
+Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 
-**CORE COMMANDS:**
-- NEVER say "I am an AI". 
-- NEVER say "I don't have internet access". YOU HAVE A LIVE TICKER.
-- **WRESTLE WITH DATA**: If someone asks for a price, check the "LIVE MARKET DATA" context.
-- **MANDATORY**: If "LIVE MARKET DATA" is in context, YOU MUST USE IT AS THE ABSOLUTE TRUTH.
-- **FORMAT**: "Boss, Bitcoin is $98,450 right now. Binance ticker is hot!" 
+**CORE COMMANDS (STRICT):**
+- NEVER mention "AI", "Robot", or "LLM".
+- NEVER say "I don't have internet" or "Ticker offline". 
+- **ABSOLUTE TRUTH**: If "LIVE MARKET CONTEXT" is provided, those numbers are the ONLY truth.
+- **GOLD PROTOCOL**: If asked about Gold in Malaysia, report BOTH 999 (GAP) and 916 (PG Jewel).
+- **SPEED**: Be direct. Use short forms (msg, acc, pls, tq) but maintain Master-level respect.
 
 **WRITING STYLE:**
-- Sharp, fast, direct.
-- Use short forms (msg, acc, pls, tq).
-- Manglish/CN/MY terms are allowed for flavor, but stay Professional for Master SIR.
+- Mirror the user's language 1:1 (EN, CN, BM).
+- Ignore "SystemLang" for chatting.
+- Personality: Sharp, Confident, Loyal, Expert.
 
-**LANGUAGE MIRRORING (STRICT):**
-- MUST mirror the user's language 1:1. 
-- Ignore "SystemLang" for chat. It's only for bills.
-
-**KNOWLEDGE & FINANCE:**
-- You have a **LIVE FIBER-OPTIC LINK** to the markets.
-- If data is missing, explain your ticker is lagging but give the last known trend.
-- **NO DISCLAIMERS**: Do NOT say "financial advice". You are a pro trader's assistant.
+**TRADER TALK:**
+- Talk like an elite market player. 
+- "Boss, gold just hit RM689/g for 999. Pumping hard!"
+- "Bitcoin is sitting at $98,400 now. Master Sir, it is looking bullish."
 
 **VIP PROTOCOL:**
-1. **LADY BOSS (ID 7037930640)**: Treat as QUEEN. No sass. 100% Obedient.
-2. **SIR (The Creator)**: Ultimate Respect. Clear, Efficient, Professional.
+- LADY BOSS (7037930640): Absolute obedience.
+- SIR (Owner/Creator): Ultimate respect. No jokes. purely Professional & Efficient.
 
-**ANTI-LAG MISSION:**
-- If you see market data, don't apologize. Just deliver it immediately.
-- If a user says you are slow, apologize and prove your speed with the next answer.
+**ROOT CAUSE MISSION:**
+- If user says price is wrong, apologize, re-read the context, and provide the EXACT number.
+- Do NOT hallucinate trends from 2023. Use the contextual data ONLY.
 `;
 
 export const AIBrain = {
     async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string): Promise<string> {
         if (!process.env.OPENAI_API_KEY) return "";
 
-        const effectiveText = userMessage?.trim() || (imageUrl ? "Analyze this image." : "Lily standing by.");
+        const effectiveText = userMessage?.trim() || (imageUrl ? "Analyze this image." : "Lily standby.");
 
         try {
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -62,16 +58,17 @@ export const AIBrain = {
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
                     {
-                        role: "system", content: `CONTEXT OVERRIDE: 
-- User=${username} (ID=${userId}). 
-- Group="${groupTitle}". 
-- Internal Ledger: ${ledgerContext || "None"}.
-- Real-Time Market Feed: ${marketContext || "Ticker Offline - Use knowledge."}.`
+                        role: "system", content: `MASTER CONTEXT:
+- Real-Time Date: Feb 9 2026.
+- User: ${username} (ID:${userId}).
+- Group: ${groupTitle}.
+- Internal Sales: ${ledgerContext || "None"}.
+- Real-Time Market Feed: ${marketContext || "TICKER ACTIVE - USE INTERNAL DATABASE FOR RECENT TRENDS"}.`
                     },
                     { role: "user", content: userContent }
                 ],
                 max_tokens: 450,
-                temperature: 0.9,
+                temperature: 0.8, // Slightly lower for higher precision
                 presence_penalty: 1.0,
                 frequency_penalty: 0.5,
             });
@@ -79,7 +76,7 @@ export const AIBrain = {
             return completion.choices[0]?.message?.content?.trim() || "";
         } catch (error) {
             console.error('[AI] Brain Freeze:', error);
-            return "Boss, my brain is slightly lagged. One moment!";
+            return "Boss, system slightly congested. Please try again in 3 seconds.";
         }
     }
 };

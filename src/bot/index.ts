@@ -730,13 +730,17 @@ async function start() {
         startWebServer();
 
         await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
-        await bot.api.deleteWebhook();
+        // ROOT CAUSE FIX: 409 Conflict (Ghost Instances)
+        // Dropping pending updates ensures a clean start on Railway.
+        await bot.api.deleteWebhook({ drop_pending_updates: true });
 
-        console.log('🚀 Lily Bot Starting...');
+        console.log('🚀 Lily Bot Starting (Fighter Mode)...');
         await bot.start({
+            drop_pending_updates: true, // Kill old ghost polling
             onStart: (botInfo) => {
                 console.log(`✅ SUCCESS: Connected to Telegram as @${botInfo.username}`);
-            }
+            },
+            allowed_updates: ["message", "callback_query", "channel_post", "edited_message"]
         });
     } catch (err) {
         console.error('🛑 [FATAL] Startup failed:', err);
