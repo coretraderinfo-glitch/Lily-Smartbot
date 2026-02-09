@@ -66,7 +66,7 @@ export const Ledger = {
         let tout = new Decimal(0);
         let tret = new Decimal(0);
 
-        res.rows.forEach(r => {
+        res.rows.forEach((r: any) => {
             const val = new Decimal(r.net_amount || 0);
             if (r.type === 'DEPOSIT') tin = tin.add(val);
             if (r.type === 'PAYOUT') tout = tout.add(val);
@@ -338,16 +338,16 @@ export const Ledger = {
             const showDecimals = settings.show_decimals !== false;
 
             const txs = txRes.rows;
-            const deposits = txs.filter(t => t.type === 'DEPOSIT');
-            const payouts = txs.filter(t => t.type === 'PAYOUT');
-            const returns = txs.filter(t => t.type === 'RETURN');
+            const deposits = txs.filter((t: any) => t.type === 'DEPOSIT');
+            const payouts = txs.filter((t: any) => t.type === 'PAYOUT');
+            const returns = txs.filter((t: any) => t.type === 'RETURN');
 
             let totalInRaw = new Decimal(0);
             let totalInNet = new Decimal(0);
             let totalOut = new Decimal(0);
             let totalReturn = new Decimal(0);
 
-            txs.forEach(t => {
+            txs.forEach((t: any) => {
                 const netCNY = new Decimal(t.net_amount || 0);
 
                 if (t.type === 'DEPOSIT') {
@@ -408,7 +408,7 @@ export const Ledger = {
                 });
             } else if (displayMode === 5) {
                 msg = I18N.t(lang, 'bill.count_mode');
-                txs.forEach((t, i) => {
+                txs.forEach((t: any, i: any) => {
                     const suffix = t.currency === 'USDT' ? 'u' : '';
                     const val = new Decimal(t.amount_raw);
                     const formatted = val.lt(0) ? `(${format(val.abs())})` : format(val);
@@ -422,7 +422,7 @@ export const Ledger = {
 
                 if (deposits.length > 0) {
                     msg += `📥 **${I18N.t(lang, 'bill.in')}** (${deposits.length}):\n`;
-                    deposits.slice(-limit).forEach(t => {
+                    deposits.slice(-limit).forEach((t: any) => {
                         const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: meta.timezone });
                         const suffix = t.currency === 'USDT' ? 'u' : '';
                         const val = new Decimal(t.amount_raw);
@@ -433,7 +433,7 @@ export const Ledger = {
 
                 if (payouts.length > 0) {
                     msg += `\n📤 **${I18N.t(lang, 'bill.out')}** (${payouts.length}):\n`;
-                    payouts.slice(-limit).forEach(t => {
+                    payouts.slice(-limit).forEach((t: any) => {
                         const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: meta.timezone });
                         const suffix = t.currency === 'USDT' ? 'u' : '';
                         const val = new Decimal(t.amount_raw);

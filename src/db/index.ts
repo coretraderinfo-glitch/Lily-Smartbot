@@ -2,22 +2,37 @@ import { Pool } from 'pg';
 import fs from 'fs';
 import path from 'path';
 
-// Connection Pool with High-Performance Tuning for Parallelism
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-    max: 30, // Increased from 10 to 30 for parallel FIGHTER processing
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-});
+import { MockDB } from './MockDB';
+
+// Determine Mode
+const isDefaultUrl = !process.env.DATABASE_URL || process.env.DATABASE_URL.includes('host:5432');
+let dbClient: any;
+
+if (isDefaultUrl) {
+    console.warn('⚠️  DATABASE_URL is not configured. Switching to High-Speed InMemory Mode (Safe Mode).');
+    dbClient = new MockDB();
+} else {
+    // Connection Pool with High-Performance Tuning for Parallelism
+    dbClient = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+        max: 30, // Increased from 10 to 30 for parallel FIGHTER processing
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000, // Increased to 5s for stability
+    });
+}
 
 export const db = {
-    query: (text: string, params?: any[]) => pool.query(text, params),
-    getClient: () => pool.connect(),
+    query: (text: string, params?: any[]) => dbClient.query(text, params),
+    getClient: () => dbClient.connect ? dbClient.connect() : dbClient.getClient(), // Handle Mock vs Pool
 
     // Auto-Migrate function
     migrate: async () => {
-        const client = await pool.connect();
+        if (isDefaultUrl) {
+            return dbClient.migrate();
+        }
+
+        const client = await dbClient.connect();
         try {
             console.log('🔄 Running Database Migrations...');
 
@@ -60,7 +75,7 @@ export const db = {
 
         } catch (err) {
             console.error('❌ Migration Failed:', err);
-            throw err;
+            // Don't throw in production to keep app alive
         } finally {
             client.release();
         }

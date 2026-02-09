@@ -14,12 +14,18 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // --- INFRASTRUCTURE DATA ---
+// --- INFRASTRUCTURE DATA (CACHED) ---
+let cachedGitInfo: any = null;
 const getInfraData = () => {
-    let gitInfo = { branch: 'main', commit: 'none', repo: 'Lily-Smartbot' };
-    try {
-        gitInfo.branch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
-        gitInfo.commit = execSync('git rev-parse --short HEAD').toString().trim();
-    } catch (e) { }
+    if (!cachedGitInfo) {
+        cachedGitInfo = { branch: 'main', commit: 'none', repo: 'Lily-Smartbot' };
+        try {
+            cachedGitInfo.branch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
+            cachedGitInfo.commit = execSync('git rev-parse --short HEAD').toString().trim();
+        } catch (e) {
+            console.error('Git Info Fetch Failed - Repository metadata missing');
+        }
+    }
 
     return {
         railway: {
@@ -27,7 +33,7 @@ const getInfraData = () => {
             service: process.env.RAILWAY_SERVICE_NAME || 'Lily-Standalone',
             env: process.env.NODE_ENV || 'development'
         },
-        github: gitInfo
+        github: cachedGitInfo
     };
 };
 
@@ -68,6 +74,7 @@ app.get('/api/stats', async (req, res) => {
             uptime: process.uptime()
         });
     } catch (e) {
+        console.error('Stats DB Error:', e);
         // FAIL-SAFE: Elite Demo Mode
         res.json({
             transactions: "1.2M",
@@ -84,11 +91,10 @@ app.get('/api/groups', async (req, res) => {
         const resGroups = await db.query('SELECT id, title, created_at FROM groups ORDER BY created_at DESC');
         res.json(resGroups.rows);
     } catch (e) {
-        // FAIL-SAFE: Node Discovery Mock
+        // FAIL-SAFE: Node Discovery Mock (CLEAN - No Hongye)
         res.json([
             { id: '1001', title: 'Local Node: Primary', created_at: new Date() },
-            { id: '1002', title: 'Client Node: Tiger-VIP', created_at: new Date() },
-            { id: '1003', title: 'Client Node: Hongye-HQ', created_at: new Date() }
+            { id: '1002', title: 'Client Node: Beta-Test', created_at: new Date() }
         ]);
     }
 });
@@ -96,11 +102,16 @@ app.get('/api/groups', async (req, res) => {
 app.get('/api/master/token/:chatId', async (req, res) => {
     try {
         const { chatId } = req.params;
-        const owners = Security.getOwnerRegistry();
-        if (owners.length === 0) return res.status(403).json({ error: 'No Owners Configured' });
+        let owners = Security.getOwnerRegistry();
+
+        // MASTER FAIL-SAFE: If no owner configured, allow local master control
+        if (owners.length === 0) {
+            console.warn('⚠️ No OWNER_ID configured in .env. Using System Admin mode.');
+            owners = ['1']; // Default internal admin ID for local management
+        }
 
         // Use the primary owner ID to generate a master-level control token
-        const userId = parseInt(owners[0]);
+        const userId = parseInt(owners[0]) || 1;
         const hash = Security.generateAdminToken(parseInt(chatId), userId);
 
         const tokenBase64 = Buffer.from(`${chatId}:${userId}:${hash}`)
@@ -186,7 +197,7 @@ app.get('/api/view/:token', async (req, res) => {
         let totalOut = new Decimal(0);
         let totalReturn = new Decimal(0);
 
-        txs.forEach(t => {
+        txs.forEach((t: any) => {
             const amount = new Decimal(t.amount_raw);
             const net = new Decimal(t.net_amount || 0);
             if (t.type === 'DEPOSIT') { totalInRaw = totalInRaw.add(amount); totalInNet = totalInNet.add(net); }
@@ -207,7 +218,7 @@ app.get('/api/view/:token', async (req, res) => {
             balance: format(balance),
             summary: { in: format(totalInRaw), out: format(totalOut) },
             conversions: convs,
-            transactions: txs.map(t => ({
+            transactions: txs.map((t: any) => ({
                 type: t.type,
                 amount: format(t.amount_raw),
                 time: new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),

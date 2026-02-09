@@ -355,7 +355,7 @@ bot.on('callback_query:data', async (ctx) => {
     if (data === "admin_list" && Security.isSystemOwner(userId)) {
         const groups = await db.query('SELECT id, title FROM groups ORDER BY title ASC');
         const keyboard = new InlineKeyboard();
-        groups.rows.forEach((g, i) => keyboard.text(`${i + 1}. ${g.title || g.id}`, `manage_group:${g.id}`).row());
+        groups.rows.forEach((g: any, i: any) => keyboard.text(`${i + 1}. ${g.title || g.id}`, `manage_group:${g.id}`).row());
         return ctx.editMessageText(`👑 **Lily Master Control Center**\nSelect a group:`, { reply_markup: keyboard });
     }
 

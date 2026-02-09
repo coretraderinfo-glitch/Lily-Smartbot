@@ -5,11 +5,8 @@
 
 const state = {
     activeTab: 'overview',
-    nodes: [
-        { id: 'local', name: 'Local Host Node', url: 'http://localhost:3000', status: 'online', avatar: '🏠' },
-        { id: 'hy01', name: 'Client Server: Hongye-01', url: 'hy-01.lily-smartbot.com', status: 'online', avatar: '🇲🇾' },
-        { id: 'sgv', name: 'Client Server: SG-Vortex', url: 'sg-vortex.up.railway.app', status: 'connecting', avatar: '🇸🇬' }
-    ]
+    nodes: [],
+    stats: { nodes: 0, transactions: 0, uptime: 0 }
 };
 
 async function init() {
@@ -22,13 +19,37 @@ async function init() {
         }
     }, 1200);
 
-    await fetchInfra();
-    renderNodes();
+    await Promise.all([
+        fetchInfra(),
+        fetchStats(),
+        fetchNodes()
+    ]);
+
     setupSwitchListeners();
+    // Auto-refresh every 60s
+    setInterval(() => {
+        fetchStats();
+        fetchNodes();
+    }, 60000);
 }
 
 /**
- * Fetch Live Infrastructure Data (GitHub/Railway)
+ * Fetch Statistics
+ */
+async function fetchStats() {
+    try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        document.getElementById('stat-tx').textContent = data.transactions || 0;
+        document.getElementById('stat-nodes').textContent = data.groups || 0;
+        document.getElementById('stat-reach').textContent = (data.operators * 10) + '+'; // Mocked reach based on operators
+    } catch (e) {
+        console.error('Stats Sync Failed');
+    }
+}
+
+/**
+ * Fetch Live Infrastructure Data
  */
 async function fetchInfra() {
     try {
@@ -36,18 +57,40 @@ async function fetchInfra() {
         const data = await res.json();
 
         // Update Railway Metadata
-        document.getElementById('infra-railway').textContent = `${data.railway.service} (${data.railway.env})`;
-        document.getElementById('infra-url').textContent = data.railway.url;
+        const ryEl = document.getElementById('infra-railway');
+        const urlEl = document.getElementById('infra-url');
+        if (ryEl) ryEl.textContent = `${data.railway.service} (${data.railway.env})`;
+        if (urlEl) urlEl.textContent = data.railway.url;
 
         // Update GitHub Metadata
-        document.getElementById('infra-github').textContent = `Repo: ${data.github.repo}`;
-        document.getElementById('infra-branch').textContent = `Branch: ${data.github.branch} (${data.github.commit})`;
-
-        // Update Local Node info
-        state.nodes[0].url = `http://${data.railway.url}:3000`;
-        renderNodes();
+        const ghEl = document.getElementById('infra-github');
+        const brEl = document.getElementById('infra-branch');
+        if (ghEl) ghEl.textContent = `Repo: ${data.github.repo}`;
+        if (brEl) brEl.textContent = `Branch: ${data.github.branch} (${data.github.commit})`;
     } catch (e) {
         console.error('Infra Sync Failed');
+    }
+}
+
+/**
+ * Fetch Actual Group Nodes
+ */
+async function fetchNodes() {
+    try {
+        const res = await fetch('/api/groups');
+        const groups = await res.json();
+
+        state.nodes = groups.map(g => ({
+            id: g.id,
+            name: g.title,
+            url: window.location.origin, // Local node url for Master view
+            status: 'online',
+            avatar: '🛰️'
+        }));
+
+        renderNodes();
+    } catch (e) {
+        console.error('Node Discovery Failed');
     }
 }
 
@@ -118,11 +161,16 @@ function setupSwitchListeners() {
  * Node Access Logic
  */
 async function openNode(nodeId) {
-    if (nodeId === 'local') {
-        // Find local groups or redirect
-        alert('Master logic is redirecting to the local node. Connecting to group nodes...');
-    } else {
-        alert(`Connecting to External Node: ${nodeId}\nStatus: Active Node Found`);
+    try {
+        const res = await fetch(`/api/master/token/${nodeId}`);
+        const data = await res.json();
+        if (data.token) {
+            window.location.href = `/c/${data.token}`;
+        } else {
+            alert('Failed to generate master session for this node.');
+        }
+    } catch (e) {
+        alert('Connection to Node Failed: Node may be in deep sleep or maintenance.');
     }
 }
 

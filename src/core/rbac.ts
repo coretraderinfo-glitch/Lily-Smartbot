@@ -83,7 +83,7 @@ export const RBAC = {
         }
 
         let msg = `👥 **Authorized Operators** (${result.rows.length})\n\n`;
-        result.rows.forEach((op, i) => {
+        result.rows.forEach((op: any, i: any) => {
             const icon = op.role === 'OWNER' ? '👑' : op.role === 'ADMIN' ? '⭐' : '✓';
             msg += `${i + 1}. ${icon} @${op.username}\n`;
         });

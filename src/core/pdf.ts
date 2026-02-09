@@ -86,7 +86,7 @@ export const PDFExport = {
                 { label: I18N.t(lang, 'col.net'), property: 'net_amount', width: 85, align: 'left' },
                 { label: I18N.t(lang, 'col.operator'), property: 'operator', width: 125, align: 'left' }
             ],
-            rows: txRes.rows.map(t => [
+            rows: txRes.rows.map((t: any) => [
                 new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),
                 t.type === 'DEPOSIT' ? I18N.t(lang, 'tx.deposit') : t.type === 'PAYOUT' ? I18N.t(lang, 'tx.payout') : I18N.t(lang, 'tx.return'),
                 formatNumber(new Decimal(t.amount_raw), 2),
@@ -113,7 +113,7 @@ export const PDFExport = {
         let totalOut = new Decimal(0);
         let totalReturn = new Decimal(0);
 
-        txRes.rows.forEach(t => {
+        txRes.rows.forEach((t: any) => {
             const amount = new Decimal(t.amount_raw);
             if (t.type === 'DEPOSIT') {
                 totalInRaw = totalInRaw.add(amount);

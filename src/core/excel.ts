@@ -57,7 +57,7 @@ export const ExcelExport = {
         let totalReturn = new Decimal(0);
 
         // CSV Rows
-        txRes.rows.forEach(t => {
+        txRes.rows.forEach((t: any) => {
             const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
             const typeLabels: any = { DEPOSIT: I18N.t(lang, 'tx.deposit'), PAYOUT: I18N.t(lang, 'tx.payout'), RETURN: I18N.t(lang, 'tx.return') };
             const type = typeLabels[t.type as string] || t.type;

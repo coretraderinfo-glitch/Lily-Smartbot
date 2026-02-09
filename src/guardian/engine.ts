@@ -80,7 +80,7 @@ export const Guardian = {
             // 1. Admin Alert & Identification (Guardian Priority)
             if (guardianOn) {
                 const admins = await db.query('SELECT username FROM group_admins WHERE group_id = $1', [ctx.chat.id]);
-                const adminTags = admins.rows.map(a => `@${a.username}`).join(' ');
+                const adminTags = admins.rows.map((a: any) => `@${a.username}`).join(' ');
 
                 // Formatted as: 🚨 *ALERT* - [Name] joined. [Admin Tags] please verify.
                 const alertText = lang === 'CN' ? `🚨 *ALERT* - **${displayName}** 已加入。${adminTags} 请核对身份。`
@@ -170,9 +170,10 @@ export const Guardian = {
         const admins = await db.query('SELECT username FROM group_admins WHERE group_id = $1', [ctx.chat?.id]);
         if (admins.rows.length === 0) return;
 
-        const tags = admins.rows.map(a => `@${a.username}`).join(' ');
         const title = I18N.t(lang, 'admin.alert');
         const reasonLabel = I18N.t(lang, 'admin.reason');
+
+        const tags = admins.rows.map((a: any) => `@${a.username}`).join(' ');
 
         await ctx.reply(`${title}\n${tags}\n\n${reasonLabel}: ${reason}`, { parse_mode: 'Markdown' });
     }
