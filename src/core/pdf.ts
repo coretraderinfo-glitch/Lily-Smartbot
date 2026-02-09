@@ -5,6 +5,7 @@ import Decimal from 'decimal.js';
 import { DateTime } from 'luxon';
 import path from 'path';
 import fs from 'fs';
+import { I18N } from '../utils/i18n';
 const PDFDocument = require('pdfkit-table');
 
 /**
@@ -61,31 +62,33 @@ export const PDFExport = {
             doc.font('Helvetica');
         }
 
+        const lang = settings.language_mode || 'CN';
+
         // 3. HEADER
-        doc.fillColor('#2c3e50').fontSize(20).text('Lily Smartbot - 财务报表', { align: 'center' });
-        doc.fontSize(10).text(`生成时间: ${DateTime.now().setZone(group.timezone).toFormat('yyyy-MM-dd HH:mm:ss')}`, { align: 'center' });
+        doc.fillColor('#2c3e50').fontSize(20).text(I18N.t(lang, 'report.title'), { align: 'center' });
+        doc.fontSize(10).text(`${I18N.t(lang, 'report.generated')}: ${DateTime.now().setZone(group.timezone).toFormat('yyyy-MM-dd HH:mm:ss')}`, { align: 'center' });
         doc.moveDown();
 
         doc.fontSize(12).fillColor('#34495e');
-        doc.text(`群组: ${group.title}`);
-        doc.text(`业务日期: ${date}`);
+        doc.text(`${I18N.t(lang, 'report.group')}: ${group.title}`);
+        doc.text(`${I18N.t(lang, 'report.date')}: ${date}`);
         doc.moveDown();
 
         // 4. TABLE
         const table = {
-            title: "交易详情 (Transaction Details)",
+            title: I18N.t(lang, 'report.details'),
             headers: [
-                { label: "时间", property: 'time', width: 65, align: 'left' },
-                { label: "类型", property: 'type', width: 50, align: 'left' },
-                { label: "原始金额", property: 'amount_raw', width: 85, align: 'left' },
-                { label: "费率", property: 'fee_rate', width: 45, align: 'left' },
-                { label: "手续费", property: 'fee_amount', width: 75, align: 'left' },
-                { label: "净额", property: 'net_amount', width: 85, align: 'left' },
-                { label: "操作人", property: 'operator', width: 125, align: 'left' }
+                { label: I18N.t(lang, 'col.time'), property: 'time', width: 65, align: 'left' },
+                { label: I18N.t(lang, 'col.type'), property: 'type', width: 50, align: 'left' },
+                { label: I18N.t(lang, 'col.raw'), property: 'amount_raw', width: 85, align: 'left' },
+                { label: I18N.t(lang, 'col.fee'), property: 'fee_rate', width: 45, align: 'left' },
+                { label: I18N.t(lang, 'col.fee_amt'), property: 'fee_amount', width: 75, align: 'left' },
+                { label: I18N.t(lang, 'col.net'), property: 'net_amount', width: 85, align: 'left' },
+                { label: I18N.t(lang, 'col.operator'), property: 'operator', width: 125, align: 'left' }
             ],
             rows: txRes.rows.map(t => [
                 new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),
-                t.type === 'DEPOSIT' ? '入款' : t.type === 'PAYOUT' ? '下发' : '回款',
+                t.type === 'DEPOSIT' ? I18N.t(lang, 'tx.deposit') : t.type === 'PAYOUT' ? I18N.t(lang, 'tx.payout') : I18N.t(lang, 'tx.return'),
                 formatNumber(new Decimal(t.amount_raw), 2),
                 `${formatNumber(new Decimal(t.fee_rate), 2)}%`,
                 formatNumber(new Decimal(t.fee_amount), 2),
@@ -125,16 +128,16 @@ export const PDFExport = {
         const balance = totalInNet.sub(totalOut).add(totalReturn);
 
         doc.addPage();
-        doc.fillColor('#2c3e50').fontSize(16).text('财务摘要 (Financial Summary)', { underline: true });
+        doc.fillColor('#2c3e50').fontSize(16).text(I18N.t(lang, 'report.summary'), { underline: true });
         doc.moveDown(0.5);
 
         doc.fontSize(12);
-        doc.text(`总入款 (Total Deposits): ${formatNumber(totalInRaw, 2)}`);
-        doc.text(`平均费率 (Base Fee Rate): ${formatNumber(new Decimal(settings.rate_in || 0), 2)} %`);
-        doc.text(`应下发 (Net Deposits): ${formatNumber(totalInNet, 2)}`);
-        doc.fillColor('#e74c3c').text(`总下发 (Total Payouts): -${formatNumber(totalOut, 2)}`);
-        doc.fillColor('#2c3e50').text(`回款 (Total Returns): ${formatNumber(totalReturn, 2)}`);
-        doc.fontSize(14).fillColor('#27ae60').text(`余 (Final Balance): ${formatNumber(balance, 2)}`, { stroke: true });
+        doc.text(`${I18N.t(lang, 'fin.total_in')}: ${formatNumber(totalInRaw, 2)}`);
+        doc.text(`${I18N.t(lang, 'fin.avg_rate')}: ${formatNumber(new Decimal(settings.rate_in || 0), 2)} %`);
+        doc.text(`${I18N.t(lang, 'fin.net_in')}: ${formatNumber(totalInNet, 2)}`);
+        doc.fillColor('#e74c3c').text(`${I18N.t(lang, 'fin.total_out')}: -${formatNumber(totalOut, 2)}`);
+        doc.fillColor('#2c3e50').text(`${I18N.t(lang, 'fin.total_ret')}: ${formatNumber(totalReturn, 2)}`);
+        doc.fontSize(14).fillColor('#27ae60').text(`${I18N.t(lang, 'fin.balance')}: ${formatNumber(balance, 2)}`, { stroke: true });
 
         // Forex info (Only show active rates)
         const fxRates = [
@@ -150,12 +153,12 @@ export const PDFExport = {
                 doc.moveDown(0.5);
                 doc.fontSize(12).fillColor('#2c3e50').text(`${fx.label}: ${formatNumber(rate, 2)}`);
                 const equiv = formatNumber(balance.div(rate), 2);
-                doc.text(`余额换算 (${fx.suffix} Equivalent): ${equiv} ${fx.suffix}`);
+                doc.text(`${I18N.t(lang, 'fin.equiv')} (${fx.suffix} Equivalent): ${equiv} ${fx.suffix}`);
             }
         });
 
         // Footer
-        doc.fontSize(8).fillColor('#bdc3c7').text('Generated by Lily Smartbot', doc.page.width - 150, doc.page.height - 30);
+        doc.fontSize(8).fillColor('#bdc3c7').text(I18N.t(lang, 'report.footer'), doc.page.width - 150, doc.page.height - 30);
 
         doc.end();
 

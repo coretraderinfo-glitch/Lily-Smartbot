@@ -7,6 +7,7 @@ import { Settings } from './settings';
 import { Security } from '../utils/security';
 import { PDFExport } from './pdf';
 import { ExcelExport } from './excel';
+import { I18N } from '../utils/i18n';
 
 /**
  * World-Class Financial Ledger Engine
@@ -32,6 +33,7 @@ export interface BillResult {
     text: string;
     showMore?: boolean;
     url?: string;
+    pdf?: string;
 }
 
 export const Ledger = {
@@ -56,24 +58,47 @@ export const Ledger = {
         const meta = await Ledger._getMeta(chatId);
         const date = getBusinessDate(meta.timezone, meta.resetHour);
 
+        const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [chatId]);
+        const lang = settingsRes.rows[0]?.language_mode || 'CN';
+
         // Update state to RECORDING
         await db.query(`UPDATE groups SET current_state = 'RECORDING' WHERE id = $1`, [chatId]);
 
         // Daily rotating wishes (7 different messages)
-        const wishes = [
-            "🌟 祝您今日财源广进！May your wealth flow abundantly today!",
-            "💎 愿今天的每一笔交易都顺利！Wishing smooth transactions ahead!",
-            "🚀 新的一天，新的机遇！A new day brings new opportunities!",
-            "✨ 祝您生意兴隆，财运亨通！May prosperity follow you today!",
-            "🎯 专注目标，成功在望！Stay focused, success awaits!",
-            "🌈 愿今日充满好运与收获！May today bring fortune and rewards!",
-            "💰 祝您日进斗金，事业腾飞！Wishing you abundant success!"
-        ];
+        const wishesDict = {
+            CN: [
+                "🗓️ 周日咯！Lily 祝您今日财源广进，Huah @ ah！🧧",
+                "🌸 周一加油！愿今天的每一笔交易都顺顺利利，不操心哦！✨",
+                "📈 周二大吉！Lily 看到您的生意正在蒸蒸日上咯，继续冲！🚀",
+                "💎 周三稳稳哒！祝您生意兴隆，每一个账目都 Ong Ong 的！💰",
+                "✨ 周四进步！Lily 会帮您盯紧账本，FIGHTER 您就专注发财哈！🎀",
+                "🌈 周五来啦！愿今日充满惊喜与收获，心情美美哒！🌸",
+                "💰 周六发财！祝 FIGHTER 日进斗金，到时候记得请 Lily 喝奶茶哈～ 💅"
+            ],
+            EN: [
+                "🗓️ Its Sunday! Lily wishes you a very prosperous day and big Ong! 🧧",
+                "🌸 Happy Monday! May all your trades be smooth and effortless today! ✨",
+                "📈 High-five Tuesday! I see your business growing, keep it up FIGHTER! 🚀",
+                "💎 Smooth Wednesday! Wishing you success and perfectly balanced books! 💰",
+                "✨ Flourishing Thursday! Lily is on guard, so you can focus on winning! 🎀",
+                "🌈 Fabulous Friday! May your day be filled with great vibes and results! 🌸",
+                "💰 Golden Saturday! Wishing you massive growth. Don't forget Lily's tea later! 💅"
+            ],
+            MY: [
+                "🗓️ Ahad ni FIGHTER! Lily doa moga rezeki kencang harini, Huat ah! 🧧",
+                "🌸 Isnin yang Onz! Moga semua deal jalan lancar, taboley stress k? ✨",
+                "📈 Selasa padu! Lily nampak bisnes FIGHTER makin kencang ni, mantap! 🚀",
+                "💎 Rabu yang Chill! Moga untung berlipat kali ganda harini FIGHTER! 💰",
+                "✨ Khamis Cayala! Lily jaga ledger ni, FIGHTER fokus buat profit je k? 🎀",
+                "🌈 Jumaat barokah! Moga hari ni penuh tuah dan keceriaan! 🌸",
+                "💰 Sabtu meletup! Rezeki melimpah ruah FIGHTER... Nanti belanja Lily k! 💅"
+            ]
+        };
 
-        const dayOfWeek = new Date().getDay();
-        const todayWish = wishes[dayOfWeek];
+        const list = wishesDict[lang as 'CN' | 'EN' | 'MY'] || wishesDict.CN;
+        const todayWish = list[new Date().getDay()];
 
-        return `🚀 **系统已就绪 (System Ready)**\n📅 业务日期: ${date}\n\n${todayWish}\n\n💡 请开始记账 (Start recording now)`;
+        return I18N.t(lang, 'sys.ready', { date, wish: todayWish });
     },
 
     /**
@@ -83,11 +108,14 @@ export const Ledger = {
         const bill = await Ledger.generateBill(chatId);
         const pdf = await PDFExport.generateDailyPDF(chatId);
 
+        const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [chatId]);
+        const lang = settingsRes.rows[0]?.language_mode || 'CN';
+
         // Reset state to WAITING_FOR_START
         await db.query(`UPDATE groups SET current_state = 'WAITING_FOR_START' WHERE id = $1`, [chatId]);
 
         return {
-            text: `🏁 **本日记录结束 (Day Ended)**\n\n${bill.text}\n\n✅ 所有数据已成功归档至 PDF。`,
+            text: I18N.t(lang, 'sys.stop', { bill: bill.text }),
             pdf: pdf.toString('base64')
         };
     },
@@ -339,24 +367,30 @@ export const Ledger = {
                 }
             }
 
+            const lang = settings.language_mode || 'CN';
+
             if (displayMode === 4) {
-                msg = `📅 **账单摘要 (Summary)**\n总入款: ${format(totalInNet)}\n总下发: -${format(totalOut)}\n应下发: ${format(balance)}`;
+                msg = I18N.t(lang, 'bill.summary', {
+                    totalIn: format(totalInNet),
+                    totalOut: format(totalOut),
+                    balance: format(balance)
+                });
             } else if (displayMode === 5) {
-                msg = `**计数模式 (Count Mode)**\n\n`;
+                msg = I18N.t(lang, 'bill.count_mode');
                 txs.forEach((t, i) => {
                     const suffix = t.currency === 'USDT' ? 'u' : '';
                     const val = new Decimal(t.amount_raw);
                     const formatted = val.lt(0) ? `(${format(val.abs())})` : format(val);
                     msg += `${i + 1}. ${t.type === 'DEPOSIT' ? '➕' : '➖'} ${formatted}${suffix}\n`;
                 });
-                msg += `\n**总额:** ${format(balance)}`;
+                msg += `\n**${I18N.t(lang, 'bill.total')}:** ${format(balance)}`;
             } else {
                 const limit = 5; // STRICT WORLD-CLASS TRUNCATION
                 const [y, m, d] = date.split('-');
                 msg = `📅 **${d}-${m}-${y}**\n\n`;
 
                 if (deposits.length > 0) {
-                    msg += `📥 **入款 (IN)** (${deposits.length}):\n`;
+                    msg += `📥 **${I18N.t(lang, 'bill.in')}** (${deposits.length}):\n`;
                     deposits.slice(-limit).forEach(t => {
                         const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: meta.timezone });
                         const suffix = t.currency === 'USDT' ? 'u' : '';
@@ -367,7 +401,7 @@ export const Ledger = {
                 }
 
                 if (payouts.length > 0) {
-                    msg += `\n📤 **下发 (OUT)** (${payouts.length}):\n`;
+                    msg += `\n📤 **${I18N.t(lang, 'bill.out')}** (${payouts.length}):\n`;
                     payouts.slice(-limit).forEach(t => {
                         const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: meta.timezone });
                         const suffix = t.currency === 'USDT' ? 'u' : '';
@@ -388,11 +422,11 @@ export const Ledger = {
                 if (new Decimal(settings.rate_php || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_php), code: 'PHP' });
                 if (new Decimal(settings.rate_thb || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_thb), code: 'THB' });
 
-                msg += `总入款 (IN): ${format(totalInNet)}\n`; // Show total net in CNY
-                msg += `费率: ${rateIn.toString()}%\n\n`;
+                msg += `${I18N.t(lang, 'bill.due')}: ${format(totalInNet)}\n`;
+                msg += `${I18N.t(lang, 'bill.fee')}: ${rateIn.toString()}%\n\n`;
 
                 if (activeRates.length > 0) {
-                    activeRates.forEach(r => msg += `${r.code}汇率: ${r.rate}\n`);
+                    activeRates.forEach(r => msg += `${r.code}${I18N.t(lang, 'bill.fx')}: ${r.rate}\n`);
                     msg += `\n`;
                 }
 
@@ -402,9 +436,9 @@ export const Ledger = {
                     return activeRates.map(fx => ` | ${formatNumber(v.div(fx.rate), showDecimals ? 2 : 0)} ${fx.code}`).join('');
                 };
 
-                msg += `应下发 (IN): ${format(totalInNet)}${convAll(totalInNet)}\n`;
-                msg += `总下发 (OUT): -${format(totalOut)}${convAll(totalOut)}\n`;
-                msg += `余额 (TOTAL): ${format(balance)}${convAll(balance)}\n`;
+                msg += `${I18N.t(lang, 'bill.due')}: ${format(totalInNet)}${convAll(totalInNet)}\n`;
+                msg += `${I18N.t(lang, 'bill.payout')}: -${format(totalOut)}${convAll(totalOut)}\n`;
+                msg += `${I18N.t(lang, 'bill.balance')}: ${format(balance)}${convAll(balance)}\n`;
             }
             return { text: msg, showMore, url: reportUrl };
         } finally {

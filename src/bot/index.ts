@@ -15,6 +15,7 @@ import { BillResult } from '../core/ledger';
 import { Security } from '../utils/security';
 import { Guardian } from '../guardian/engine';
 import { Personality } from '../utils/personality';
+import { I18N } from '../utils/i18n';
 
 dotenv.config();
 checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
@@ -56,85 +57,78 @@ bot.catch((err) => {
     }
 });
 
-// 3. Worker Setup
+// 3. Worker Setup (HIGH-CONCURRENCY MODE)
 const worker = new Worker('lily-commands', async job => {
     return await processCommand(job);
-}, { connection });
+}, {
+    connection,
+    concurrency: 10, // Lily now handles 10 groups at once! Zero lag for clients.
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 500 }
+});
 
 worker.on('completed', async (job, returnValue) => {
     if (!returnValue || !job.data.chatId) return;
 
     try {
-        // Handle PDF Exports
-        if (typeof returnValue === 'string' && returnValue.startsWith('PDF_EXPORT:')) {
-            const base64 = returnValue.replace('PDF_EXPORT:', '');
-            const date = new Date().toISOString().split('T')[0];
-            const filename = `Lily_Statement_${date}.pdf`;
-
-            await bot.api.sendDocument(job.data.chatId,
-                new InputFile(Buffer.from(base64, 'base64'), filename),
-                {
-                    caption: `📄 **Daily Statement (PDF)**\nDate: ${date}`,
+        // --- 1. HANDLE FILE EXPORTS (STRINGS) ---
+        if (typeof returnValue === 'string') {
+            if (returnValue.startsWith('PDF_EXPORT:')) {
+                const base64 = returnValue.replace('PDF_EXPORT:', '');
+                const filename = `Lily_Statement_${new Date().toISOString().split('T')[0]}.pdf`;
+                await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(base64, 'base64'), filename), {
                     reply_to_message_id: job.data.messageId
-                }
-            );
-            return;
-        }
-
-        // Handle Composite Results (Object with Text + PDF)
-        if (typeof returnValue === 'object' && returnValue !== null && (returnValue as any).pdf) {
-            const { text, pdf } = returnValue as any;
-            const date = new Date().toISOString().split('T')[0];
-
-            await bot.api.sendMessage(job.data.chatId, text, {
-                reply_to_message_id: job.data.messageId,
-                parse_mode: 'Markdown'
-            });
-
-            await bot.api.sendDocument(job.data.chatId,
-                new InputFile(Buffer.from(pdf, 'base64'), `Lily_Final_${date}.pdf`),
-                { caption: `📄 **Final Daily Archive**` }
-            );
-            return;
-        }
-
-        // Handle Rich Bill Results
-        if (typeof returnValue === 'object' && returnValue !== null) {
-            const result = returnValue as BillResult;
-            if (result.text) {
-                const options: any = {
-                    reply_to_message_id: job.data.messageId,
-                    parse_mode: 'Markdown'
-                };
-
-                if (result.showMore && result.url) {
-                    options.reply_markup = new InlineKeyboard().url("检查明细（More)", result.url);
-                }
-
-                try {
-                    await bot.api.sendMessage(job.data.chatId, result.text, options);
-                } catch (sendErr: any) {
-                    if (options.reply_markup) {
-                        console.error('Telegram rejected URL button, falling back to text only');
-                        delete options.reply_markup;
-                        await bot.api.sendMessage(job.data.chatId, result.text, options);
-                    } else {
-                        throw sendErr;
-                    }
-                }
+                });
                 return;
             }
+            if (returnValue.startsWith('EXCEL_EXPORT:')) {
+                const csv = returnValue.replace('EXCEL_EXPORT:', '');
+                const filename = `Lily_Ledger_${new Date().toISOString().split('T')[0]}.csv`;
+                await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(csv), filename), {
+                    reply_to_message_id: job.data.messageId
+                });
+                return;
+            }
+            // Standard text reply (With Markdown Fallback)
+            try {
+                await bot.api.sendMessage(job.data.chatId, returnValue, {
+                    reply_to_message_id: job.data.messageId,
+                    parse_mode: 'Markdown'
+                });
+            } catch (e) {
+                console.warn('[Markdown Fail] Retrying as plain text...');
+                await bot.api.sendMessage(job.data.chatId, returnValue, {
+                    reply_to_message_id: job.data.messageId
+                });
+            }
+            return;
         }
 
-        // Standard Text Replies
-        if (typeof returnValue === 'string') {
-            await bot.api.sendMessage(job.data.chatId, returnValue, {
-                reply_to_message_id: job.data.messageId,
-                parse_mode: 'Markdown'
-            });
+        // --- 2. HANDLE RICH RESULTS (OBJECTS) ---
+        if (typeof returnValue === 'object') {
+            const res = returnValue as BillResult;
+            const settings = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [job.data.chatId]);
+            const lang = settings.rows[0]?.language_mode || 'CN';
+
+            if (res.text) {
+                const options: any = { reply_to_message_id: job.data.messageId, parse_mode: 'Markdown' };
+                if (res.showMore && res.url) {
+                    const btnLabel = lang === 'CN' ? '查看详情' : lang === 'MY' ? 'Lihat Butiran' : 'View Details';
+                    options.reply_markup = new InlineKeyboard().url(btnLabel, res.url);
+                }
+                await bot.api.sendMessage(job.data.chatId, res.text, options);
+            }
+
+            if (res.pdf) {
+                const filename = `Lily_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+                await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(res.pdf, 'base64'), filename), {
+                    caption: lang === 'CN' ? '📊 本日本对账单' : lang === 'MY' ? '📊 Laporan Transaksi' : '📊 Daily Transaction Report'
+                });
+            }
+            return;
         }
     } catch (err) {
-        console.error('Failed to send worker result response:', err);
+        console.error('Error sending worker response:', err);
     }
 });
 
@@ -201,6 +195,54 @@ bot.command('admin', async (ctx) => {
 
     await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
 });
+
+// --- MANAGEMENT CONSOLE RENDERER ---
+async function renderManagementConsole(ctx: Context, id: string) {
+    const group = await db.query('SELECT title FROM groups WHERE id = $1', [id]);
+
+    // Ensure settings row exists (CRITICAL BUG FIX)
+    await db.query(`
+        INSERT INTO group_settings (group_id) VALUES ($1)
+        ON CONFLICT (group_id) DO NOTHING
+    `, [id]);
+
+    const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
+    const s = settings.rows[0] || { guardian_enabled: false, ai_brain_enabled: false, language_mode: 'CN' };
+
+    const title = group.rows[0]?.title || 'Group';
+    const lang = s.language_mode || 'CN';
+
+    const labels = {
+        title: I18N.t(lang, 'console.title'),
+        guardian: I18N.t(lang, 'console.guardian'),
+        ai: I18N.t(lang, 'console.ai'),
+        welcome: I18N.t(lang, 'console.welcome'),
+        langLabel: I18N.t(lang, 'console.lang'),
+        disable: I18N.t(lang, 'console.disable'),
+        enable: I18N.t(lang, 'console.enable'),
+        cycle: I18N.t(lang, 'console.cycle'),
+        back: I18N.t(lang, 'console.back')
+    };
+
+    let msg = `🛠️ **${labels.title}: ${title}**\nGroup ID: \`${id}\`\n\n`;
+    msg += `🛡️ ${labels.guardian}: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `🧠 ${labels.ai}: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `🥊 ${labels.welcome}: ${s.welcome_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `🌐 ${labels.langLabel}: **${lang}**\n`;
+
+    const keyboard = new InlineKeyboard()
+        .text(s.guardian_enabled ? `${labels.disable} Guardian` : `${labels.enable} Guardian`, `toggle:guardian:${id}`).row()
+        .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`).row()
+        .text(s.welcome_enabled !== false ? `${labels.disable} Greeting` : `${labels.enable} Greeting`, `toggle:welcome:${id}`).row()
+        .text(labels.cycle, `cycle_lang:${id}`).row()
+        .text(labels.back, "admin_list");
+
+    try {
+        await ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (e) {
+        // Fallback if message is same
+    }
+}
 
 // --- CALLBACK QUERY HANDLER ---
 bot.on('callback_query:data', async (ctx) => {
@@ -287,34 +329,13 @@ bot.on('callback_query:data', async (ctx) => {
     // --- REMOTE MANAGEMENT BUTTONS ---
     if (data.startsWith('manage_group:') && Security.isSystemOwner(userId)) {
         const id = data.split(':')[1];
-        const group = await db.query('SELECT title FROM groups WHERE id = $1', [id]);
-        const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
-
-        // Ensure settings exists
-        if (settings.rows.length === 0) {
-            await db.query('INSERT INTO group_settings (group_id) VALUES ($1)', [id]);
-            const retry = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
-            settings.rows[0] = retry.rows[0];
-        }
-
-        const s = settings.rows[0];
-        const title = group.rows[0]?.title || 'Group';
-        let msg = `🛠️ **SIR's Console: ${title}**\nGroup ID: \`${id}\`\n\n`;
-        msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
-        msg += `🧠 AI Brain: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
-        msg += `🌐 Language: **${s.language_mode || 'CN'}**\n`;
-
-        const keyboard = new InlineKeyboard()
-            .text(s.guardian_enabled ? "🔴 Disable Guardian" : "🟢 Enable Guardian", `toggle:guardian:${id}`).row()
-            .text(s.ai_brain_enabled ? "🔴 Disable AI Brain" : "🟢 Enable AI Brain", `toggle:ai:${id}`).row()
-            .text("🌍 Cycle Language (CN/EN/MY)", `cycle_lang:${id}`).row()
-            .text("⬅️ Back to List", "admin_list");
-
-        return ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        return await renderManagementConsole(ctx, id);
     }
 
     if (data.startsWith('cycle_lang:') && Security.isSystemOwner(userId)) {
         const id = data.split(':')[1];
+
+        // Fetch current with default fallback
         const settings = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [id]);
         const current = settings.rows[0]?.language_mode || 'CN';
 
@@ -322,28 +343,14 @@ bot.on('callback_query:data', async (ctx) => {
         if (current === 'CN') next = 'EN';
         else if (current === 'EN') next = 'MY';
 
-        await db.query('UPDATE group_settings SET language_mode = $1 WHERE group_id = $2', [next, id]);
+        // Use UPSERT for 100% Reliability
+        await db.query(`
+            INSERT INTO group_settings (group_id, language_mode) VALUES ($1, $2)
+            ON CONFLICT (group_id) DO UPDATE SET language_mode = EXCLUDED.language_mode, updated_at = NOW()
+        `, [id, next]);
 
         ctx.answerCallbackQuery({ text: `🌐 Language set to ${next}` });
-
-        // RE-RENDER MANAGEMENT VIEW
-        const group = await db.query('SELECT title FROM groups WHERE id = $1', [id]);
-        const updatedSettings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
-        const s = updatedSettings.rows[0];
-        const title = group.rows[0]?.title || 'Group';
-
-        let msg = `🛠️ **Master Console: ${title}**\nGroup ID: \`${id}\`\n\n`;
-        msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
-        msg += `🧠 AI Brain: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
-        msg += `🌐 Language: **${s.language_mode || 'CN'}**\n`;
-
-        const keyboard = new InlineKeyboard()
-            .text(s.guardian_enabled ? "🔴 Disable Guardian" : "🟢 Enable Guardian", `toggle:guardian:${id}`).row()
-            .text(s.ai_brain_enabled ? "🔴 Disable AI Brain" : "🟢 Enable AI Brain", `toggle:ai:${id}`).row()
-            .text("🌍 Cycle Language (CN/EN/MY)", `cycle_lang:${id}`).row()
-            .text("⬅️ Back to List", "admin_list");
-
-        return ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        return await renderManagementConsole(ctx, id);
     }
 
     if (data === "admin_list" && Security.isSystemOwner(userId)) {
@@ -355,41 +362,49 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (data.startsWith('toggle:') && Security.isSystemOwner(userId)) {
         const [_, type, id] = data.split(':');
-        const column = type === 'guardian' ? 'guardian_enabled' : 'ai_brain_enabled';
+        let column = 'guardian_enabled';
+        if (type === 'ai') column = 'ai_brain_enabled';
+        if (type === 'welcome') column = 'welcome_enabled';
 
-        await db.query(`UPDATE group_settings SET ${column} = NOT ${column} WHERE group_id = $1`, [id]);
+        // Use UPSERT for Toggles too!
+        await db.query(`
+            INSERT INTO group_settings (group_id, ${column}) VALUES ($1, true)
+            ON CONFLICT (group_id) DO UPDATE SET ${column} = NOT group_settings.${column}, updated_at = NOW()
+        `, [id]);
+
         ctx.answerCallbackQuery({ text: "✅ Setting Updated Instantly" });
 
-        // Refresh view & Handle Group Announcement
-        const group = await db.query('SELECT title FROM groups WHERE id = $1', [id]);
+        // Handle Group Announcement if Guardian was enabled
         const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
-        const s = settings.rows[0];
-        const title = group.rows[0]?.title || 'Group';
+        const s = settings.rows[0] || {};
 
-        // 📢 ANNOUNCEMENT: If Guardian was just enabled, notify the group!
         if (type === 'guardian' && s.guardian_enabled) {
-            const announcement = `🛡️ **Lily Guardian Shield: ACTIVATED**\n\n` +
-                `Lily 已正式接管本群安全。为了保障所有成员的资产与账户安全，Lily 现已开启以下功能：\n` +
-                `Lily has officially taken over group security. To protect all members, the following are now active:\n\n` +
-                `✅ **Malware Predator**: 自动删除危险文件 (.apk, .zip, .exe)。\n` +
-                `✅ **Link Shield**: 拦截非授权链接与钓鱼诈骗。\n\n` +
-                `💡 **Note**: 请确保 Lily 拥有“删除消息 (Delete Messages)”权限，以便执行防护任务。`;
+            const lang = s.language_mode || 'CN';
+            const announcements = {
+                CN: `🛡️ **Lily Guardian Shield: ACTIVATED**\n\n` +
+                    `Lily 已正式接管本群安全。为了保障所有成员的资产与账户安全，Lily 现已开启以下功能：\n\n` +
+                    `✅ **恶意软件猎手 (Malware Predator)**: 自动删除危险文件 (.apk, .zip, .exe)。\n` +
+                    `✅ **链接盾牌 (Link Shield)**: 拦截非授权链接与钓鱼诈骗。\n\n` +
+                    `💡 **提示**: 请确保 Lily 拥有“删除消息 (Delete Messages)”权限。`,
+                EN: `🛡️ **Lily Guardian Shield: ACTIVATED**\n\n` +
+                    `Lily has officially taken over group security. To protect all members, the following are now active:\n\n` +
+                    `✅ **Malware Predator**: Automatically deletes dangerous files (.apk, .zip, .exe).\n` +
+                    `✅ **Link Shield**: Intercepts unauthorized links and phishing scams.\n\n` +
+                    `💡 **Note**: Please ensure Lily has "Delete Messages" permission.`,
+                MY: `🛡️ **Lily Guardian Shield: DIAKTIFKAN**\n\n` +
+                    `Lily telah mengambil alih keselamatan kumpulan secara rasmi. Untuk melindungi semua ahli, fungsi berikut kini aktif:\n\n` +
+                    `✅ **Malware Predator**: Memadam fail berbahaya secara automatik (.apk, .zip, .exe).\n` +
+                    `✅ **Link Shield**: Menyekat pautan tanpa kebenaran dan penipuan phishing.\n\n` +
+                    `💡 **Nota**: Sila pastikan Lily mempunyai kebenaran "Delete Messages".`
+            };
 
+            const announcement = announcements[lang as 'CN' | 'EN' | 'MY'] || announcements.CN;
             ctx.api.sendMessage(id, announcement, { parse_mode: 'Markdown' }).catch(err => {
                 console.error(`Failed to send activation announcement to group ${id}:`, err);
             });
         }
 
-        let msg = `🛠️ **Managing: ${title}**\nGroup ID: \`${id}\`\n\n`;
-        msg += `🛡️ Guardian Mode: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
-        msg += `🧠 AI Brain: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
-
-        const keyboard = new InlineKeyboard()
-            .text(s.guardian_enabled ? "🔴 Disable Guardian" : "🟢 Enable Guardian", `toggle:guardian:${id}`).row()
-            .text(s.ai_brain_enabled ? "🔴 Disable AI Brain" : "🟢 Enable AI Brain", `toggle:ai:${id}`).row()
-            .text("⬅️ Back to List", "admin_list");
-
-        return ctx.editMessageText(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        return await renderManagementConsole(ctx, id);
     }
 });
 
@@ -416,7 +431,7 @@ bot.on('message', async (ctx, next) => {
                 // Determine Language
                 const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
                 const lang = settingsRes.rows[0]?.language_mode || 'CN';
-                const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'Boss');
+                const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'FIGHTER');
 
                 await ctx.reply(Personality.getSpamWarning(lang, name), { parse_mode: 'Markdown' });
             }
@@ -605,15 +620,24 @@ bot.on('message:text', async (ctx) => {
         return ctx.reply(result.message, { parse_mode: 'Markdown' });
     }
 
-    // 4. BUSINESS LOGIC
-    const isCommand = text.startsWith('/') || text === '开始' || text.toLowerCase() === 'start' ||
-        text === '结束记录' || text.toLowerCase() === 'stop' ||
-        text === '显示账单' || text === '显示操作人' || text === '清理今天数据' ||
-        text === '下载报表' || text === '导出Excel' ||
-        text.startsWith('设置') || text.startsWith('删除') ||
-        /^[+\-取]\s*\d/.test(text) || text.startsWith('下发') || text.startsWith('回款') || text.startsWith('入款');
+    // 4. BUSINESS LOGIC (MULTILINGUAL)
+    const t = text.trim();
+    const isCommand = text.startsWith('/') ||
+        /^(?:开始|Start|结束记录|Stop|显示账单|Show Bill|bill|显示操作人|operators|清理今天数据|cleardata|下载报表|export|导出Excel|excel|设置|Set|删除|Delete)/i.test(t) ||
+        /^[+\-取]\s*\d/.test(text) ||
+        /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*[\d.]+/i.test(text);
 
-    if (isCommand) {
+    // FETCH SETTINGS ONCE
+    const settingsRes = await db.query('SELECT ai_brain_enabled FROM group_settings WHERE group_id = $1', [chatId]);
+    const aiEnabled = settingsRes.rows[0]?.ai_brain_enabled || false;
+
+    // EVOLVED HEARING: Detect "Lily", Mentions, OR Replies to Bot
+    const isReplyToBot = ctx.message.reply_to_message?.from?.id === ctx.me.id;
+    const isNameMention = /lily/i.test(t) ||
+        (ctx.message.entities?.some(e => e.type === 'mention') && t.includes('@')) ||
+        isReplyToBot;
+
+    if (isCommand || (aiEnabled && isNameMention)) {
         if (text.startsWith('/start')) {
             return ctx.reply(`✨ **Lily Smart Ledger**\nID: \`${userId}\` | Status: ${isOwner ? '👑 Owner' : '👤 User'}`, { parse_mode: 'Markdown' });
         }
@@ -625,31 +649,41 @@ bot.on('message:text', async (ctx) => {
             if (!isActive) return ctx.reply("⚠️ **群组未激活 (Group Inactive)**\nUse `/activate [KEY]`", { parse_mode: 'Markdown' });
         }
 
-        // RBAC Check
-        const isOperator = await RBAC.isAuthorized(chatId, userId);
-        const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
-        const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
-        let canBootsTrap = !hasOperators;
-        if (canBootsTrap && !isOwner) {
-            try {
-                const member = await ctx.getChatMember(userId);
-                canBootsTrap = member.status === 'creator' || member.status === 'administrator';
-            } catch (e) {
-                canBootsTrap = false;
+        if (isCommand) {
+            // RBAC Check
+            const isOperator = await RBAC.isAuthorized(chatId, userId);
+            const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
+            const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
+            let canBootsTrap = !hasOperators;
+            if (canBootsTrap && !isOwner) {
+                try {
+                    const member = await ctx.getChatMember(userId);
+                    canBootsTrap = member.status === 'creator' || member.status === 'administrator';
+                } catch (e) {
+                    canBootsTrap = false;
+                }
             }
-        }
 
-        if (!isOperator && !isOwner && !canBootsTrap) {
-            return ctx.reply("❌ **权限不足 (Unauthorized)**", { parse_mode: 'Markdown' });
-        }
+            if (!isOperator && !isOwner && !canBootsTrap) {
+                return ctx.reply("❌ **权限不足 (Unauthorized)**", { parse_mode: 'Markdown' });
+            }
 
-        // State Check
-        const groupRes = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
-        const state = groupRes.rows[0]?.current_state || 'WAITING_FOR_START';
-        const isTransaction = /^[+\-取]\s*\d/.test(text) || text.startsWith('下发') || text.startsWith('回款') || text.startsWith('入款');
+            // State Check
+            const groupResForState = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
+            const state = groupResForState.rows[0]?.current_state || 'WAITING_FOR_START';
 
-        if (isTransaction && state !== 'RECORDING') {
-            return ctx.reply("⚠️ **请先输入 “开始” 以开启今日记录。**", { parse_mode: 'Markdown' });
+            // World-Class Transaction Detection (Synced with Processor)
+            const isTransaction = /^[+\-取]\s*\d/.test(t) ||
+                /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*[\d.]+/i.test(t);
+
+            if (isTransaction && state !== 'RECORDING') {
+                const settingsResForLang = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [chatId]);
+                const lang = settingsResForLang.rows[0]?.language_mode || 'CN';
+                const alertMsg = lang === 'CN' ? "⚠️ **请先输入 “开始” 以开启今日记录。**"
+                    : lang === 'MY' ? "⚠️ **Sila taip “Start” untuk mula merakam harini.**"
+                        : "⚠️ **Please type “Start” to begin today's recording.**";
+                return ctx.reply(alertMsg, { parse_mode: 'Markdown' });
+            }
         }
 
         try {
@@ -662,6 +696,15 @@ bot.on('message:text', async (ctx) => {
             ctx.reply("⚠️ **System Error**: 队列连接失败 (Queue Connection Failed).");
         }
     }
+});
+
+// Global Error Handlers (Production Hardening)
+process.on('uncaughtException', (err) => {
+    console.error('🛑 [CRITICAL] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🛑 [CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Startup

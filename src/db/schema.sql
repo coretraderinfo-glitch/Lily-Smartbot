@@ -66,6 +66,12 @@ CREATE TABLE IF NOT EXISTS group_settings (
     -- Display Config
     display_mode INT DEFAULT 1,            -- 1=Full, 2=Top3, etc.
     show_decimals BOOLEAN DEFAULT TRUE,
+    language_mode VARCHAR(10) DEFAULT 'CN' NOT NULL,
+    
+    -- Feature Config
+    guardian_enabled BOOLEAN DEFAULT FALSE,
+    ai_brain_enabled BOOLEAN DEFAULT FALSE,
+    welcome_enabled BOOLEAN DEFAULT TRUE,
     
     -- Logic Config
     daily_reset_hour INT DEFAULT 4,        -- Default 4 AM
@@ -73,7 +79,7 @@ CREATE TABLE IF NOT EXISTS group_settings (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ensure 'group_settings' has forex columns
+-- Ensure 'group_settings' has forex columns and new config columns
 DO $$ 
 BEGIN 
     BEGIN
@@ -96,6 +102,21 @@ BEGIN
     EXCEPTION
         WHEN duplicate_column THEN NULL;
     END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN language_mode VARCHAR(10) DEFAULT 'CN' NOT NULL;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN guardian_enabled BOOLEAN DEFAULT FALSE;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN ai_brain_enabled BOOLEAN DEFAULT FALSE;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
 END $$;
 
 -- 3. Access Control (Operators)
@@ -107,6 +128,16 @@ CREATE TABLE IF NOT EXISTS group_operators (
     added_by BIGINT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (group_id, user_id)
+);
+
+-- Admin Sentinel (Guardian)
+CREATE TABLE IF NOT EXISTS group_admins (
+    id SERIAL PRIMARY KEY,
+    group_id BIGINT REFERENCES groups(id),
+    user_id BIGINT,
+    username VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(group_id, user_id)
 );
 
 -- 4. The Ledger (Transactions)
@@ -134,10 +165,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     related_transaction_id VARCHAR(50)
 );
 
--- Indices
-CREATE INDEX IF NOT EXISTS idx_ledger_day ON transactions (group_id, business_date, recorded_at DESC);
-CREATE INDEX IF NOT EXISTS idx_ledger_balances ON transactions (group_id, business_date, currency);
-
 -- 5. Audit
 CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
@@ -160,21 +187,18 @@ CREATE TABLE IF NOT EXISTS licenses (
     created_by BIGINT, -- Admin ID
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- 7. The Archive (World-Class Data Retention)
+-- 7. The Archive
 CREATE TABLE IF NOT EXISTS historical_archives (
     id SERIAL PRIMARY KEY,
     group_id BIGINT REFERENCES groups(id),
     business_date DATE,
-    type VARCHAR(50), -- 'TRANSACTION_WIPE' or 'DAILY_SNAPSHOT'
-    data_json JSONB, -- Stores the raw JSON of the wiped data
-    pdf_blob BYTEA, -- Optional: Stores the actual PDF data for high-security archival
+    type VARCHAR(50), 
+    data_json JSONB, 
+    pdf_blob BYTEA, 
     archived_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indices for Archive
-CREATE INDEX IF NOT EXISTS idx_archive_lookup ON historical_archives (group_id, business_date);
-
--- 8. User Cache (For @username resolution)
+-- 8. User Cache
 CREATE TABLE IF NOT EXISTS user_cache (
     group_id BIGINT,
     user_id BIGINT,
@@ -182,4 +206,9 @@ CREATE TABLE IF NOT EXISTS user_cache (
     last_seen TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (group_id, username)
 );
+
+-- Indices
+CREATE INDEX IF NOT EXISTS idx_ledger_day ON transactions (group_id, business_date, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ledger_balances ON transactions (group_id, business_date, currency);
+CREATE INDEX IF NOT EXISTS idx_archive_lookup ON historical_archives (group_id, business_date);
 CREATE INDEX IF NOT EXISTS idx_user_cache_id ON user_cache (group_id, user_id);

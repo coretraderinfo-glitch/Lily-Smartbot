@@ -2,6 +2,7 @@ import { db } from '../db';
 import { getBusinessDate } from '../utils/time';
 import { formatNumber } from '../utils/format';
 import Decimal from 'decimal.js';
+import { I18N } from '../utils/i18n';
 
 /**
  * Excel Export Module
@@ -26,6 +27,7 @@ export const ExcelExport = {
 
         const settingsRes = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
         const settings = settingsRes.rows[0] || {};
+        const lang = settings.language_mode || 'CN';
 
         // Helper to safe-quote CSV fields
         const safe = (str: any) => {
@@ -41,7 +43,12 @@ export const ExcelExport = {
         let csv = '\ufeff';
 
         // Header
-        csv += '时间 (Time),类型 (Type),原始金额 (Raw),费率 (Rate),手续费 (Fee),净额 (Net),币种 (Ccy),操作人 (Operator)\n';
+        const h = [
+            I18N.t(lang, 'col.time'), I18N.t(lang, 'col.type'), I18N.t(lang, 'col.raw'),
+            I18N.t(lang, 'col.fee'), I18N.t(lang, 'col.fee_amt'), I18N.t(lang, 'col.net'),
+            I18N.t(lang, 'col.currency'), I18N.t(lang, 'col.operator')
+        ];
+        csv += h.map(safe).join(',') + '\n';
 
         // Aggregates
         let totalInRaw = new Decimal(0);
@@ -52,7 +59,8 @@ export const ExcelExport = {
         // CSV Rows
         txRes.rows.forEach(t => {
             const time = new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: timezone });
-            const type = t.type === 'DEPOSIT' ? '入款' : t.type === 'PAYOUT' ? '下发' : '回款';
+            const typeLabels: any = { DEPOSIT: I18N.t(lang, 'tx.deposit'), PAYOUT: I18N.t(lang, 'tx.payout'), RETURN: I18N.t(lang, 'tx.return') };
+            const type = typeLabels[t.type as string] || t.type;
             const amount = new Decimal(t.amount_raw);
 
             if (t.type === 'DEPOSIT') {
@@ -70,13 +78,13 @@ export const ExcelExport = {
         const balance = totalInNet.sub(totalOut).add(totalReturn);
 
         // Summary Section
-        csv += '\n财务摘要 (Financial Summary)\n';
-        csv += `总入款 (Total Deposits),${formatNumber(totalInRaw, 2)},CNY\n`;
-        csv += `费率 (Fee Rate),${settings.rate_in || 0},%\n`;
-        csv += `应下发 (Net Deposits),${formatNumber(totalInNet, 2)},CNY\n`;
-        csv += `总下发 (Total Payouts),${formatNumber(totalOut, 2)},CNY\n`;
-        csv += `回款 (Total Returns),${formatNumber(totalReturn, 2)},CNY\n`;
-        csv += `余 (Balance),${formatNumber(balance, 2)},CNY\n`;
+        csv += `\n${safe(I18N.t(lang, 'report.summary'))}\n`;
+        csv += `${safe(I18N.t(lang, 'fin.total_in'))},${formatNumber(totalInRaw, 2)},CNY\n`;
+        csv += `${safe(I18N.t(lang, 'fin.avg_rate'))},${settings.rate_in || 0},%\n`;
+        csv += `${safe(I18N.t(lang, 'fin.net_in'))},${formatNumber(totalInNet, 2)},CNY\n`;
+        csv += `${safe(I18N.t(lang, 'fin.total_out'))},${formatNumber(totalOut, 2)},CNY\n`;
+        csv += `${safe(I18N.t(lang, 'fin.total_ret'))},${formatNumber(totalReturn, 2)},CNY\n`;
+        csv += `${safe(I18N.t(lang, 'fin.balance'))},${formatNumber(balance, 2)},CNY\n`;
 
         // Forex info if set (Multiple)
         const fxRates = [
@@ -89,9 +97,9 @@ export const ExcelExport = {
         fxRates.forEach(fx => {
             const rate = new Decimal(settings[`rate_${fx.key}`] || 0);
             if (rate.gt(0)) {
-                csv += `${fx.label},${formatNumber(rate, 2)},\n`;
+                csv += `${safe(fx.label)},${formatNumber(rate, 2)},\n`;
                 const equiv = formatNumber(balance.div(rate), 2);
-                csv += `余额 (${fx.suffix} Equivalent),${equiv},${fx.suffix}\n`;
+                csv += `${safe(I18N.t(lang, 'fin.equiv'))} (${fx.suffix} Equiv),${equiv},${fx.suffix}\n`;
             }
         });
 

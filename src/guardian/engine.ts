@@ -2,6 +2,7 @@ import { db } from '../db';
 import { Bot, Context } from 'grammy';
 import { Security } from '../utils/security';
 import { Personality } from '../utils/personality';
+import { I18N } from '../utils/i18n';
 
 /**
  * LILY GUARDIAN ENGINE
@@ -37,13 +38,13 @@ export const Guardian = {
                     const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
                     const lang = settingsRes.rows[0]?.language_mode || 'CN';
 
-                    const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'Boss');
+                    const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'FIGHTER');
                     const warning = Personality.getMalwareWarning(lang, ext, name);
 
                     await ctx.reply(warning, { parse_mode: 'Markdown' });
 
                     // 🔔 ACTION: ALERT ADMINS
-                    await this.alertAdmins(ctx, `探测到潜在恶意软件攻击 (Potential Malware Detected: ${doc.file_name})`);
+                    await this.alertAdmins(ctx, I18N.t(lang, 'admin.malware') + `: ${doc.file_name}`, lang);
 
                 } catch (e) {
                     console.error('[Guardian] Failed to delete malicious file:', e);
@@ -58,27 +59,51 @@ export const Guardian = {
     async handleNewMember(ctx: Context) {
         if (!ctx.chat || ctx.chat.type === 'private') return;
 
-        const settings = await db.query('SELECT guardian_enabled, language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
-        if (!settings.rows[0]?.guardian_enabled) return;
+        // Fetch settings - Default welcome to TRUE if NULL (existing groups)
+        const settingsRes = await db.query('SELECT guardian_enabled, welcome_enabled, language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
+        const config = settingsRes.rows[0];
 
-        const lang = settings.rows[0]?.language_mode || 'CN';
+        const guardianOn = config?.guardian_enabled || false;
+        const welcomeOn = config?.welcome_enabled !== false; // TRUE by default
+        const lang = config?.language_mode || 'CN';
+
+        if (!guardianOn && !welcomeOn) return;
+
         const newMembers = ctx.message?.new_chat_members || [];
 
         for (const member of newMembers) {
             if (member.is_bot) continue;
 
-            const name = member.username ? `@${member.username}` : (member.first_name || 'New Member');
+            const displayName = member.first_name || 'FIGHTER';
+            let output = "";
 
-            // 1. Tag Admins
-            const admins = await db.query('SELECT username FROM group_admins WHERE group_id = $1', [ctx.chat.id]);
-            const adminTags = admins.rows.map(a => `@${a.username}`).join(' ');
+            // 1. Admin Alert & Identification (Guardian Priority)
+            if (guardianOn) {
+                const admins = await db.query('SELECT username FROM group_admins WHERE group_id = $1', [ctx.chat.id]);
+                const adminTags = admins.rows.map(a => `@${a.username}`).join(' ');
 
-            const alertMsg = adminTags ? `🔔 ${adminTags} - **新成员加入 (New Member Arrival)**` : '';
+                // Formatted as: 🚨 *ALERT* - [Name] joined. [Admin Tags] please verify.
+                const alertText = lang === 'CN' ? `🚨 *ALERT* - **${displayName}** 已加入。${adminTags} 请核对身份。`
+                    : lang === 'MY' ? `🚨 *ALERT* - **${displayName}** joined. ${adminTags} please verify.`
+                        : `🚨 *ALERT* - **${displayName}** joined. ${adminTags} please verify.`;
+                output += `${alertText}\n\n`;
+            }
 
-            // 2. Vibrant Human Welcome
-            const welcome = Personality.getWelcome(lang, name);
+            // 2. Branded Welcome Logic
+            if (welcomeOn) {
+                // Vibrant Human Greeting (Random)
+                output += Personality.getWelcome(lang, displayName);
+            } else if (guardianOn) {
+                // Standard Welcome (If personality is toggled off)
+                const stdWelcome = lang === 'CN' ? `✨ 欢迎 **${displayName}** 加入！`
+                    : lang === 'MY' ? `✨ Selamat datang **${displayName}**!`
+                        : `✨ Welcome **${displayName}**!`;
+                output += stdWelcome;
+            }
 
-            await ctx.reply(`${alertMsg}\n\n${welcome}`, { parse_mode: 'Markdown' });
+            if (output.trim()) {
+                await ctx.reply(output.trim(), { parse_mode: 'Markdown' });
+            }
         }
     },
 
@@ -121,7 +146,7 @@ export const Guardian = {
                     const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
                     const lang = settingsRes.rows[0]?.language_mode || 'CN';
 
-                    const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'Boss');
+                    const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'FIGHTER');
                     const warning = Personality.getLinkWarning(lang, name);
 
                     const reply = await ctx.reply(warning, { parse_mode: 'Markdown' });
@@ -141,11 +166,14 @@ export const Guardian = {
     /**
      * Helper: Tag all registered group admins
      */
-    async alertAdmins(ctx: Context, reason: string) {
+    async alertAdmins(ctx: Context, reason: string, lang: string = 'CN') {
         const admins = await db.query('SELECT username FROM group_admins WHERE group_id = $1', [ctx.chat?.id]);
         if (admins.rows.length === 0) return;
 
         const tags = admins.rows.map(a => `@${a.username}`).join(' ');
-        await ctx.reply(`🔔 **Admin Notification**\n${tags}\n\nReason: ${reason}`, { parse_mode: 'Markdown' });
+        const title = I18N.t(lang, 'admin.alert');
+        const reasonLabel = I18N.t(lang, 'admin.reason');
+
+        await ctx.reply(`${title}\n${tags}\n\n${reasonLabel}: ${reason}`, { parse_mode: 'Markdown' });
     }
 };
