@@ -9,7 +9,10 @@ import path from 'path';
 
 import { execSync } from 'child_process';
 
+import compression from 'compression';
+
 const app = express();
+app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

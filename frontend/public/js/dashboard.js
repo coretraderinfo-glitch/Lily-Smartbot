@@ -10,14 +10,9 @@ const state = {
 };
 
 async function init() {
-    // Artificial load for professional feel
-    setTimeout(() => {
-        const loader = document.getElementById('masterLoader');
-        if (loader) {
-            loader.style.opacity = '0';
-            setTimeout(() => loader.style.display = 'none', 600);
-        }
-    }, 1200);
+    // Instant Load (Zero Latency Mode)
+    const loader = document.getElementById('masterLoader');
+    if (loader) loader.style.display = 'none';
 
     await Promise.all([
         fetchInfra(),

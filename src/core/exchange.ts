@@ -91,7 +91,7 @@ export const Exchange = {
 };
 
 /**
- * TODO: Live OKX Integration
+ * FUTURE: Live OKX Integration Roadmap
  * 
  * Implementation notes for future:
  * 1. Use OKX P2P API: https://www.okx.com/v3/c2c/tradingOrders/books
