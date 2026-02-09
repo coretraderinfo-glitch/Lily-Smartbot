@@ -15,6 +15,7 @@ interface CommandJob {
     text: string;
     messageId: number;
     replyToMessage?: any;
+    imageUrl?: string; // Vision Support
 }
 
 /**
@@ -30,7 +31,7 @@ const combine = (prefix: string, bill: BillResult): BillResult => ({
  * World-class bilingual command engine
  */
 export const processCommand = async (job: Job<CommandJob>): Promise<BillResult | string | null> => {
-    const { chatId, userId, username, text } = job.data;
+    const { chatId, userId, username, text, imageUrl } = job.data;
 
     // 1. Settings Fetch (SAFE ACCESS + CONTEXT AWARENESS)
     const settingsRes = await db.query(`
@@ -207,10 +208,10 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             return `EXCEL_EXPORT:${csv}`;
         }
 
-        // --- 6. AI BRAIN CHAT (GPT-4o POWERED) ---
+        // --- 6. AI BRAIN CHAT (GPT-4o + VISION) ---
         if (aiEnabled && isNameTrigger) {
             const { AIBrain } = await import('../utils/ai');
-            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle);
+            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl);
         }
 
         return null;

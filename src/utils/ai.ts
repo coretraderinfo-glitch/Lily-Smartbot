@@ -73,24 +73,33 @@ export const AIBrain = {
     /**
      * Generate a smart response based on context
      */
-    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown'): Promise<string> {
+    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string): Promise<string> {
         if (!process.env.OPENAI_API_KEY) {
             console.warn('[AI] Missing API Key. Falling back to static personality.');
             return ""; // Fallback to static
         }
 
         try {
+            // Construct Message Content (Text + Image support)
+            let userContent: any = userMessage;
+            if (imageUrl) {
+                userContent = [
+                    { type: "text", text: userMessage || "What is in this image?" },
+                    { type: "image_url", image_url: { url: imageUrl } }
+                ];
+            }
+
             const completion = await openai.chat.completions.create({
                 model: process.env.AI_MODEL || "gpt-4o",
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
                     { role: "system", content: `Context: UserID=${userId}. User=${username}. Group Title="${groupTitle}". Lang=${lang}.` },
-                    { role: "user", content: userMessage }
+                    { role: "user", content: userContent }
                 ],
-                max_tokens: 150,
-                temperature: 0.9, // Higher creativity = More Human-Like Variance
-                presence_penalty: 0.8, // Stronger penalty against repeating same phrases
-                frequency_penalty: 0.3, // Slight penalty for common robotic words
+                max_tokens: 300, // Increased for vision descriptions
+                temperature: 0.9,
+                presence_penalty: 0.8,
+                frequency_penalty: 0.3,
             });
 
             return completion.choices[0]?.message?.content?.trim() || "";

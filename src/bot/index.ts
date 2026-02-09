@@ -451,7 +451,7 @@ bot.on('message', async (ctx, next) => {
     }
 
     // B. SENTINEL REGISTRY (/setadmin)
-    const text = ctx.message?.text || '';
+    const text = ctx.message?.text || ctx.message?.caption || '';
     if (text.startsWith('设置管理员') || text.startsWith('/setadmin')) {
         const userId = ctx.from?.id;
         const chatId = ctx.chat.id;
@@ -686,10 +686,25 @@ bot.on('message:text', async (ctx) => {
             }
         }
 
+        // VISION LINK: Extract Photo URL for GPT-4o
+        let imageUrl: string | undefined;
+        if (ctx.message.photo && ctx.message.photo.length > 0) {
+            try {
+                const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Get largest size
+                const file = await ctx.api.getFile(photo.file_id);
+                if (file.file_path) {
+                    imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
+                }
+            } catch (e) {
+                console.warn('[Vision] Failed to extract photo URL:', e);
+            }
+        }
+
         try {
             await commandQueue.add('cmd', {
                 chatId, userId, username, text, messageId,
-                replyToMessage: ctx.message.reply_to_message
+                replyToMessage: ctx.message.reply_to_message,
+                imageUrl
             });
         } catch (queueErr) {
             console.error('Failed to add to queue:', queueErr);
