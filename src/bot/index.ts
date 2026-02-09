@@ -18,7 +18,7 @@ import { Personality } from '../utils/personality';
 import { I18N } from '../utils/i18n';
 
 dotenv.config();
-checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL']);
+checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL', 'OPENAI_API_KEY']);
 
 // Security Warning for Missing Owner
 if (!process.env.OWNER_ID) {

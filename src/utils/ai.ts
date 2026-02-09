@@ -1,22 +1,9 @@
 import OpenAI from 'openai';
-import { I18N } from './i18n';
 
 /**
  * LILY AI BRAIN ENGINE
  * World-Class conversational intelligence powered by OpenAI (GPT-4o).
- * 
- * Personality:
- * - Name: Lily (Smart Ledger Bot & Fighter Squad Manager)
- * - Master: SIR / Pro
- * - Users: FIGHTER
- * - Tone: High-energy, professional, slightly strict but encouraging.
- * - Languages: Heavy 'Manglish' (Malaysian English) mixed with CN/MY terms.
- * - Obsession: Accuracy, Profit, Efficiency, Speed.
  */
-
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
 
 const SYSTEM_PROMPT = `
 You are Lily, a high-performance, elite accounting officer. 
@@ -93,15 +80,21 @@ export const AIBrain = {
     async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string): Promise<string> {
         if (!process.env.OPENAI_API_KEY) {
             console.warn('[AI] Missing API Key. Falling back to static personality.');
-            return ""; // Fallback to static
+            return "";
         }
 
+        // Fix Root Cause: Empty Content Crash
+        // OpenAI throws if BOTH text and image are missing OR if text is empty string.
+        const effectiveText = userMessage?.trim() || (imageUrl ? "Analyze this image." : "Hello Lily!");
+
         try {
+            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
             // Construct Message Content (Text + Image support)
-            let userContent: any = userMessage;
+            let userContent: any = effectiveText;
             if (imageUrl) {
                 userContent = [
-                    { type: "text", text: userMessage || "What is in this image?" },
+                    { type: "text", text: effectiveText },
                     { type: "image_url", image_url: { url: imageUrl } }
                 ];
             }
@@ -124,7 +117,7 @@ export const AIBrain = {
             return completion.choices[0]?.message?.content?.trim() || "";
         } catch (error) {
             console.error('[AI] Brain Freeze:', error);
-            return ""; // Fallback to static on error
+            return "";
         }
     }
 };

@@ -11,8 +11,13 @@ export const MarketData = {
      */
     async getPrice(symbol: string): Promise<string | null> {
         try {
-            const quote: any = await yahooFinance.quote(symbol);
-            if (!quote) return null;
+            // World-Class Timeout: 3 seconds max for Yahoo link
+            const quote: any = await Promise.race([
+                yahooFinance.quote(symbol),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+            ]);
+
+            if (!quote || quote.regularMarketPrice === undefined) return null;
 
             const price = quote.regularMarketPrice;
             const change = quote.regularMarketChangePercent;
@@ -21,7 +26,7 @@ export const MarketData = {
 
             return `${symbol}: ${price?.toFixed(2)} (${isUp ? '+' : ''}${change?.toFixed(2)}%) ${icon}`;
         } catch (e) {
-            console.error(`[Market] Failed to fetch ${symbol}:`, e);
+            console.warn(`[Market] Data fetch failed for ${symbol}:`, e instanceof Error ? e.message : 'Unknown');
             return null;
         }
     },
@@ -29,7 +34,8 @@ export const MarketData = {
     /**
      * Detect symbols in text and fetch data
      */
-    async scanAndFetch(text: string): Promise<string> {
+    async scanAndFetch(text: string = ''): Promise<string> {
+        if (!text) return '';
         const upperText = text.toUpperCase();
         const results: string[] = [];
 
