@@ -81,7 +81,7 @@ export const AIBrain = {
     /**
      * Generate a smart response based on context
      */
-    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string): Promise<string> {
+    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string): Promise<string> {
         if (!process.env.OPENAI_API_KEY) {
             console.warn('[AI] Missing API Key. Falling back to static personality.');
             return ""; // Fallback to static
@@ -102,6 +102,7 @@ export const AIBrain = {
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
                     { role: "system", content: `Context: UserID=${userId}. User=${username}. Group Title="${groupTitle}". Lang=${lang}.` },
+                    { role: "system", content: ledgerContext || "No Financial Data available." },
                     { role: "user", content: userContent }
                 ],
                 max_tokens: 300, // Increased for vision descriptions

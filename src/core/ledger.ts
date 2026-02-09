@@ -52,6 +52,37 @@ export const Ledger = {
     },
 
     /**
+     * Quick Financial Snapshot for AI Brain
+     */
+    async getDailySummary(chatId: number): Promise<{ count: number, totalIn: string, totalOut: string, balance: string }> {
+        const meta = await Ledger._getMeta(chatId);
+        const date = getBusinessDate(meta.timezone, meta.resetHour);
+        const res = await db.query(`
+            SELECT type, net_amount FROM transactions 
+            WHERE group_id = $1 AND business_date = $2
+        `, [chatId, date]);
+
+        let tin = new Decimal(0);
+        let tout = new Decimal(0);
+        let tret = new Decimal(0);
+
+        res.rows.forEach(r => {
+            const val = new Decimal(r.net_amount || 0);
+            if (r.type === 'DEPOSIT') tin = tin.add(val);
+            if (r.type === 'PAYOUT') tout = tout.add(val);
+            if (r.type === 'RETURN') tret = tret.add(val);
+        });
+
+        const balance = tin.sub(tout).add(tret);
+        return {
+            count: res.rows.length,
+            totalIn: formatNumber(tin, 2),
+            totalOut: formatNumber(tout, 2),
+            balance: formatNumber(balance, 2)
+        };
+    },
+
+    /**
      * Start a new day
      */
     async startDay(chatId: number): Promise<string> {
