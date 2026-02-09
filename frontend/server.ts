@@ -16,7 +16,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = parseInt(process.env.PORT || '3000');
 
-app.get('/', (req, res) => res.status(200).send('Lily API: Online 🟢'));
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/index.html'));
+});
 
 /**
  * --- 🛡️ CONTROL PANEL ROUTES ---
@@ -53,6 +55,32 @@ app.get('/api/groups', async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: 'Groups Error' });
     }
+});
+
+app.get('/api/master/token/:chatId', async (req, res) => {
+    try {
+        const { chatId } = req.params;
+        const owners = Security.getOwnerRegistry();
+        if (owners.length === 0) return res.status(403).json({ error: 'No Owners Configured' });
+
+        // Use the primary owner ID to generate a master-level control token
+        const userId = parseInt(owners[0]);
+        const hash = Security.generateAdminToken(parseInt(chatId), userId);
+
+        const tokenBase64 = Buffer.from(`${chatId}:${userId}:${hash}`)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+
+        res.json({ token: tokenBase64 });
+    } catch (e) {
+        res.status(500).json({ error: 'Token Sync Error' });
+    }
+});
+
+app.get('/api/master/owners', (req, res) => {
+    res.json(Security.getOwnerRegistry());
 });
 
 app.get('/api/data/:token', async (req, res) => {

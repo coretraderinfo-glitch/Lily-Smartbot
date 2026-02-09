@@ -5,11 +5,17 @@
 async function init() {
     await fetchStats();
     await fetchGroups();
+    await fetchOwners();
+
+    // Auto-refresh stats every 30s
+    setInterval(fetchStats, 30000);
 
     // Hide loader
     const loader = document.getElementById('loader');
-    loader.style.opacity = '0';
-    setTimeout(() => loader.style.display = 'none', 500);
+    if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.style.display = 'none', 500);
+    }
 }
 
 /**
@@ -51,13 +57,25 @@ async function fetchGroups() {
                 <td style="font-family: monospace; color: var(--text-dim); font-size: 13px;">${g.id}</td>
                 <td>${new Date(g.created_at).toLocaleDateString()}</td>
                 <td>
-                    <button class="btn-primary" style="padding: 8px 15px; font-size: 12px;" onclick="manageGroup('${g.id}')">MANAGE</button>
+                    <button class="btn-primary" style="padding: 8px 15px; font-size: 12px; border-radius: 8px;" onclick="manageGroup('${g.id}')">⚙️ MANAGE</button>
                 </td>
             </tr>
         `).join('');
     } catch (e) {
         console.error('Group Sync Failed');
     }
+}
+
+/**
+ * Fetch Owner List
+ */
+async function fetchOwners() {
+    try {
+        const res = await fetch('/api/master/owners');
+        const owners = await res.json();
+        const list = document.getElementById('owners-list');
+        list.innerHTML = owners.map(id => `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid rgba(255,255,255,0.05);"><span>👑 OWNER_ID:</span> <span style="color:var(--primary);">${id}</span></div>`).join('');
+    } catch (e) { }
 }
 
 /**
@@ -87,8 +105,18 @@ function showTab(tabId) {
 /**
  * Group Management Logic (Master Access)
  */
-function manageGroup(id) {
-    alert(`Redirecting to Group Management for Node: ${id}\n\nSIR, please note that master-level manual overrides are currently being established.`);
+async function manageGroup(id) {
+    try {
+        const res = await fetch(`/api/master/token/${id}`);
+        const data = await res.json();
+        if (data.token) {
+            window.location.href = `/c/${data.token}`;
+        } else {
+            alert('Failed to generate master access token.');
+        }
+    } catch (e) {
+        alert('Security Sync Error');
+    }
 }
 
 init();
