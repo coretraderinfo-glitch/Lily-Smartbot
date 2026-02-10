@@ -73,6 +73,19 @@ export const db = {
             `);
             console.log('✅ Safeguard: welcome_enabled verified.');
 
+            // ENSURE 'last_seen' exists in 'groups' (Critical for Dashboard Sync)
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    BEGIN
+                        ALTER TABLE groups ADD COLUMN last_seen TIMESTAMPTZ DEFAULT NOW();
+                    EXCEPTION
+                        WHEN duplicate_column THEN NULL;
+                    END;
+                END $$;
+            `);
+            console.log('✅ Safeguard: groups.last_seen verified.');
+
         } catch (err) {
             console.error('❌ Migration Failed:', err);
             // Don't throw in production to keep app alive
