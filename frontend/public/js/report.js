@@ -25,20 +25,25 @@ async function init() {
 
         // Secondary Balances (Conversions)
         const secondary = document.getElementById('secondaryBalances');
-        secondary.innerHTML = data.conversions.map(c => `<span>${c.val} ${c.code}</span>`).join(' • ');
+        if (secondary && data.conversions) {
+            secondary.innerHTML = data.conversions.map(c => `<span>${c.val} ${c.code}</span>`).join(' • ');
+        }
 
         // Transactions
         const txList = document.getElementById('txList');
         if (data.transactions.length === 0) {
-            txList.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-dim); padding: 40px;">No Transactions Yet</td></tr>';
+            txList.innerHTML = '<p style="text-align:center; color: var(--text-dim); padding: 20px;">No Transactions Yet</p>';
         } else {
             txList.innerHTML = data.transactions.map(t => `
-                <tr>
-                    <td><div style="font-size: 11px; color: var(--text-dim);">${t.time}</div></td>
-                    <td><div style="font-weight: 700;">${t.type === 'DEPOSIT' ? '➕ IN' : t.type === 'PAYOUT' ? '➖ OUT' : '↪️ RET'}</div></td>
-                    <td><div style="font-weight: 800; color: ${t.type === 'DEPOSIT' ? 'var(--success)' : 'var(--danger)'}">${t.amount}</div></td>
-                    <td><div style="font-size: 12px;">${t.op}</div></td>
-                </tr>
+                <div class="list-item">
+                    <div>
+                        <div style="font-weight: 700; font-size: 14px;">${t.type === 'DEPOSIT' ? '➕ DEPOSIT' : t.type === 'PAYOUT' ? '➖ PAYOUT' : '↪️ RETURN'}</div>
+                        <div style="font-size: 11px; color: var(--text-dim);">${t.time} • Op: ${t.op}</div>
+                    </div>
+                    <div style="font-weight: 800; color: ${t.type === 'DEPOSIT' ? 'var(--success)' : 'var(--danger)'}">
+                        ${t.amount}
+                    </div>
+                </div>
             `).join('');
         }
 

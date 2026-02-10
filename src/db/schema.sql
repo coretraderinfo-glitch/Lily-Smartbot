@@ -47,6 +47,11 @@ BEGIN
     EXCEPTION
         WHEN duplicate_column THEN NULL;
     END;
+    BEGIN
+        ALTER TABLE groups ADD COLUMN last_seen TIMESTAMPTZ DEFAULT NOW();
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
 END $$;
 
 -- 2. Configuration (Settings)
