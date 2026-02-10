@@ -3,6 +3,7 @@ import { Worker, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
+import { SettingsCache } from '../core/cache';
 
 // Internal Logic
 import { processCommand } from '../worker/processor';
@@ -382,6 +383,8 @@ bot.on('callback_query:data', async (ctx) => {
             ON CONFLICT (group_id) DO UPDATE SET language_mode = EXCLUDED.language_mode, updated_at = NOW()
         `, [id, next]);
 
+        await SettingsCache.invalidate(id); // ⚡ Invalidate
+
         ctx.answerCallbackQuery({ text: `🌐 Language set to ${next}` });
         return await renderManagementConsole(ctx, id);
     }
@@ -489,6 +492,9 @@ bot.on('callback_query:data', async (ctx) => {
             INSERT INTO group_settings (group_id, ${column}) VALUES ($1, true)
             ON CONFLICT (group_id) DO UPDATE SET ${column} = NOT group_settings.${column}, updated_at = NOW()
         `, [id]);
+
+        // ⚡ CACHE INVALIDATION (INSTANT UPDATE)
+        await SettingsCache.invalidate(id);
 
         ctx.answerCallbackQuery({ text: "✅ Setting Updated Instantly" });
 

@@ -3,6 +3,7 @@ import { Bot, Context } from 'grammy';
 import { Security } from '../utils/security';
 import { Personality } from '../utils/personality';
 import { I18N } from '../utils/i18n';
+import { SettingsCache } from '../core/cache';
 
 /**
  * LILY GUARDIAN ENGINE
@@ -20,9 +21,10 @@ export const Guardian = {
         if (!ctx.chat || ctx.chat.type === 'private' || !ctx.from || ctx.from.is_bot) return;
         if (Security.isSystemOwner(ctx.from.id)) return; // Owner Super Pass
 
-        // 1. Check if Guardian is enabled for this group
-        const settings = await db.query('SELECT guardian_enabled FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
-        if (!settings.rows[0]?.guardian_enabled) return;
+        // 1. Check if Guardian is enabled for this group (CACHE HIT)
+        if (!ctx.chat.id) return;
+        const settings = await SettingsCache.get(ctx.chat.id);
+        if (!settings.guardian_enabled) return;
 
         // 2. Scan for Document Extensions
         const doc = ctx.message?.document;
@@ -34,9 +36,8 @@ export const Guardian = {
                     // 🚨 ACTION: DELETE THREAT
                     await ctx.deleteMessage();
 
-                    // 1. Language Detection
-                    const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
-                    const lang = settingsRes.rows[0]?.language_mode || 'CN';
+                    // 1. Language Detection (CACHE HIT)
+                    const lang = settings.language_mode || 'CN';
 
                     const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'FIGHTER');
                     const warning = Personality.getMalwareWarning(lang, ext, name);
@@ -60,8 +61,9 @@ export const Guardian = {
         if (!ctx.chat || ctx.chat.type === 'private') return;
 
         // Fetch settings - Default welcome to TRUE if NULL (existing groups)
-        const settingsRes = await db.query('SELECT guardian_enabled, welcome_enabled, language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
-        const config = settingsRes.rows[0];
+        // Fetch settings (CACHE HIT)
+        if (!ctx.chat.id) return;
+        const config = await SettingsCache.get(ctx.chat.id);
 
         const guardianOn = config?.guardian_enabled || false;
         const welcomeOn = config?.welcome_enabled !== false; // TRUE by default
@@ -116,9 +118,10 @@ export const Guardian = {
         // 0. Owner Super Pass
         if (Security.isSystemOwner(ctx.from.id)) return;
 
-        // 1. Check if Guardian is enabled
-        const settings = await db.query('SELECT guardian_enabled FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
-        if (!settings.rows[0]?.guardian_enabled) return;
+        // 1. Check if Guardian is enabled (CACHE HIT)
+        if (!ctx.chat.id) return;
+        const settings = await SettingsCache.get(ctx.chat.id);
+        if (!settings.guardian_enabled) return;
 
         const text = ctx.message?.text || ctx.message?.caption || '';
 
