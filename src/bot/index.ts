@@ -197,7 +197,8 @@ bot.command('admin', async (ctx) => {
         return ctx.reply("ℹ️ No active groups found in the last 15 days. (All dead/inactive groups are hidden).");
     }
 
-    let msg = `👑 **Lily Master Control Center**\n\nGreetings, **SIR**. Your AI disciple, Lily, is standing by. All systems have been optimized for your command. Select a group to manage:\n\n`;
+    const totalActive = groups.rows.length;
+    let msg = `👑 **Lily Master Control Center**\n\nGreetings, **SIR**. Your AI disciple, Lily, is standing by. All systems have been optimized for your command.\n\n📊 **Total Active Groups**: \`${totalActive}\`\n\nSelect a group to manage:\n\n`;
     const keyboard = new InlineKeyboard();
 
     groups.rows.forEach((g: any, i: number) => {
@@ -208,6 +209,8 @@ bot.command('admin', async (ctx) => {
 
         keyboard.text(`${i + 1}. ${title} [..${idSnippet}] (${lastText})`, `manage_group:${g.id}`).row();
     });
+
+    keyboard.text("🔄 REFRESH & SYNC LIST", "admin_sync").row();
 
     await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
 });
@@ -376,13 +379,56 @@ bot.on('callback_query:data', async (ctx) => {
             WHERE last_seen > NOW() - INTERVAL '15 days'
             ORDER BY last_seen DESC
         `);
+        const totalActive = groups.rows.length;
         const keyboard = new InlineKeyboard();
         groups.rows.forEach((g: any, i: any) => {
             const title = g.title || g.id;
             const idSnippet = String(g.id).slice(-4);
             keyboard.text(`${i + 1}. ${title} [..${idSnippet}]`, `manage_group:${g.id}`).row();
         });
-        return ctx.editMessageText(`👑 **Lily Master Control Center**\nSelect an active group:`, { reply_markup: keyboard });
+        keyboard.text("🔄 REFRESH & SYNC LIST", "admin_sync").row();
+        return ctx.editMessageText(`👑 **Lily Master Control Center**\n📊 Total Active: \`${totalActive}\`\n\nSelect a group:`, { parse_mode: 'Markdown', reply_markup: keyboard });
+    }
+
+    if (data === "admin_sync" && Security.isSystemOwner(userId)) {
+        await ctx.answerCallbackQuery({ text: "🔍 Running deep sync... Please wait." });
+
+        const allGroups = await db.query('SELECT id FROM groups');
+        let purged = 0;
+
+        for (const row of allGroups.rows) {
+            try {
+                const member = await ctx.api.getChatMember(row.id, ctx.me.id);
+                if (member.status === 'left' || member.status === 'kicked') {
+                    throw new Error('Not member');
+                }
+            } catch (e) {
+                // Not in group: Purge
+                await db.query('DELETE FROM node_groups WHERE group_id = $1', [row.id]);
+                await db.query('DELETE FROM group_settings WHERE group_id = $1', [row.id]);
+                await db.query('DELETE FROM group_admins WHERE group_id = $1', [row.id]);
+                await db.query('DELETE FROM user_cache WHERE group_id = $1', [row.id]);
+                await db.query('DELETE FROM groups WHERE id = $1', [row.id]);
+                purged++;
+            }
+        }
+
+        ctx.answerCallbackQuery({ text: `✅ Sync Complete! Purged ${purged} ghost(s).`, show_alert: true });
+
+        // Refresh List
+        const groups = await db.query(`
+            SELECT id, title, last_seen FROM groups 
+            WHERE last_seen > NOW() - INTERVAL '15 days'
+            ORDER BY last_seen DESC
+        `);
+        const keyboard = new InlineKeyboard();
+        groups.rows.forEach((g: any, i: any) => {
+            const title = g.title || g.id;
+            const idSnippet = String(g.id).slice(-4);
+            keyboard.text(`${i + 1}. ${title} [..${idSnippet}]`, `manage_group:${g.id}`).row();
+        });
+        keyboard.text("🔄 REFRESH & SYNC LIST", "admin_sync").row();
+        return ctx.editMessageText(`👑 **Lily Master Control Center**\n📊 Total Active: \`${groups.rows.length}\` (Sync Complete)\n\nSelect a group:`, { parse_mode: 'Markdown', reply_markup: keyboard });
     }
 
     if (data.startsWith('purge_group:') && Security.isSystemOwner(userId)) {
