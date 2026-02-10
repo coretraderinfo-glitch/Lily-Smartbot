@@ -110,5 +110,47 @@ export const db = {
         } finally {
             client.release();
         }
+    },
+
+    // Supergroup Migration Support
+    migrateGroup: async (oldId: string | number, newId: string | number) => {
+        const client = await dbClient.connect();
+        try {
+            await client.query('BEGIN');
+            console.log(`🔄 [Migration] Starting Transfer: ${oldId} -> ${newId}`);
+
+            // 1. Purge potentially conflicting 'new' shell (if it exists empty)
+            const tables = ['group_settings', 'group_operators', 'group_admins', 'user_cache', 'node_groups', 'transactions', 'historical_archives'];
+
+            for (const t of tables) {
+                try { await client.query(`DELETE FROM ${t} WHERE group_id = $1`, [newId]); } catch (e) { }
+            }
+            try { await client.query('DELETE FROM groups WHERE id = $1', [newId]); } catch (e) { }
+
+            // 2. Clone Group Root
+            await client.query(`
+                INSERT INTO groups (id, title, status, current_state, timezone, currency_symbol, license_key, license_expiry, created_at, last_seen, system_url)
+                SELECT $2, title, status, current_state, timezone, currency_symbol, license_key, license_expiry, created_at, last_seen, system_url
+                FROM groups WHERE id = $1
+            `, [oldId, newId]);
+
+            // 3. Move Children
+            for (const t of tables) {
+                try { await client.query(`UPDATE ${t} SET group_id = $2 WHERE group_id = $1`, [oldId, newId]); } catch (e) { }
+            }
+            try { await client.query(`UPDATE licenses SET used_by_group_id = $2 WHERE used_by_group_id = $1`, [oldId, newId]); } catch (e) { }
+
+            // 4. Destroy Old Identity
+            await client.query('DELETE FROM groups WHERE id = $1', [oldId]);
+
+            await client.query('COMMIT');
+            console.log(`✅ [Migration] Success! ${oldId} is now ${newId}`);
+        } catch (e) {
+            await client.query('ROLLBACK');
+            console.error(`❌ [Migration] Failed:`, e);
+            throw e;
+        } finally {
+            client.release();
+        }
     }
 };

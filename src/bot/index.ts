@@ -503,7 +503,21 @@ bot.on('callback_query:data', async (ctx) => {
             };
 
             const announcement = announcements[lang as 'CN' | 'EN' | 'MY'] || announcements.CN;
-            ctx.api.sendMessage(id, announcement, { parse_mode: 'Markdown' }).catch(err => {
+            ctx.api.sendMessage(id, announcement, { parse_mode: 'Markdown' }).catch(async (err) => {
+                const newId = err.parameters?.migrate_to_chat_id;
+                if (newId) {
+                    console.log(`[Supergroup] Detected Migration: ${id} -> ${newId}`);
+                    try {
+                        // @ts-ignore
+                        await db.migrateGroup(id, newId);
+
+                        // Retry with new ID
+                        await ctx.api.sendMessage(newId, announcement, { parse_mode: 'Markdown' });
+                        return; // Success
+                    } catch (migErr) {
+                        console.error('Migration retry failed:', migErr);
+                    }
+                }
                 console.error(`Failed to send activation announcement to group ${id}:`, err);
             });
         }
