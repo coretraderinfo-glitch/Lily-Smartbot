@@ -279,13 +279,13 @@ function renderGlobalGroups() {
     }
 
     container.innerHTML = allGroups.map(g => `
-        <div class="node-item" style="cursor: default; border-left: 3px solid var(--success); display: block; padding: 20px;">
+        <div class="node-item" style="cursor: default; border-left: 3px solid var(--success); display: block; padding: 20px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px;">
                 <div class="node-info">
                     <div class="node-avatar">💬</div>
                     <div class="node-details">
                         <h4 style="color: white; font-size: 16px;">${g.title}</h4>
-                        <p style="font-size: 11px; opacity: 0.6; margin-top: 2px;">Node: <span style="color:var(--accent); font-weight:700;">${g.nodeName}</span></p>
+                        <p style="font-size: 11px; opacity: 0.6; margin-top: 2px;">ID: <span style="font-family:monospace;">${g.id}</span> • Node: <span style="color:var(--accent); font-weight:700;">${g.nodeName}</span></p>
                     </div>
                 </div>
                 <div class="node-actions" style="display: flex; gap: 8px;">
@@ -298,18 +298,22 @@ function renderGlobalGroups() {
                 </div>
             </div>
             
-            <div class="feature-toggles" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
-                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                    <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">AI BRAIN</div>
-                    <div class="switch ${g.ai_enabled ? 'active' : ''}" id="switch-ai-${g.id}" onclick="toggleGroupFeature('${g.id}', 'AI_BRAIN', this)"></div>
+            <div class="feature-toggles" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
+                    <div style="font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">CALC / LEDGER</div>
+                    <div class="switch ${g.calc_enabled ? 'active' : ''}" id="switch-calc-${g.id}" onclick="toggleGroupFeature('${g.id}', 'CALC', this)" style="margin: 0 auto;"></div>
                 </div>
-                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                    <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">GUARDIAN</div>
-                    <div class="switch ${g.guardian_enabled ? 'active' : ''}" id="switch-guard-${g.id}" onclick="toggleGroupFeature('${g.id}', 'GUARDIAN', this)"></div>
+                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
+                    <div style="font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">AI BRAIN</div>
+                    <div class="switch ${g.ai_enabled ? 'active' : ''}" id="switch-ai-${g.id}" onclick="toggleGroupFeature('${g.id}', 'AI_BRAIN', this)" style="margin: 0 auto;"></div>
                 </div>
-                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                    <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">REPORTS</div>
-                    <div class="switch ${g.decimals_enabled ? 'active' : ''}" id="switch-rep-${g.id}" onclick="toggleGroupFeature('${g.id}', 'REPORT_DECIMALS', this)"></div>
+                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
+                    <div style="font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">GUARDIAN</div>
+                    <div class="switch ${g.guardian_enabled ? 'active' : ''}" id="switch-guard-${g.id}" onclick="toggleGroupFeature('${g.id}', 'GUARDIAN', this)" style="margin: 0 auto;"></div>
+                </div>
+                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
+                    <div style="font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">DETAILS</div>
+                    <div class="switch ${g.decimals_enabled ? 'active' : ''}" id="switch-rep-${g.id}" onclick="toggleGroupFeature('${g.id}', 'REPORT_DECIMALS', this)" style="margin: 0 auto;"></div>
                 </div>
             </div>
         </div>

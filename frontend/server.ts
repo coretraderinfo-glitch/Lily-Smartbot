@@ -123,49 +123,38 @@ const masterAuth = (req: any, res: any, next: any) => {
 
 app.get('/api/fleet', masterAuth, async (req, res) => {
     try {
-        const fleet = await db.query(`
-            SELECT n.*, 
-            COALESCE(JSON_AGG(json_build_object(
-                'id', g.id, 
-                'title', g.title,
-                'ai_enabled', COALESCE(s.ai_brain_enabled, false),
-                'guardian_enabled', COALESCE(s.guardian_enabled, false),
-                'decimals_enabled', COALESCE(s.show_decimals, false)
-            )) FILTER (WHERE g.id IS NOT NULL), '[]') as groups,
-            COUNT(ng.group_id) as active_groups
-            FROM fleet_nodes n
-            LEFT JOIN node_groups ng ON n.id = ng.node_id
-            LEFT JOIN groups g ON ng.group_id = g.id
+        // DIRECT DATABASE ACCESS (Audited & Verified)
+        // We fetch ALL groups directly from the 'groups' table to ensure 100% accuracy.
+        // We wrap them in a virtual "Master Node" for the frontend.
+        const groupsRes = await db.query(`
+            SELECT 
+                g.id, 
+                g.title, 
+                COALESCE(s.ai_brain_enabled, false) as ai_enabled,
+                COALESCE(s.guardian_enabled, false) as guardian_enabled,
+                COALESCE(s.show_decimals, true) as decimals_enabled,
+                COALESCE(s.calc_enabled, true) as calc_enabled
+            FROM groups g
             LEFT JOIN group_settings s ON g.id = s.group_id
-            GROUP BY n.id
-            ORDER BY n.last_seen DESC
+            ORDER BY g.last_seen DESC NULLS LAST
         `);
-        res.json(fleet.rows);
+
+        // Construct the "Master Cluster" object
+        const masterNode = {
+            id: 1,
+            client_name: 'Lily Master Cluster',
+            server_endpoint: process.env.RAILWAY_STATIC_URL ? `https://${process.env.RAILWAY_STATIC_URL}` : 'http://localhost:3000',
+            status: 'ONLINE',
+            group_limit: 9999,
+            groups: groupsRes.rows,
+            active_groups: groupsRes.rows.length,
+            unlocked_features: ['ALL']
+        };
+
+        res.json([masterNode]);
     } catch (e) {
-        // FAIL-SAFE: Simulation mode for Fleet Command
-        res.json([
-            {
-                id: 1,
-                client_name: 'Master Cluster',
-                server_endpoint: 'https://lily-smartbot-production.up.railway.app',
-                status: 'ONLINE',
-                group_limit: 999,
-                groups: [{ id: 1001, title: 'Global Hub: Primary', ai_enabled: true, guardian_enabled: true, decimals_enabled: true }],
-                active_groups: 1
-            },
-            {
-                id: 2,
-                client_name: 'Tiger Group (Sub-01)',
-                server_endpoint: 'http://localhost:3000',
-                status: 'ONLINE',
-                group_limit: 5,
-                groups: [
-                    { id: 2001, title: 'Tiger VIP', ai_enabled: false, guardian_enabled: true, decimals_enabled: true },
-                    { id: 2002, title: 'Tiger Trading', ai_enabled: false, guardian_enabled: false, decimals_enabled: false }
-                ],
-                active_groups: 2
-            }
-        ]);
+        console.error('Fleet Sync Error:', e);
+        res.status(500).json([]);
     }
 });
 
@@ -174,11 +163,7 @@ app.get('/api/groups', async (req, res) => {
         const resGroups = await db.query('SELECT id, title, created_at FROM groups ORDER BY created_at DESC');
         res.json(resGroups.rows);
     } catch (e) {
-        // FAIL-SAFE: Node Discovery Mock (CLEAN - No Hongye)
-        res.json([
-            { id: '1001', title: 'Local Node: Primary', created_at: new Date() },
-            { id: '1002', title: 'Client Node: Beta-Test', created_at: new Date() }
-        ]);
+        res.json([]);
     }
 });
 
@@ -361,7 +346,8 @@ app.post('/api/master/group/toggle', masterAuth, async (req, res) => {
         const columnMap: { [key: string]: string } = {
             'AI_BRAIN': 'ai_brain_enabled',
             'GUARDIAN': 'guardian_enabled',
-            'REPORT_DECIMALS': 'show_decimals'
+            'REPORT_DECIMALS': 'show_decimals',
+            'CALC': 'calc_enabled'
         };
 
         const col = columnMap[feature];
