@@ -53,7 +53,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 const PORT = parseInt(process.env.PORT || '3000');
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public/index.html'));
+    const htmlPath = path.join(__dirname, 'public/index.html');
+    const fs = require('fs');
+    let html = fs.readFileSync(htmlPath, 'utf8');
+
+    // Inject Configuration
+    const configScript = `
+    <script>
+        window.LilyConfig = {
+            MASTER_KEY: '${MASTER_KEY}'
+        };
+    </script>
+    `;
+    html = html.replace('<head>', '<head>' + configScript);
+
+    res.send(html);
 });
 
 /**
@@ -96,7 +110,18 @@ app.get('/api/stats', async (req, res) => {
     }
 });
 
-app.get('/api/fleet', async (req, res) => {
+// --- 🔒 MASTER SECURITY GATE (Zero-Vulnerability Architecture) ---
+const MASTER_KEY = process.env.WEB_SECRET || 'lily-master-universal-token-2026';
+
+const masterAuth = (req: any, res: any, next: any) => {
+    const key = req.headers['x-master-key'];
+    if (!key || key !== MASTER_KEY) {
+        return res.status(403).json({ error: 'Master Hub Access Denied: Invalid Key Identifier' });
+    }
+    next();
+};
+
+app.get('/api/fleet', masterAuth, async (req, res) => {
     try {
         const fleet = await db.query(`
             SELECT n.*, 
@@ -330,7 +355,7 @@ app.post('/api/save', async (req, res) => {
     }
 });
 
-app.post('/api/master/group/toggle', async (req, res) => {
+app.post('/api/master/group/toggle', masterAuth, async (req, res) => {
     const { chatId, feature, value } = req.body;
     try {
         const columnMap: { [key: string]: string } = {
@@ -353,7 +378,7 @@ app.post('/api/master/group/toggle', async (req, res) => {
     }
 });
 
-app.post('/api/master/group/delete', async (req, res) => {
+app.post('/api/master/group/delete', masterAuth, async (req, res) => {
     const { chatId } = req.body;
     try {
         await db.query('DELETE FROM groups WHERE id = $1', [chatId]);

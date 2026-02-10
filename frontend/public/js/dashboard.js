@@ -9,6 +9,19 @@ const state = {
     stats: { nodes: 0, transactions: 0, uptime: 0 }
 };
 
+/**
+ * High-Security Master Hub Communication
+ */
+async function masterFetch(url, options = {}) {
+    const key = window.LilyConfig?.MASTER_KEY || '';
+    const headers = {
+        ...(options.headers || {}),
+        'X-Master-Key': key,
+        'Content-Type': 'application/json'
+    };
+    return fetch(url, { ...options, headers });
+}
+
 async function init() {
     // Instant Load (Zero Latency Mode)
     const loader = document.getElementById('masterLoader');
@@ -72,7 +85,8 @@ async function fetchInfra() {
  */
 async function fetchNodes() {
     try {
-        const res = await fetch('/api/fleet');
+        const res = await masterFetch('/api/fleet');
+        if (!res.ok) throw new Error('Unauthorized Master Discovery');
         const fleet = await res.json();
 
         state.nodes = fleet.map(node => ({
@@ -315,9 +329,8 @@ window.toggleGroupFeature = async (chatId, feature, el) => {
     el.style.opacity = '0.5';
 
     try {
-        const res = await fetch('/api/master/group/toggle', {
+        const res = await masterFetch('/api/master/group/toggle', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chatId, feature, value: isActactivating })
         });
 
@@ -340,9 +353,8 @@ window.deleteGroup = async (chatId) => {
     if (!confirm('🛑 WARNING: This will permanently delete this group from the registry.\n\nOnly proceed if the bot is already removed from the group.')) return;
 
     try {
-        const res = await fetch('/api/master/group/delete', {
+        const res = await masterFetch('/api/master/group/delete', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chatId })
         });
 
