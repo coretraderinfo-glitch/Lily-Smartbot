@@ -86,6 +86,24 @@ export const db = {
             `);
             console.log('✅ Safeguard: groups.last_seen verified.');
 
+            // ENSURE Fleet Tables Exist (Master Mode Recovery)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS fleet_nodes (
+                    id SERIAL PRIMARY KEY,
+                    client_name VARCHAR(100) NOT NULL,
+                    server_endpoint VARCHAR(255),
+                    status VARCHAR(20) DEFAULT 'ONLINE',
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS node_groups (
+                    node_id INT REFERENCES fleet_nodes(id),
+                    group_id BIGINT REFERENCES groups(id),
+                    assigned_at TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (node_id, group_id)
+                );
+            `);
+            console.log('✅ Safeguard: Fleet Infrastructure verified.');
+
         } catch (err) {
             console.error('❌ Migration Failed:', err);
             // Don't throw in production to keep app alive

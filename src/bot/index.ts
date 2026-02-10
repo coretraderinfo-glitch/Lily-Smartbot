@@ -403,13 +403,20 @@ bot.on('callback_query:data', async (ctx) => {
                     throw new Error('Not member');
                 }
             } catch (e) {
-                // Not in group: Purge
-                await db.query('DELETE FROM node_groups WHERE group_id = $1', [row.id]);
-                await db.query('DELETE FROM group_settings WHERE group_id = $1', [row.id]);
-                await db.query('DELETE FROM group_admins WHERE group_id = $1', [row.id]);
-                await db.query('DELETE FROM user_cache WHERE group_id = $1', [row.id]);
-                await db.query('DELETE FROM groups WHERE id = $1', [row.id]);
-                purged++;
+                // Not in group: Purge EVERYTHING (Order is critical)
+                try {
+                    await db.query('DELETE FROM transactions WHERE group_id = $1', [row.id]);
+                    await db.query('DELETE FROM historical_archives WHERE group_id = $1', [row.id]);
+                    await db.query('DELETE FROM group_operators WHERE group_id = $1', [row.id]);
+                    await db.query('DELETE FROM group_admins WHERE group_id = $1', [row.id]);
+                    await db.query('DELETE FROM group_settings WHERE group_id = $1', [row.id]);
+                    await db.query('DELETE FROM user_cache WHERE group_id = $1', [row.id]);
+                    await db.query('DELETE FROM node_groups WHERE group_id = $1', [row.id]).catch(() => { });
+                    await db.query('DELETE FROM groups WHERE id = $1', [row.id]);
+                    purged++;
+                } catch (purgeErr) {
+                    console.error(`[Sync] Failed to purge ghost group ${row.id}:`, purgeErr);
+                }
             }
         }
 
