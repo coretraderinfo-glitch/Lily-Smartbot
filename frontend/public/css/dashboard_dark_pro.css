@@ -1,0 +1,192 @@
+/* PROFESSIONAL DARK THEME (LILY OS V2) */
+:root {
+    --sidebar-width: 280px;
+    --header-height: 80px;
+    --bg-dark: #0f172a;
+    /* Deep Slate (Not Black, but professional dark) */
+    --card-bg: rgba(30, 41, 59, 0.7);
+    /* Glassy Slate */
+    --primary: #38bdf8;
+    /* Sky Blue */
+    --accent: #818cf8;
+    /* Indigo */
+    --success: #10b981;
+    --danger: #ef4444;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border: rgba(255, 255, 255, 0.1);
+    --shadow-soft: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+}
+
+body {
+    background: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* SIDEBAR PRO */
+.sidebar {
+    background: rgba(15, 23, 42, 0.95);
+    border-right: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+}
+
+.brand {
+    border-bottom: 1px solid var(--border);
+}
+
+.brand-text {
+    background: none;
+    -webkit-text-fill-color: initial;
+    color: white;
+    font-weight: 700;
+}
+
+.nav-link {
+    color: var(--text-muted);
+    font-weight: 500;
+    margin: 4px 12px;
+    border-radius: 8px;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    transform: none;
+}
+
+.nav-link.active {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--primary);
+    border-left: none;
+    /* Pill style instead of border */
+}
+
+/* CARDS PRO */
+.stat-card,
+.panel {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: var(--shadow-soft) !important;
+    border-radius: 16px;
+}
+
+.stat-label {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.stat-value {
+    color: white;
+    font-weight: 600;
+}
+
+/* NODE ITEM (The List) */
+.node-item {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid var(--border) !important;
+    border-left: 3px solid var(--primary) !important;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    transition: all 0.2s ease;
+}
+
+.node-item:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    border-color: rgba(56, 189, 248, 0.3) !important;
+}
+
+.node-info h4 {
+    color: white !important;
+    font-size: 15px;
+}
+
+.node-details p {
+    color: var(--text-muted) !important;
+    font-family: 'JetBrains Mono', monospace;
+    /* Tech feel for IDs */
+}
+
+/* TOGGLES (Professional Dark) */
+.toggle-card {
+    background: rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.toggle-card div:first-child {
+    color: var(--text-muted) !important;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+}
+
+/* SWITCHES */
+.switch {
+    background-color: #334155;
+}
+
+input:checked+.slider {
+    background-color: var(--primary);
+}
+
+/* BUTTONS */
+.btn-primary {
+    background: var(--primary);
+    color: #0f172a;
+    /* Dark text on bright button for contrast */
+    font-weight: 700;
+}
+
+.btn-primary:hover {
+    background: #7dd3fc;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+}
+
+.btn-del {
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    color: #fca5a5 !important;
+}
+
+.btn-del:hover {
+    border-color: var(--danger) !important;
+    color: white !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* HEADERS & TYPOLOGY */
+h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+}
+
+h2 {
+    color: white;
+    font-size: 18px;
+}
+
+#tabSubtitle,
+#panelSubtitle {
+    color: var(--text-muted);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
