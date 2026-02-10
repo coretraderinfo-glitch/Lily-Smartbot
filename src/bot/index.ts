@@ -501,6 +501,33 @@ bot.on('message', async (ctx, next) => {
         }
     }
 
+    // C. SELF-HEALING REGISTRY (Fixes Blind Spot)
+    try {
+        const currentChatId = ctx.chat.id;
+        // Upsert Group Metadata on EVERY message
+        // This ensures the Dashboard is 100% in sync with reality.
+        const chatTitle = ctx.chat.title || `Private Group ${currentChatId}`;
+
+        // Use non-blocking promise to not slow down bot response
+        db.query(`
+            INSERT INTO groups (id, title, status, last_seen)
+            VALUES ($1, $2, 'ACTIVE', NOW())
+            ON CONFLICT (id) DO UPDATE SET 
+                title = $2, 
+                status = 'ACTIVE',
+                last_seen = NOW()
+        `, [currentChatId, chatTitle]).catch((err: any) => console.error('Registry Sync Error:', err));
+
+        // Ensure Settings Exist
+        db.query(`
+            INSERT INTO group_settings (group_id) VALUES ($1)
+            ON CONFLICT (group_id) DO NOTHING
+        `, [currentChatId]).catch(() => { });
+
+    } catch (e) {
+        // Silent fail
+    }
+
     await next();
 });
 
