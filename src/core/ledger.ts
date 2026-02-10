@@ -416,7 +416,7 @@ export const Ledger = {
                 });
                 msg += `\n**${I18N.t(lang, 'bill.total')}:** ${format(balance)}`;
             } else {
-                const limit = 5; // STRICT WORLD-CLASS TRUNCATION
+                const limit = 5; // User Priority: Keep chat clean with Top 5
                 const [y, m, d] = date.split('-');
                 msg = `📅 **${d}-${m}-${y}**\n\n`;
 
@@ -427,7 +427,7 @@ export const Ledger = {
                         const suffix = t.currency === 'USDT' ? 'u' : '';
                         const val = new Decimal(t.amount_raw);
                         const formatted = val.lt(0) ? `(${format(val.abs())})` : format(val);
-                        msg += `\`${time}\`    **${formatted}${suffix}**\n`;
+                        msg += `\`${time}\` **${formatted}${suffix}** | _${t.operator_name}_\n`;
                     });
                 }
 
@@ -438,7 +438,7 @@ export const Ledger = {
                         const suffix = t.currency === 'USDT' ? 'u' : '';
                         const val = new Decimal(t.amount_raw);
                         const formatted = val.lt(0) ? `(${format(val.abs())})` : `-${format(val)}`;
-                        msg += `\`${time}\`    **${formatted}${suffix}**\n`;
+                        msg += `\`${time}\` **${formatted}${suffix}** | _${t.operator_name}_\n`;
                     });
                 }
 
@@ -446,20 +446,19 @@ export const Ledger = {
 
                 const rateIn = new Decimal(settings.rate_in || 0);
 
-                // 1. Exchange Rates Block (Simple Style)
+                // 1. Exchange Rates Block
                 const activeRates: { rate: Decimal, code: string }[] = [];
                 if (new Decimal(settings.rate_usd || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_usd), code: 'USD' });
                 if (new Decimal(settings.rate_myr || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_myr), code: 'MYR' });
                 if (new Decimal(settings.rate_php || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_php), code: 'PHP' });
                 if (new Decimal(settings.rate_thb || 0).gt(0)) activeRates.push({ rate: new Decimal(settings.rate_thb), code: 'THB' });
 
-                msg += `${I18N.t(lang, 'bill.due')}: ${format(totalInNet)}\n`;
-                msg += `${I18N.t(lang, 'bill.fee')}: ${rateIn.toString()}%\n\n`;
-
+                msg += `💰 **${I18N.t(lang, 'bill.summary')}**\n`;
+                msg += `${I18N.t(lang, 'bill.fee')}: ${rateIn.toString()}%\n`;
                 if (activeRates.length > 0) {
                     activeRates.forEach(r => msg += `${r.code}${I18N.t(lang, 'bill.fx')}: ${r.rate}\n`);
-                    msg += `\n`;
                 }
+                msg += `\n`;
 
                 // Helper to convert to ALL active currencies
                 const convAll = (v: Decimal) => {
@@ -467,9 +466,9 @@ export const Ledger = {
                     return activeRates.map(fx => ` | ${formatNumber(v.div(fx.rate), showDecimals ? 2 : 0)} ${fx.code}`).join('');
                 };
 
-                msg += `${I18N.t(lang, 'bill.due')}: ${format(totalInNet)}${convAll(totalInNet)}\n`;
-                msg += `${I18N.t(lang, 'bill.payout')}: -${format(totalOut)}${convAll(totalOut)}\n`;
-                msg += `${I18N.t(lang, 'bill.balance')}: ${format(balance)}${convAll(balance)}\n`;
+                msg += `➕ **${I18N.t(lang, 'bill.in')} (Total)**: \`${format(totalInNet)}\`${convAll(totalInNet)}\n`;
+                msg += `➖ **${I18N.t(lang, 'bill.out')} (Total)**: \`-${format(totalOut)}\`${convAll(totalOut)}\n`;
+                msg += `💳 **${I18N.t(lang, 'bill.balance')}**: \`${format(balance)}\`${convAll(balance)}\n`;
             }
             return { text: msg, showMore, url: reportUrl };
         } finally {

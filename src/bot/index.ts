@@ -118,7 +118,7 @@ worker.on('completed', async (job, returnValue) => {
             if (res.text) {
                 const options: any = { reply_to_message_id: job.data.messageId, parse_mode: 'Markdown' };
                 if (res.showMore && res.url) {
-                    const btnLabel = lang === 'CN' ? '查看详情' : lang === 'MY' ? 'Lihat Butiran' : 'View Details';
+                    const btnLabel = lang === 'CN' ? '检查明细 (MORE)' : lang === 'MY' ? 'Lihat Butiran' : 'View Details';
                     options.reply_markup = new InlineKeyboard().url(btnLabel, res.url);
                 }
                 await bot.api.sendMessage(job.data.chatId, res.text, options);

@@ -37,40 +37,27 @@ export const PDFExport = {
         doc.on('data', buffers.push.bind(buffers));
 
         // 2. Setup Font (For Chinese support)
-        // We check several paths to ensure compatibility across macOS and Linux/Cloud
-        const possibleFonts = [
+        const fontPath = [
+            path.join(__dirname, '../../assets/fonts/ArialUnicode.ttf'),
             path.join(process.cwd(), 'assets/fonts/ArialUnicode.ttf'),
-            path.join(process.cwd(), 'assets/fonts/NotoSansSC-Regular.otf'),
-            '/System/Library/Fonts/Supplemental/Songti.ttc',
-            '/System/Library/Fonts/STHeiti Light.ttc',
-            '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
-            '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc'
-        ];
-
-        let fontPath = '';
-        for (const p of possibleFonts) {
-            if (fs.existsSync(p)) {
-                fontPath = p;
-                break;
-            }
-        }
+            '/System/Library/Fonts/Supplemental/Songti.ttc'
+        ].find(p => fs.existsSync(p));
 
         if (fontPath) {
             doc.font(fontPath);
         } else {
-            console.warn('[PDF] No Chinese-compatible font found. Falling back to Helvetica (Chinese text may be missing).');
+            console.warn('[PDF] No Chinese font found. Using Helvetica.');
             doc.font('Helvetica');
         }
 
         const lang = settings.language_mode || 'CN';
 
         // 3. HEADER
-        doc.fillColor('#2c3e50').fontSize(20).text(I18N.t(lang, 'report.title'), { align: 'center' });
-        doc.fontSize(10).text(`${I18N.t(lang, 'report.generated')}: ${DateTime.now().setZone(group.timezone).toFormat('yyyy-MM-dd HH:mm:ss')}`, { align: 'center' });
-        doc.moveDown();
+        doc.fillColor('#1e293b').fontSize(22).text(I18N.t(lang, 'report.title'), { align: 'center' });
+        doc.fontSize(10).fillColor('#64748b').text(`${I18N.t(lang, 'report.generated')}: ${DateTime.now().setZone(group.timezone).toFormat('yyyy-MM-dd HH:mm:ss')}`, { align: 'center' });
+        doc.moveDown(2);
 
-        doc.fontSize(12).fillColor('#34495e');
-        doc.text(`${I18N.t(lang, 'report.group')}: ${group.title}`);
+        doc.fillColor('#334155').fontSize(14).text(`${I18N.t(lang, 'report.group')}: ${group.title}`);
         doc.text(`${I18N.t(lang, 'report.date')}: ${date}`);
         doc.moveDown();
 
@@ -78,13 +65,13 @@ export const PDFExport = {
         const table = {
             title: I18N.t(lang, 'report.details'),
             headers: [
-                { label: I18N.t(lang, 'col.time'), property: 'time', width: 65, align: 'left' },
-                { label: I18N.t(lang, 'col.type'), property: 'type', width: 50, align: 'left' },
-                { label: I18N.t(lang, 'col.raw'), property: 'amount_raw', width: 85, align: 'left' },
-                { label: I18N.t(lang, 'col.fee'), property: 'fee_rate', width: 45, align: 'left' },
-                { label: I18N.t(lang, 'col.fee_amt'), property: 'fee_amount', width: 75, align: 'left' },
-                { label: I18N.t(lang, 'col.net'), property: 'net_amount', width: 85, align: 'left' },
-                { label: I18N.t(lang, 'col.operator'), property: 'operator', width: 125, align: 'left' }
+                { label: I18N.t(lang, 'col.time'), property: 'time', width: 60 },
+                { label: I18N.t(lang, 'col.type'), property: 'type', width: 50 },
+                { label: I18N.t(lang, 'col.raw'), property: 'amount_raw', width: 80 },
+                { label: I18N.t(lang, 'col.fee'), property: 'fee_rate', width: 45 },
+                { label: I18N.t(lang, 'col.fee_amt'), property: 'fee_amount', width: 75 },
+                { label: I18N.t(lang, 'col.net'), property: 'net_amount', width: 85 },
+                { label: I18N.t(lang, 'col.operator'), property: 'operator', width: 110 }
             ],
             rows: txRes.rows.map((t: any) => [
                 new Date(t.recorded_at).toLocaleTimeString('en-GB', { hour12: false, timeZone: group.timezone }),
@@ -97,75 +84,54 @@ export const PDFExport = {
             ]),
         };
 
-        // Create the table with proper spacing
         await doc.table(table, {
-            prepareHeader: () => doc.font(fontPath || 'Helvetica').fontSize(10).fillColor('#2c3e50'),
-            prepareRow: (row: any, index: any, column: any, rect: any, fontWeight: any) => doc.font(fontPath || 'Helvetica').fontSize(9).fillColor('#2c3e50'),
-            padding: 5, // Add padding between cells
-            columnsSize: [65, 50, 85, 45, 75, 85, 125], // Explicit column sizes with better spacing
+            prepareHeader: () => doc.fontSize(10).fillColor('#1e293b'),
+            prepareRow: () => doc.fontSize(9).fillColor('#334155'),
+            padding: 5,
         });
-
-        doc.moveDown();
 
         // 5. SUMMARY
-        let totalInRaw = new Decimal(0);
-        let totalInNet = new Decimal(0);
-        let totalOut = new Decimal(0);
-        let totalReturn = new Decimal(0);
-
-        txRes.rows.forEach((t: any) => {
-            const amount = new Decimal(t.amount_raw);
-            if (t.type === 'DEPOSIT') {
-                totalInRaw = totalInRaw.add(amount);
-                totalInNet = totalInNet.add(new Decimal(t.net_amount));
-            } else if (t.type === 'PAYOUT') {
-                totalOut = totalOut.add(amount);
-            } else if (t.type === 'RETURN') {
-                totalReturn = totalReturn.add(amount);
-            }
-        });
-
-        const balance = totalInNet.sub(totalOut).add(totalReturn);
-
         doc.addPage();
-        doc.fillColor('#2c3e50').fontSize(16).text(I18N.t(lang, 'report.summary'), { underline: true });
-        doc.moveDown(0.5);
+        doc.fillColor('#1e293b').fontSize(18).text(I18N.t(lang, 'report.summary'), { underline: true });
+        doc.moveDown();
 
-        doc.fontSize(12);
-        doc.text(`${I18N.t(lang, 'fin.total_in')}: ${formatNumber(totalInRaw, 2)}`);
-        doc.text(`${I18N.t(lang, 'fin.avg_rate')}: ${formatNumber(new Decimal(settings.rate_in || 0), 2)} %`);
-        doc.text(`${I18N.t(lang, 'fin.net_in')}: ${formatNumber(totalInNet, 2)}`);
-        doc.fillColor('#e74c3c').text(`${I18N.t(lang, 'fin.total_out')}: -${formatNumber(totalOut, 2)}`);
-        doc.fillColor('#2c3e50').text(`${I18N.t(lang, 'fin.total_ret')}: ${formatNumber(totalReturn, 2)}`);
-        doc.fontSize(14).fillColor('#27ae60').text(`${I18N.t(lang, 'fin.balance')}: ${formatNumber(balance, 2)}`, { stroke: true });
+        const calculateSummary = () => {
+            let tinRaw = new Decimal(0), tinNet = new Decimal(0), tout = new Decimal(0), tret = new Decimal(0);
+            txRes.rows.forEach((t: any) => {
+                const amt = new Decimal(t.amount_raw);
+                if (t.type === 'DEPOSIT') { tinRaw = tinRaw.add(amt); tinNet = tinNet.add(new Decimal(t.net_amount)); }
+                else if (t.type === 'PAYOUT') tout = tout.add(amt);
+                else if (t.type === 'RETURN') tret = tret.add(amt);
+            });
+            return { tinRaw, tinNet, tout, tret, bal: tinNet.sub(tout).add(tret) };
+        };
 
-        // Forex info (Only show active rates)
-        const fxRates = [
-            { key: 'usd', label: '美元汇率 (USD Rate)', suffix: 'USD' },
-            { key: 'myr', label: '马币汇率 (MYR Rate)', suffix: 'MYR' },
-            { key: 'php', label: '比索汇率 (PHP Rate)', suffix: 'PHP' },
-            { key: 'thb', label: '泰铢汇率 (THB Rate)', suffix: 'THB' }
-        ];
+        const s = calculateSummary();
+        doc.fontSize(12).fillColor('#475569');
+        doc.text(`${I18N.t(lang, 'fin.total_in')}: ${formatNumber(s.tinRaw, 2)}`);
+        doc.text(`${I18N.t(lang, 'fin.avg_rate')}: ${formatNumber(new Decimal(settings.rate_in || 0), 2)}%`);
+        doc.text(`${I18N.t(lang, 'fin.net_in')}: ${formatNumber(s.tinNet, 2)}`);
+        doc.fillColor('#b91c1c').text(`${I18N.t(lang, 'fin.total_out')}: -${formatNumber(s.tout, 2)}`);
+        doc.fillColor('#475569').text(`${I18N.t(lang, 'fin.total_ret')}: ${formatNumber(s.tret, 2)}`);
+        doc.moveDown();
+        doc.fontSize(16).fillColor('#059669').text(`${I18N.t(lang, 'fin.balance')}: ${formatNumber(s.bal, 2)}`, { stroke: true });
 
-        fxRates.forEach(fx => {
-            const rate = new Decimal(settings[`rate_${fx.key}`] || 0);
+        // Forex
+        ['usd', 'myr', 'php', 'thb'].forEach(k => {
+            const rate = new Decimal(settings[`rate_${k}`] || 0);
             if (rate.gt(0)) {
                 doc.moveDown(0.5);
-                doc.fontSize(12).fillColor('#2c3e50').text(`${fx.label}: ${formatNumber(rate, 2)}`);
-                const equiv = formatNumber(balance.div(rate), 2);
-                doc.text(`${I18N.t(lang, 'fin.equiv')} (${fx.suffix} Equivalent): ${equiv} ${fx.suffix}`);
+                doc.fontSize(11).fillColor('#475569').text(`${k.toUpperCase()} Equiv: ${formatNumber(s.bal.div(rate), 2)} ${k.toUpperCase()}`);
             }
         });
 
         // Footer
-        doc.fontSize(8).fillColor('#bdc3c7').text(I18N.t(lang, 'report.footer'), doc.page.width - 150, doc.page.height - 30);
-
+        doc.fontSize(8).fillColor('#94a3b8').text(I18N.t(lang, 'report.footer'), 30, doc.page.height - 40);
         doc.end();
 
-        return new Promise((resolve) => {
-            doc.on('end', () => {
-                resolve(Buffer.concat(buffers));
-            });
+        return new Promise((resolve, reject) => {
+            doc.on('end', () => resolve(Buffer.concat(buffers)));
+            doc.on('error', reject);
         });
     }
 };
