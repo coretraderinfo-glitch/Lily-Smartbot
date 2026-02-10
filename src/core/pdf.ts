@@ -17,10 +17,10 @@ export const PDFExport = {
     /**
      * Generate PDF for today's transactions
      */
-    async generateDailyPDF(chatId: number): Promise<Buffer> {
+    async generateDailyPDF(chatId: number, targetDate?: string): Promise<Buffer> {
         const groupRes = await db.query('SELECT title, timezone, reset_hour FROM groups WHERE id = $1', [chatId]);
         const group = groupRes.rows[0] || { title: 'Group', timezone: 'Asia/Shanghai', reset_hour: 4 };
-        const date = getBusinessDate(group.timezone, group.reset_hour);
+        const date = targetDate || getBusinessDate(group.timezone, group.reset_hour);
 
         const txRes = await db.query(`
             SELECT * FROM transactions 

@@ -416,7 +416,7 @@ app.get('/pdf/:token', async (req, res) => {
         const [chatIdStr, date, hash] = decoded.split(':');
         const chatId = parseInt(chatIdStr);
         if (!Security.verifyReportToken(chatId, date, hash)) return res.status(403).send('Link Expired');
-        const pdf = await PDFExport.generateDailyPDF(chatId);
+        const pdf = await PDFExport.generateDailyPDF(chatId, date);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=Lily_Report_${date}.pdf`);
         res.send(pdf);
