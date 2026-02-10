@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Critical: Load .env first
 import express from 'express';
 import { db } from '../src/db';
 import { Security } from '../src/utils/security';
@@ -153,8 +154,9 @@ app.get('/api/fleet', masterAuth, async (req, res) => {
 
         res.json([masterNode]);
     } catch (e) {
-        console.error('Fleet Sync Error:', e);
-        res.status(500).json([]);
+        console.error('Fleet Sync Error (DB Connection?):', e);
+        // CRITICAL FIX: Return empty list instead of confusing Mock Data
+        res.json([]);
     }
 });
 

@@ -1,0 +1,177 @@
+/* PROFESSIONAL DASHBOARD THEME (FINTECH/ENTERPRISE) */
+:root {
+    --sidebar-width: 260px;
+    --header-height: 70px;
+    --bg-dark: #f8fafc;
+    /* Professional Light Theme for Admin */
+    --text-main: #0f172a;
+    --card-bg: #ffffff;
+    --primary: #0ea5e9;
+    /* Sky Blue */
+    --accent: #6366f1;
+    /* Indigo */
+    --success: #10b981;
+    --danger: #ef4444;
+    --border-light: #e2e8f0;
+    --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+body {
+    background: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Inter', system-ui, sans-serif;
+    /* Clean, Corporate Font */
+}
+
+/* SIDEBAR override */
+.sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--border-light);
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.02);
+}
+
+.brand {
+    border-bottom: 1px solid var(--border-light);
+}
+
+.brand-text {
+    background: none;
+    -webkit-text-fill-color: initial;
+    color: var(--text-main);
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.nav-link {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.nav-link:hover {
+    background: #f1f5f9;
+    color: var(--primary);
+    transform: none;
+}
+
+.nav-link.active {
+    background: #eff6ff;
+    /* Light Blue BG */
+    color: var(--primary);
+    border-left: 4px solid var(--primary);
+}
+
+/* CARDS override */
+.stat-card,
+.panel,
+.node-item {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-light) !important;
+    box-shadow: var(--shadow-soft) !important;
+    color: var(--text-main);
+}
+
+.stat-label {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.stat-value {
+    color: #0f172a;
+}
+
+/* NODE ITEM SPECIFIC */
+.node-item {
+    border-left: 4px solid var(--primary) !important;
+    border-radius: 12px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.node-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.node-info h4 {
+    color: #0f172a !important;
+    font-weight: 700;
+}
+
+.node-details p {
+    color: #64748b !important;
+}
+
+/* TOGGLES */
+.toggle-card {
+    background: #f8fafc !important;
+    border: 1px solid var(--border-light) !important;
+}
+
+.toggle-card div:first-child {
+    color: #64748b !important;
+    /* Label Color */
+}
+
+/* SWITCHES (Professional Update) */
+.switch {
+    background-color: #cbd5e1;
+    /* Slate 300 */
+}
+
+input:checked+.slider {
+    background-color: var(--primary);
+}
+
+.slider:before {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* BUTTONS */
+.btn-primary {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.3);
+}
+
+.btn-primary:hover {
+    background: #0284c7;
+    /* Darker Blue */
+    box-shadow: 0 10px 15px -3px rgba(14, 165, 233, 0.4);
+}
+
+.btn-del {
+    border-color: #fecaca !important;
+    color: #dc2626 !important;
+    background: #fef2f2 !important;
+}
+
+.btn-del:hover {
+    background: #fee2e2 !important;
+}
+
+/* HEADERS */
+h1,
+h2,
+h3 {
+    color: #0f172a;
+    background: none;
+    -webkit-text-fill-color: initial;
+}
+
+#tabSubtitle,
+#panelSubtitle {
+    color: #64748b;
+}
+
+/* LOADER */
+.master-loader {
+    background: #ffffff;
+}
+
+.loader-spinner {
+    border-color: #e2e8f0;
+    border-top-color: var(--primary);
+}
+
+.master-loader p {
+    color: #475569 !important;
+}
