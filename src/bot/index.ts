@@ -185,9 +185,16 @@ bot.command('admin', async (ctx) => {
         return ctx.reply("⚠️ **Security Notice**: This command can ONLY be used in private DM to protect your business secrets.", { reply_to_message_id: ctx.message?.message_id });
     }
 
-    const groups = await db.query('SELECT id, title FROM groups ORDER BY title ASC');
+    // Filter: Only show groups active in the last 15 days to keep list clean
+    const groups = await db.query(`
+        SELECT id, title, last_seen 
+        FROM groups 
+        WHERE last_seen > NOW() - INTERVAL '15 days'
+        ORDER BY last_seen DESC
+    `);
+
     if (groups.rows.length === 0) {
-        return ctx.reply("ℹ️ No groups registered yet.");
+        return ctx.reply("ℹ️ No active groups found in the last 15 days. (All dead/inactive groups are hidden).");
     }
 
     let msg = `👑 **Lily Master Control Center**\n\nGreetings, **SIR**. Your AI disciple, Lily, is standing by. All systems have been optimized for your command. Select a group to manage:\n\n`;
@@ -195,7 +202,11 @@ bot.command('admin', async (ctx) => {
 
     groups.rows.forEach((g: any, i: number) => {
         const title = g.title || `Group ${g.id}`;
-        keyboard.text(`${i + 1}. ${title}`, `manage_group:${g.id}`).row();
+        const idSnippet = String(g.id).slice(-4);
+        const lastRaw = g.last_seen ? new Date(g.last_seen) : null;
+        const lastText = lastRaw ? `${lastRaw.getMonth() + 1}-${lastRaw.getDate()}` : '??';
+
+        keyboard.text(`${i + 1}. ${title} [..${idSnippet}] (${lastText})`, `manage_group:${g.id}`).row();
     });
 
     await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: keyboard });
@@ -240,6 +251,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
         .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`).row()
         .text(s.welcome_enabled !== false ? `${labels.disable} Greeting` : `${labels.enable} Greeting`, `toggle:welcome:${id}`).row()
         .text(labels.cycle, `cycle_lang:${id}`).row()
+        .text("🗑️ PURGE RECORD (DELETE)", `purge_group:${id}`).row()
         .text(labels.back, "admin_list");
 
     try {
@@ -359,9 +371,40 @@ bot.on('callback_query:data', async (ctx) => {
     }
 
     if (data === "admin_list" && Security.isSystemOwner(userId)) {
-        const groups = await db.query('SELECT id, title FROM groups ORDER BY title ASC');
+        const groups = await db.query(`
+            SELECT id, title, last_seen FROM groups 
+            WHERE last_seen > NOW() - INTERVAL '15 days'
+            ORDER BY last_seen DESC
+        `);
         const keyboard = new InlineKeyboard();
-        groups.rows.forEach((g: any, i: any) => keyboard.text(`${i + 1}. ${g.title || g.id}`, `manage_group:${g.id}`).row());
+        groups.rows.forEach((g: any, i: any) => {
+            const title = g.title || g.id;
+            const idSnippet = String(g.id).slice(-4);
+            keyboard.text(`${i + 1}. ${title} [..${idSnippet}]`, `manage_group:${g.id}`).row();
+        });
+        return ctx.editMessageText(`👑 **Lily Master Control Center**\nSelect an active group:`, { reply_markup: keyboard });
+    }
+
+    if (data.startsWith('purge_group:') && Security.isSystemOwner(userId)) {
+        const id = data.split(':')[1];
+        await db.query('DELETE FROM groups WHERE id = $1', [id]);
+        await db.query('DELETE FROM group_settings WHERE group_id = $1', [id]);
+        await db.query('DELETE FROM node_groups WHERE group_id = $1', [id]);
+
+        ctx.answerCallbackQuery({ text: "🗑️ Group Identity Purged Forever.", show_alert: true });
+
+        // Return to list
+        const groups = await db.query(`
+            SELECT id, title, last_seen FROM groups 
+            WHERE last_seen > NOW() - INTERVAL '15 days'
+            ORDER BY last_seen DESC
+        `);
+        const keyboard = new InlineKeyboard();
+        groups.rows.forEach((g: any, i: any) => {
+            const tid = g.title || g.id;
+            const idSnippet = String(g.id).slice(-4);
+            keyboard.text(`${i + 1}. ${tid} [..${idSnippet}]`, `manage_group:${g.id}`).row();
+        });
         return ctx.editMessageText(`👑 **Lily Master Control Center**\nSelect a group:`, { reply_markup: keyboard });
     }
 
