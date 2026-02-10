@@ -387,9 +387,12 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (data.startsWith('purge_group:') && Security.isSystemOwner(userId)) {
         const id = data.split(':')[1];
-        await db.query('DELETE FROM groups WHERE id = $1', [id]);
-        await db.query('DELETE FROM group_settings WHERE group_id = $1', [id]);
+        // Order: Children first to avoid FK errors
         await db.query('DELETE FROM node_groups WHERE group_id = $1', [id]);
+        await db.query('DELETE FROM group_settings WHERE group_id = $1', [id]);
+        await db.query('DELETE FROM group_admins WHERE group_id = $1', [id]);
+        await db.query('DELETE FROM user_cache WHERE group_id = $1', [id]);
+        await db.query('DELETE FROM groups WHERE id = $1', [id]);
 
         ctx.answerCallbackQuery({ text: "🗑️ Group Identity Purged Forever.", show_alert: true });
 
@@ -806,10 +809,12 @@ bot.on('my_chat_member', async (ctx) => {
     console.log(`[Presence Update] Group ${chatId} (${title}) -> Status: ${status}`);
 
     if (status === 'kicked' || status === 'left') {
-        // Bot Removed: Auto-Cleanup
-        await db.query('DELETE FROM groups WHERE id = $1', [chatId]);
-        await db.query('DELETE FROM group_settings WHERE group_id = $1', [chatId]);
+        // Bot Removed: Auto-Cleanup (Order: Children first, then Parent)
         await db.query('DELETE FROM node_groups WHERE group_id = $1', [chatId]);
+        await db.query('DELETE FROM group_settings WHERE group_id = $1', [chatId]);
+        await db.query('DELETE FROM group_admins WHERE group_id = $1', [chatId]);
+        await db.query('DELETE FROM user_cache WHERE group_id = $1', [chatId]);
+        await db.query('DELETE FROM groups WHERE id = $1', [chatId]);
         console.log(`🗑️ Group ${chatId} removed from active registry and node link purged.`);
     }
     else if (status === 'member' || status === 'administrator') {
