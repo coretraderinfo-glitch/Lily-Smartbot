@@ -69,8 +69,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
         // 🚨 FEATURE FLAG: Calc (Ledger)
         if (!calcEnabled && !isNameTrigger) {
-            // Check if it looks like a financial command to provide helpful feedback?
-            // For now, silent ignore to act "disabled"
+            // Unpurchased/Disabled mode: Lily ignores ledger commands
             return null;
         }
 
@@ -222,16 +221,16 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         if (aiEnabled && isNameTrigger) {
             // FIRE EVERYTHING IN PARALLEL (WORLD-CLASS SPEED)
             const [ledgerSummary, marketContext] = await Promise.all([
-                Ledger.getDailySummary(chatId),
+                calcEnabled ? Ledger.getDailySummary(chatId) : Promise.resolve(null),
                 MarketData.scanAndFetch(text)
             ]);
 
-            const ledgerContext = `
+            const ledgerContext = ledgerSummary ? `
 Current Group Sales (Internal Ledger):
 - Total In: ${ledgerSummary.totalIn}
 - Total Out: ${ledgerSummary.totalOut}
 - Balance: ${ledgerSummary.balance}
-            `.trim();
+            `.trim() : "Internal Ledger: Access Restricted (Not Purchased).";
 
             const replyContext = job.data.replyToMessage?.text || job.data.replyToMessage?.caption || "";
             return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext, marketContext, replyContext);

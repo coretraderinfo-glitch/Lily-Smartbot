@@ -287,6 +287,11 @@ bot.on('callback_query:data', async (ctx) => {
     }
 
     if (data === "menu_calc") {
+        const settings = await db.query('SELECT calc_enabled FROM group_settings WHERE group_id = $1', [chatId]);
+        if (settings.rows[0]?.calc_enabled === false) {
+            return ctx.answerCallbackQuery({ text: "⚠️ 财务功能未启用 (Feature Restricted: Calc Not Purchased)", show_alert: true });
+        }
+
         return ctx.editMessageText(
             `📊 **LILY COMPLETE COMMAND LIST**\n\n` +
             `🚀 **FLOW CONTROL (流程控制)**\n` +
@@ -327,6 +332,11 @@ bot.on('callback_query:data', async (ctx) => {
     }
 
     if (data === "menu_guardian") {
+        const settings = await db.query('SELECT guardian_enabled FROM group_settings WHERE group_id = $1', [chatId]);
+        if (settings.rows[0]?.guardian_enabled === false) {
+            return ctx.answerCallbackQuery({ text: "⚠️ 安全功能未启用 (Feature Restricted: Guardian Not Purchased)", show_alert: true });
+        }
+
         return ctx.editMessageText(
             `🛡️ **LILY GUARDIAN - SECURITY SHIELD**\n\n` +
             `Lily 现已进化，拥有顶尖的群组安全防护能力：\n` +
@@ -486,44 +496,103 @@ bot.on('callback_query:data', async (ctx) => {
         const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
         const s = settings.rows[0] || {};
 
+        // Universal Announcement Logic
+        let announcementKey = '';
+        let isEnabled = false;
+
         if (type === 'guardian' && s.guardian_enabled) {
+            announcementKey = 'guardian';
+            isEnabled = true;
+        } else if (type === 'calc' && s.calc_enabled) {
+            announcementKey = 'calc';
+            isEnabled = true;
+        } else if (type === 'ai' && s.ai_brain_enabled) {
+            announcementKey = 'ai';
+            isEnabled = true;
+        }
+
+        if (isEnabled && announcementKey) {
             const lang = s.language_mode || 'CN';
-            const announcements = {
-                CN: `🛡️ **Lily Guardian Shield: ACTIVATED**\n\n` +
-                    `Lily 已正式接管本群安全。为了保障所有成员的资产与账户安全，Lily 现已开启以下功能：\n\n` +
-                    `✅ **恶意软件猎手 (Malware Predator)**: 自动删除危险文件 (.apk, .zip, .exe)。\n` +
-                    `✅ **链接盾牌 (Link Shield)**: 拦截非授权链接与钓鱼诈骗。\n\n` +
-                    `💡 **提示**: 请确保 Lily 拥有“删除消息 (Delete Messages)”权限。`,
-                EN: `🛡️ **Lily Guardian Shield: ACTIVATED**\n\n` +
-                    `Lily has officially taken over group security. To protect all members, the following are now active:\n\n` +
-                    `✅ **Malware Predator**: Automatically deletes dangerous files (.apk, .zip, .exe).\n` +
-                    `✅ **Link Shield**: Intercepts unauthorized links and phishing scams.\n\n` +
-                    `💡 **Note**: Please ensure Lily has "Delete Messages" permission.`,
-                MY: `🛡️ **Lily Guardian Shield: DIAKTIFKAN**\n\n` +
-                    `Lily telah mengambil alih keselamatan kumpulan secara rasmi. Untuk melindungi semua ahli, fungsi berikut kini aktif:\n\n` +
-                    `✅ **Malware Predator**: Memadam fail berbahaya secara automatik (.apk, .zip, .exe).\n` +
-                    `✅ **Link Shield**: Menyekat pautan tanpa kebenaran dan penipuan phishing.\n\n` +
-                    `💡 **Nota**: Sila pastikan Lily mempunyai kebenaran "Delete Messages".`
+            const messages: any = {
+                guardian: {
+                    CN: `🛡️ **Lily Guardian Shield: ACTIVATED**\n\n` +
+                        `Lily 已正式接管本群安全。为了保障所有成员的资产与账户安全，Lily 现已开启以下功能：\n\n` +
+                        `✅ **恶意软件猎手 (Malware Predator)**: 自动删除危险文件 (.apk, .zip, .exe)。\n` +
+                        `✅ **链接盾牌 (Link Shield)**: 拦截非授权链接与钓鱼诈骗。\n\n` +
+                        `💡 **提示**: 请确保 Lily 拥有“删除消息 (Delete Messages)”权限。`,
+                    EN: `🛡️ **Lily Guardian Shield: ACTIVATED**\n\n` +
+                        `Lily has officially taken over group security. To protect all members, the following are now active:\n\n` +
+                        `✅ **Malware Predator**: Automatically deletes dangerous files (.apk, .zip, .exe).\n` +
+                        `✅ **Link Shield**: Intercepts unauthorized links and phishing scams.\n\n` +
+                        `💡 **Note**: Please ensure Lily has "Delete Messages" permission.`,
+                    MY: `🛡️ **Lily Guardian Shield: DIAKTIFKAN**\n\n` +
+                        `Lily telah mengambil alih keselamatan kumpulan secara rasmi. Untuk melindungi semua ahli, fungsi berikut kini aktif:\n\n` +
+                        `✅ **Malware Predator**: Memadam fail berbahaya secara automatik (.apk, .zip, .exe).\n` +
+                        `✅ **Link Shield**: Menyekat pautan tanpa kebenaran dan penipuan phishing.\n\n` +
+                        `💡 **Nota**: Sila pastikan Lily mempunyai kebenaran "Delete Messages".`
+                },
+                calc: {
+                    CN: `📊 **智能账本 (Smart Ledger): 已激活**\n\n` +
+                        `高级财务追踪系统已上线。Lily 现已准备好为您服务：\n\n` +
+                        `💰 **精准记账**: 支持 +100, -50 等快速指令。\n` +
+                        `📑 **专业报表**: 每日自动生成 PDF 对账单。\n` +
+                        `📈 **实时汇率**: 支持多币种与自定义汇率管理。\n\n` +
+                        `💡 **Status**: \`SYSTEM ONLINE 🟢\``,
+                    EN: `📊 **Smart Ledger: ACTIVATED**\n\n` +
+                        `Advanced financial tracking systems are now online. Lily is ready to serve:\n\n` +
+                        `💰 **Precise Accounting**: Supports rapid commands like +100, -50.\n` +
+                        `📑 **Pro Reports**: Automatic daily PDF statements.\n` +
+                        `📈 **Real-Time FX**: Multi-currency and custom rate management.\n\n` +
+                        `💡 **Status**: \`SYSTEM ONLINE 🟢\``,
+                    MY: `📊 **Lejar Pintar: DIAKTIFKAN**\n\n` +
+                        `Sistem kewangan canggih kini dalam talian. Lily bersedia untuk berkhidmat:\n\n` +
+                        `💰 **Kira Tepat**: Support command pantas macam +100, -50.\n` +
+                        `📑 **Laporan Pro**: Penyata PDF harian automatik.\n` +
+                        `📈 **FX Semasa**: Pengurusan pelbagai mata wang & kadar.\n\n` +
+                        `💡 **Status**: \`SYSTEM ONLINE 🟢\``
+                },
+                ai: {
+                    CN: `🧠 **LILY AI (Neural Cloud): 已连接**\n\n` +
+                        `神经网络已成功接入本群。Lily 现在拥有了思考与分析的能力。\n\n` +
+                        `👁️ **视觉引擎**: 我可以看懂图片、截图与单据。\n` +
+                        `🤖 **智能助理**: 随时 @Lily 提问，我会24小时为您解答。\n` +
+                        `📊 **数据分析**: 我可以理解账本数据并回答财务问题。\n\n` +
+                        `💡 **Connection**: \`STABLE 🟢\``,
+                    EN: `🧠 **LILY AI (Neural Cloud): CONNECTED**\n\n` +
+                        `Neural networks successfuly linked. Lily is now sentient.\n\n` +
+                        `👁️ **Vision Engine**: I can understand images, screenshots, and receipts.\n` +
+                        `🤖 **Smart Assistant**: @Lily anytime. I am awake 24/7.\n` +
+                        `📊 **Data Analysis**: I can analyze ledger data and answer financial queries.\n\n` +
+                        `💡 **Connection**: \`STABLE 🟢\``,
+                    MY: `🧠 **LILY AI (Neural Cloud): DISAMBUNG**\n\n` +
+                        `Rangkaian neural berjaya dipautkan. Lily kini pintar.\n\n` +
+                        `👁️ **Enjin Visual**: Saya boleh faham gambar, screenshot, dan resit.\n` +
+                        `🤖 **Pembantu Pintar**: @Lily bila-bila masa. Saya sedia 24/7.\n` +
+                        `📊 **Analisis Data**: Saya boleh baca lejar dan jawab soalan kewangan.\n\n` +
+                        `💡 **Connection**: \`STABLE 🟢\``
+                }
             };
 
-            const announcement = announcements[lang as 'CN' | 'EN' | 'MY'] || announcements.CN;
-            ctx.api.sendMessage(id, announcement, { parse_mode: 'Markdown' }).catch(async (err) => {
-                const newId = err.parameters?.migrate_to_chat_id;
-                if (newId) {
-                    console.log(`[Supergroup] Detected Migration: ${id} -> ${newId}`);
-                    try {
-                        // @ts-ignore
-                        await db.migrateGroup(id, newId);
+            const announcement = messages[announcementKey]?.[lang] || messages[announcementKey]?.CN;
 
-                        // Retry with new ID
-                        await ctx.api.sendMessage(newId, announcement, { parse_mode: 'Markdown' });
-                        return; // Success
-                    } catch (migErr) {
-                        console.error('Migration retry failed:', migErr);
+            if (announcement) {
+                ctx.api.sendMessage(id, announcement, { parse_mode: 'Markdown' }).catch(async (err) => {
+                    const newId = err.parameters?.migrate_to_chat_id;
+                    if (newId) {
+                        console.log(`[Supergroup] Detected Migration: ${id} -> ${newId}`);
+                        try {
+                            // @ts-ignore
+                            await db.migrateGroup(id, newId);
+                            // Retry with new ID
+                            await ctx.api.sendMessage(newId, announcement, { parse_mode: 'Markdown' });
+                            return; // Success
+                        } catch (migErr) {
+                            console.error('Migration retry failed:', migErr);
+                        }
                     }
-                }
-                console.error(`Failed to send activation announcement to group ${id}:`, err);
-            });
+                    console.error(`Failed to send activation announcement to group ${id}:`, err);
+                });
+            }
         }
 
         return await renderManagementConsole(ctx, id);
