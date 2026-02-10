@@ -50,7 +50,6 @@
         <header>
             <div class="header-meta">
                 <h1 id="tabTitle">Overview</h1>
-                <h1 id="tabTitle">Overview</h1>
                 <p id="tabSubtitle">Real-time Group Intelligence and Master Control.</p>
             </div>
             <div class="header-actions" style="display: flex; gap: 12px;">
@@ -63,7 +62,7 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <span class="stat-label">Total Volume (Global)</span>
-                <span class="stat-value">RM 14.8M</span>
+                <span class="stat-value">CNY 14.8M</span>
                 <div class="stat-trend trend-up"><i>↑</i> 12.4% vs last mo</div>
                 <div class="chart-mock"></div>
             </div>
@@ -91,8 +90,9 @@
             <!-- FLEET PANEL -->
             <section class="panel">
                 <div class="panel-header">
-                    <h2>Fleet Management</h2>
-                    <span style="font-size: 13px; color: var(--text-muted);">Syncing 12 Global Nodes</span>
+                    <h2 id="panelTitle">Active Groups</h2>
+                    <span id="panelSubtitle" style="font-size: 13px; color: var(--text-muted);">Syncing Global
+                        Data...</span>
                 </div>
 
                 <div class="node-list" id="nodeList">
@@ -236,7 +236,7 @@
         </div>
     </div>
 
-    <script src="js/dashboard.js?v=2.2"></script>
+    <script src="js/dashboard.js?v=2.3"></script>
 </body>
 
 </html>

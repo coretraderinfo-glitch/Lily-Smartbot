@@ -34,6 +34,9 @@ async function init() {
     ]);
 
     setupSwitchListeners();
+    // Force Initial Render
+    switchTab(state.activeTab);
+
     // Auto-refresh every 60s
     setInterval(() => {
         fetchStats();
@@ -100,7 +103,11 @@ async function fetchNodes() {
             groups: node.groups || [] // Now includes full group objects {id, title}
         }));
 
-        renderNodes();
+        if (state.activeTab === 'overview') {
+            renderGlobalGroups();
+        } else if (state.activeTab === 'fleet') {
+            renderNodes();
+        }
     } catch (e) {
         console.error('Fleet Discovery Failed');
     }
@@ -223,11 +230,18 @@ function switchTab(tabId) {
 
     // Content Rendering Router
     const container = document.getElementById('nodeList');
+    const panelTitle = document.getElementById('panelTitle');
+    const panelSubtitle = document.getElementById('panelSubtitle');
+
     if (tabId === 'overview') {
         container.style.display = 'grid'; // Ensure grid layout
-        renderGlobalGroups();
+        if (panelTitle) panelTitle.textContent = 'Active Groups (Intelligence)';
+        if (panelSubtitle) panelSubtitle.textContent = 'Real-time telemetry from all connected nodes.';
+        renderGlobalGroups(); // Overview now shows the FULL picture
     } else if (tabId === 'fleet') {
-        renderNodes();
+        if (panelTitle) panelTitle.textContent = 'Fleet Management';
+        if (panelSubtitle) panelSubtitle.textContent = 'Manage individual client servers and global distribution.';
+        renderNodes(); // Fleet Control shows Server Nodes
     } else {
         // Fallback or Placeholder for AI/Settings
         container.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-dim);">Module '${header.t}' is active but has no visual components yet.</div>`;
