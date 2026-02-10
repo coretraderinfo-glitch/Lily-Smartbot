@@ -170,7 +170,67 @@
         </div>
     </main>
 
-    <script src="js/dashboard.js?v=2.0"></script>
+    <!-- NODE MANAGEMENT MODAL -->
+    <div id="nodeModal" class="master-loader"
+        style="display: none; background: rgba(8, 10, 18, 0.95); backdrop-filter: blur(20px);">
+        <div class="panel" style="width: 500px; border-color: var(--primary);">
+            <div class="panel-header">
+                <h2 id="modalNodeName">Manage Node</h2>
+                <button class="btn btn-outline" onclick="closeNodeModal()">✕</button>
+            </div>
+
+            <div class="control-matrix">
+                <div class="control-item">
+                    <div class="control-label">
+                        <div class="control-title">Hardware Group Limit</div>
+                        <input type="number" id="modalGroupLimit" value="5" class="dark-input"
+                            style="width: 80px; text-align: center;">
+                    </div>
+                </div>
+
+                <div class="control-item">
+                    <div class="control-label">
+                        <div class="control-title">AI Brain Activation</div>
+                        <label class="switch-container">
+                            <input type="checkbox" id="feat_ai_brain">
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                    <p class="control-subtitle">Enable specialized financial AI logic for this client.</p>
+                </div>
+
+                <div class="control-item">
+                    <div class="control-label">
+                        <div class="control-title">Guardian Protocol</div>
+                        <label class="switch-container">
+                            <input type="checkbox" id="feat_guardian">
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                    <p class="control-subtitle">Security policing and automated user banning.</p>
+                </div>
+
+                <div class="control-item">
+                    <div class="control-label">
+                        <div class="control-title">Advanced Report Precision</div>
+                        <label class="switch-container">
+                            <input type="checkbox" id="feat_reports">
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                    <p class="control-subtitle">Unlock 2-decimal high-precision financial reports.</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 32px; display: flex; gap: 12px;">
+                <button class="btn btn-outline" style="flex: 1;" id="btnGoToNode">🌐 Open Control Panel</button>
+                <button class="btn btn-primary" style="flex: 1.5;" onclick="saveNodeEntitlements()">💾 Save
+                    Entitlements</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/dashboard.js?v=2.1"></script>
 </body>
 
 </html>

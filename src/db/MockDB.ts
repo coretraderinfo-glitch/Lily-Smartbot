@@ -7,7 +7,8 @@ const mockData: {
     settings: { [key: number]: any },
     operators: any[],
     transactions: any[],
-    fleet_nodes: any[]
+    fleet_nodes: any[],
+    node_groups: any[]
 } = {
     groups: [
         { id: 1001, title: 'Local Node: Primary', created_at: new Date(), timezone: 'Asia/Kuala_Lumpur' }
@@ -28,8 +29,11 @@ const mockData: {
     ],
     transactions: [],
     fleet_nodes: [
-        { id: 1, client_name: 'Master Cluster', server_endpoint: 'https://lily-smartbot-production.up.railway.app', status: 'ONLINE', group_limit: 999, unlocked_features: ['ALL'] },
+        { id: 1, client_name: 'Master Cluster', server_endpoint: 'https://lily-smartbot-production.up.railway.app', status: 'ONLINE', group_limit: 999, unlocked_features: ['ALL', 'AI_BRAIN', 'GUARDIAN', 'REPORT_DECIMALS'] },
         { id: 2, client_name: 'Tiger Group (Sub-01)', server_endpoint: 'http://localhost:3000', status: 'ONLINE', group_limit: 5, unlocked_features: ['LEDGER', 'EXCEL'] }
+    ],
+    node_groups: [
+        { node_id: 1, group_id: 1001 }
     ]
 };
 
@@ -40,7 +44,16 @@ export class MockDB {
 
         // 1. SELECT Query Routing
         if (query.startsWith('SELECT')) {
-            if (query.includes('COUNT(*)')) {
+            if (query.includes('FROM FLEET_NODES N') && query.includes('JOIN NODE_GROUPS NG')) {
+                // Feature Entitlement Join
+                const groupId = params[0];
+                const link = mockData.node_groups.find(n => n.group_id == groupId);
+                if (link) {
+                    const node = mockData.fleet_nodes.find(n => n.id == link.node_id);
+                    rows = node ? [node] : [];
+                }
+            }
+            else if (query.includes('COUNT(*)')) {
                 // Return stats
                 if (query.includes('FROM TRANSACTIONS')) rows = [{ count: mockData.transactions.length }];
                 else if (query.includes('FROM GROUPS')) rows = [{ count: mockData.groups.length }];

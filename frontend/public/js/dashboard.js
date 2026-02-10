@@ -81,7 +81,8 @@ async function fetchNodes() {
             url: node.server_endpoint || 'Local Cluster',
             status: node.status.toLowerCase(),
             avatar: node.id === 1 ? '👑' : '🛰️',
-            limit: node.group_limit
+            limit: node.group_limit,
+            features: node.unlocked_features || []
         }));
 
         renderNodes();
@@ -113,6 +114,60 @@ function renderNodes() {
         </div>
     `).join('');
 }
+
+/**
+ * Fleet Control: Open Management Modal
+ */
+window.openNode = (id) => {
+    const node = state.nodes.find(n => n.id == id);
+    if (!node) return;
+
+    state.currentNode = node;
+
+    document.getElementById('nodeModal').style.display = 'flex';
+    document.getElementById('modalNodeName').textContent = node.name;
+    document.getElementById('modalGroupLimit').value = node.limit;
+
+    // Set feature toggles
+    document.getElementById('feat_ai_brain').checked = node.features.includes('AI_BRAIN') || node.features.includes('ALL');
+    document.getElementById('feat_guardian').checked = node.features.includes('GUARDIAN') || node.features.includes('ALL');
+    document.getElementById('feat_reports').checked = node.features.includes('REPORT_DECIMALS') || node.features.includes('ALL');
+
+    // Link to direct control
+    document.getElementById('btnGoToNode').onclick = () => {
+        window.open(`${node.url}/c/MTAwMTowOmt6Yjh5eHk`, '_blank'); // Demo token for quick access
+    };
+};
+
+window.closeNodeModal = () => {
+    document.getElementById('nodeModal').style.display = 'none';
+};
+
+/**
+ * Save Provisioning Data
+ */
+window.saveNodeEntitlements = async () => {
+    const node = state.currentNode;
+    const features = [];
+    if (document.getElementById('feat_ai_brain').checked) features.push('AI_BRAIN');
+    if (document.getElementById('feat_guardian').checked) features.push('GUARDIAN');
+    if (document.getElementById('feat_reports').checked) features.push('REPORT_DECIMALS');
+
+    const limit = parseInt(document.getElementById('modalGroupLimit').value);
+
+    // MOCK SAVE LOGIC
+    console.log(`📡 PROVISIONING NODE ${node.id}: [${features.join(',')}] Limit: ${limit}`);
+
+    // Real API call (Future Phase)
+    // await fetch('/api/master/provision', { ... })
+
+    // Local update for simulation
+    node.features = features;
+    node.limit = limit;
+
+    renderNodes();
+    closeNodeModal();
+};
 
 /**
  * Tab Switching Logic

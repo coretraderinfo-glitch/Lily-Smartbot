@@ -166,16 +166,26 @@ app.get('/api/data/:token', async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
-        const [groupRes, settingsRes, operatorsRes] = await Promise.all([
+        const [groupRes, settingsRes, operatorsRes, nodeRes] = await Promise.all([
             db.query('SELECT title FROM groups WHERE id = $1', [chatId]),
             db.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]),
-            db.query('SELECT user_id, username, role FROM group_operators WHERE group_id = $1', [chatId])
+            db.query('SELECT user_id, username, role FROM group_operators WHERE group_id = $1', [chatId]),
+            db.query(`
+                SELECT n.unlocked_features, n.group_limit 
+                FROM fleet_nodes n
+                JOIN node_groups ng ON ng.node_id = n.id
+                WHERE ng.group_id = $1
+            `, [chatId])
         ]);
+
+        // Default to restricted if node not found in registry
+        const entitlements = nodeRes.rows[0] || { unlocked_features: [], group_limit: 1 };
 
         res.json({
             group: groupRes.rows[0] || { title: 'Unknown Group' },
             settings: settingsRes.rows[0] || {},
-            operators: operatorsRes.rows
+            operators: operatorsRes.rows,
+            entitlements: entitlements.unlocked_features
         });
     } catch (e) {
         res.status(500).json({ error: 'System Error' });

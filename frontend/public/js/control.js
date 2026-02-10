@@ -36,6 +36,7 @@ async function init() {
         document.getElementById('rate_myr').value = data.settings.rate_myr || 0;
 
         renderOperators(data.operators);
+        applyEntitlements(data.entitlements || []);
 
         // Hide Loader
         if (loader) {
@@ -47,6 +48,39 @@ async function init() {
         showToast('Security Breach: Link Invalid', true);
         console.error(err);
     }
+}
+
+/**
+ * Enforce License Restrictions on UI
+ */
+function applyEntitlements(unlocked) {
+    const isMaster = unlocked.includes('ALL');
+
+    const features = [
+        { id: 'ai_brain_enabled', key: 'AI_BRAIN' },
+        { id: 'guardian_enabled', key: 'GUARDIAN' },
+        { id: 'show_decimals', key: 'REPORT_DECIMALS' }
+    ];
+
+    features.forEach(f => {
+        const el = document.getElementById(f.id);
+        const hasAccess = isMaster || unlocked.includes(f.key);
+
+        if (!hasAccess) {
+            el.checked = false;
+            el.disabled = true;
+            // Add visual lock
+            const container = el.closest('.control-item') || el.closest('.toggle-row');
+            if (container) {
+                container.style.opacity = '0.5';
+                container.style.cursor = 'not-allowed';
+                const title = container.querySelector('.control-title') || container.querySelector('span');
+                if (title && !title.innerHTML.includes('🔒')) {
+                    title.innerHTML += ' <small style="color:var(--warning); font-size:10px;">🔒 LOCKED</small>';
+                }
+            }
+        }
+    });
 }
 
 /**
