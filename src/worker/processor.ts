@@ -37,7 +37,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
     // 1. Settings Fetch (SAFE ACCESS + CONTEXT AWARENESS)
     const settingsRes = await db.query(`
-        SELECT s.language_mode, s.ai_brain_enabled, g.title 
+        SELECT s.language_mode, s.ai_brain_enabled, s.calc_enabled, g.title 
         FROM group_settings s 
         JOIN groups g ON s.group_id = g.id 
         WHERE s.group_id = $1
@@ -45,6 +45,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     const config = settingsRes.rows[0];
     const lang = config?.language_mode || 'CN';
     const aiEnabled = config?.ai_brain_enabled || false;
+    const calcEnabled = config?.calc_enabled !== false; // Default TRUE
     const groupTitle = config?.title || 'Unknown Group';
 
     // 2. Dynamic Mention Check (Evolved Hearing)
@@ -65,6 +66,13 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         const isStartDay = /^(?:开始|Start)$/i.test(t);
         const isStopDay = /^(?:结束记录|Stop|Finalize)$/i.test(t);
         const isShowOps = /^(?:显示操作人|Show Operators|Senarai Operator|operators)$/i.test(t);
+
+        // 🚨 FEATURE FLAG: Calc (Ledger)
+        if (!calcEnabled && !isNameTrigger) {
+            // Check if it looks like a financial command to provide helpful feedback?
+            // For now, silent ignore to act "disabled"
+            return null;
+        }
 
         // --- 2. THE FEATURE CONFIGURATION (PHASE A) ---
 

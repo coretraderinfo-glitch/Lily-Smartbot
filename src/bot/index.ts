@@ -226,7 +226,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
     `, [id]);
 
     const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
-    const s = settings.rows[0] || { guardian_enabled: false, ai_brain_enabled: false, language_mode: 'CN' };
+    const s = settings.rows[0] || { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: true, calc_enabled: true, language_mode: 'CN' };
 
     const title = group.rows[0]?.title || 'Group';
     const lang = s.language_mode || 'CN';
@@ -235,6 +235,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
         title: I18N.t(lang, 'console.title'),
         guardian: I18N.t(lang, 'console.guardian'),
         ai: I18N.t(lang, 'console.ai'),
+        calc: I18N.t(lang, 'console.calc'),
         welcome: I18N.t(lang, 'console.welcome'),
         langLabel: I18N.t(lang, 'console.lang'),
         disable: I18N.t(lang, 'console.disable'),
@@ -244,12 +245,14 @@ async function renderManagementConsole(ctx: Context, id: string) {
     };
 
     let msg = `🛠️ **${labels.title}: ${title}**\nGroup ID: \`${id}\`\n\n`;
+    msg += `ℹ️ ${labels.calc}: ${s.calc_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🛡️ ${labels.guardian}: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🧠 ${labels.ai}: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🥊 ${labels.welcome}: ${s.welcome_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🌐 ${labels.langLabel}: **${lang}**\n`;
 
     const keyboard = new InlineKeyboard()
+        .text(s.calc_enabled !== false ? `${labels.disable} Calc` : `${labels.enable} Calc`, `toggle:calc:${id}`).row()
         .text(s.guardian_enabled ? `${labels.disable} Guardian` : `${labels.enable} Guardian`, `toggle:guardian:${id}`).row()
         .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`).row()
         .text(s.welcome_enabled !== false ? `${labels.disable} Greeting` : `${labels.enable} Greeting`, `toggle:welcome:${id}`).row()
@@ -469,6 +472,7 @@ bot.on('callback_query:data', async (ctx) => {
         let column = 'guardian_enabled';
         if (type === 'ai') column = 'ai_brain_enabled';
         if (type === 'welcome') column = 'welcome_enabled';
+        if (type === 'calc') column = 'calc_enabled';
 
         // Use UPSERT for Toggles too!
         await db.query(`

@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS group_settings (
     guardian_enabled BOOLEAN DEFAULT FALSE,
     ai_brain_enabled BOOLEAN DEFAULT FALSE,
     welcome_enabled BOOLEAN DEFAULT TRUE,
+    calc_enabled BOOLEAN DEFAULT TRUE,
     
     -- Logic Config
     daily_reset_hour INT DEFAULT 4,        -- Default 4 AM
@@ -119,6 +120,11 @@ BEGIN
     END;
     BEGIN
         ALTER TABLE group_settings ADD COLUMN ai_brain_enabled BOOLEAN DEFAULT FALSE;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN calc_enabled BOOLEAN DEFAULT TRUE;
     EXCEPTION
         WHEN duplicate_column THEN NULL;
     END;
