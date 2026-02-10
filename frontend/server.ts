@@ -98,13 +98,48 @@ app.get('/api/stats', async (req, res) => {
 
 app.get('/api/fleet', async (req, res) => {
     try {
-        const fleet = await db.query('SELECT * FROM fleet_nodes ORDER BY last_seen DESC');
+        const fleet = await db.query(`
+            SELECT n.*, 
+            COALESCE(JSON_AGG(json_build_object(
+                'id', g.id, 
+                'title', g.title,
+                'ai_enabled', COALESCE(s.ai_brain_enabled, false),
+                'guardian_enabled', COALESCE(s.guardian_enabled, false),
+                'decimals_enabled', COALESCE(s.show_decimals, false)
+            )) FILTER (WHERE g.id IS NOT NULL), '[]') as groups,
+            COUNT(ng.group_id) as active_groups
+            FROM fleet_nodes n
+            LEFT JOIN node_groups ng ON n.id = ng.node_id
+            LEFT JOIN groups g ON ng.group_id = g.id
+            LEFT JOIN group_settings s ON g.id = s.group_id
+            GROUP BY n.id
+            ORDER BY n.last_seen DESC
+        `);
         res.json(fleet.rows);
     } catch (e) {
         // FAIL-SAFE: Simulation mode for Fleet Command
         res.json([
-            { id: 1, client_name: 'Master Cluster', server_endpoint: 'https://lily-smartbot-production.up.railway.app', status: 'ONLINE', group_limit: 999 },
-            { id: 2, client_name: 'Tiger Group (Sub-01)', server_endpoint: 'http://localhost:3000', status: 'ONLINE', group_limit: 5 }
+            {
+                id: 1,
+                client_name: 'Master Cluster',
+                server_endpoint: 'https://lily-smartbot-production.up.railway.app',
+                status: 'ONLINE',
+                group_limit: 999,
+                groups: [{ id: 1001, title: 'Global Hub: Primary', ai_enabled: true, guardian_enabled: true, decimals_enabled: true }],
+                active_groups: 1
+            },
+            {
+                id: 2,
+                client_name: 'Tiger Group (Sub-01)',
+                server_endpoint: 'http://localhost:3000',
+                status: 'ONLINE',
+                group_limit: 5,
+                groups: [
+                    { id: 2001, title: 'Tiger VIP', ai_enabled: false, guardian_enabled: true, decimals_enabled: true },
+                    { id: 2002, title: 'Tiger Trading', ai_enabled: false, guardian_enabled: false, decimals_enabled: false }
+                ],
+                active_groups: 2
+            }
         ]);
     }
 });
@@ -292,6 +327,41 @@ app.post('/api/save', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'DB Error' });
+    }
+});
+
+app.post('/api/master/group/toggle', async (req, res) => {
+    const { chatId, feature, value } = req.body;
+    try {
+        const columnMap: { [key: string]: string } = {
+            'AI_BRAIN': 'ai_brain_enabled',
+            'GUARDIAN': 'guardian_enabled',
+            'REPORT_DECIMALS': 'show_decimals'
+        };
+
+        const col = columnMap[feature];
+        if (!col) return res.status(400).json({ error: 'Invalid Feature' });
+
+        await db.query(`
+            UPDATE group_settings SET ${col} = $1, updated_at = NOW()
+            WHERE group_id = $2
+        `, [value, chatId]);
+
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'DB Command Failed' });
+    }
+});
+
+app.post('/api/master/group/delete', async (req, res) => {
+    const { chatId } = req.body;
+    try {
+        await db.query('DELETE FROM groups WHERE id = $1', [chatId]);
+        await db.query('DELETE FROM group_settings WHERE group_id = $1', [chatId]);
+        await db.query('DELETE FROM node_groups WHERE group_id = $1', [chatId]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Cleanup Failed' });
     }
 });
 

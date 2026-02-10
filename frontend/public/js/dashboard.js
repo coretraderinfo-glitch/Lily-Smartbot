@@ -82,7 +82,8 @@ async function fetchNodes() {
             status: node.status.toLowerCase(),
             avatar: node.id === 1 ? '👑' : '🛰️',
             limit: node.group_limit,
-            features: node.unlocked_features || []
+            features: node.unlocked_features || [],
+            groups: node.groups || [] // Now includes full group objects {id, title}
         }));
 
         renderNodes();
@@ -105,7 +106,10 @@ function renderNodes() {
                 <div class="node-details">
                     <h4>${node.name}</h4>
                     <p style="font-size: 11px; opacity: 0.7;">${node.url}</p>
-                    <div style="font-size: 10px; margin-top: 4px; color: var(--accent); font-weight: 700;">CAPACITY: ${node.limit} GROUPS</div>
+                    <div style="display: flex; gap: 8px; margin-top: 4px;">
+                        <div style="font-size: 10px; color: var(--accent); font-weight: 700;">CAP: ${node.limit}</div>
+                        <div style="font-size: 10px; color: var(--success); font-weight: 700;">ACTIVE: ${node.groups.length}</div>
+                    </div>
                 </div>
             </div>
             <span class="status-badge status-${node.status === 'online' ? 'active' : 'offline'}">
@@ -133,10 +137,39 @@ window.openNode = (id) => {
     document.getElementById('feat_guardian').checked = node.features.includes('GUARDIAN') || node.features.includes('ALL');
     document.getElementById('feat_reports').checked = node.features.includes('REPORT_DECIMALS') || node.features.includes('ALL');
 
-    // Link to direct control
-    document.getElementById('btnGoToNode').onclick = () => {
-        window.open(`${node.url}/c/MTAwMTowOmt6Yjh5eHk`, '_blank'); // Demo token for quick access
-    };
+    // Populate Group List (Tracing + Management)
+    const list = document.getElementById('modalGroupList');
+    if (list) {
+        if (node.groups.length > 0) {
+            list.innerHTML = node.groups.map(g => `
+                <div class="group-trace-item" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; width: 100%; border: 1px solid var(--border);">
+                    <div style="font-size: 13px; font-weight: 600;">${g.title}</div>
+                    <button class="btn btn-outline" style="font-size: 10px; padding: 4px 8px;" onclick="adminGroup('${g.id}', '${node.url}')">
+                        ⚙️ ADMIN SETTINGS
+                    </button>
+                </div>
+            `).join('');
+        } else {
+            list.innerHTML = '<div style="font-size: 11px; color: var(--text-dim);">No active groups on this node.</div>';
+        }
+    }
+};
+
+/**
+ * Administer specific group settings
+ */
+window.adminGroup = async (chatId, nodeUrl) => {
+    try {
+        const res = await fetch(`/api/master/token/${chatId}`);
+        const data = await res.json();
+        if (data.token) {
+            window.open(`${nodeUrl}/c/${data.token}`, '_blank');
+        } else {
+            alert('Failed to generate secure admin session.');
+        }
+    } catch (e) {
+        alert('Server Handshake Failed: Node might be isolated.');
+    }
 };
 
 window.closeNodeModal = () => {
@@ -193,8 +226,136 @@ function switchTab(tabId) {
     document.getElementById('tabTitle').textContent = header.t;
     document.getElementById('tabSubtitle').textContent = header.s;
 
-    // Logic for dynamic content can be added here
+    // Logic for dynamic content
+    if (tabId === 'overview') {
+        renderGlobalGroups(); // Overview now shows the FULL picture
+    } else if (tabId === 'fleet') {
+        renderNodes(); // Fleet Control shows Server Nodes
+    } else {
+        renderNodes();
+    }
 }
+
+/**
+ * Render All Groups Across Fleet (Admin View)
+ */
+function renderGlobalGroups() {
+    const container = document.getElementById('nodeList');
+    if (!container) return;
+
+    // Aggregate all groups from all nodes
+    const allGroups = [];
+    state.nodes.forEach(node => {
+        if (node.groups) {
+            node.groups.forEach(g => {
+                allGroups.push({ ...g, nodeName: node.name, nodeUrl: node.url });
+            });
+        }
+    });
+
+    if (allGroups.length === 0) {
+        container.innerHTML = `
+            <div style="padding: 40px; text-align: center; color: var(--text-dim);">
+                <h3>No Active Groups Found</h3>
+                <p>Lily is not currently active in any Telegram groups.</p>
+                <div style="margin-top: 16px; font-size: 11px; opacity: 0.7;">
+                    Add Lily to a group to see it appear here automatically.
+                </div>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = allGroups.map(g => `
+        <div class="node-item" style="cursor: default; border-left: 3px solid var(--success); display: block; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px;">
+                <div class="node-info">
+                    <div class="node-avatar">💬</div>
+                    <div class="node-details">
+                        <h4 style="color: white; font-size: 16px;">${g.title}</h4>
+                        <p style="font-size: 11px; opacity: 0.6; margin-top: 2px;">Node: <span style="color:var(--accent); font-weight:700;">${g.nodeName}</span></p>
+                    </div>
+                </div>
+                <div class="node-actions" style="display: flex; gap: 8px;">
+                    <button class="btn btn-outline" style="font-size: 10px; padding: 6px 12px;" onclick="adminGroup('${g.id}', '${g.nodeUrl}')">
+                        ⚙️ CONFIG
+                    </button>
+                    <button class="btn btn-del" style="font-size: 10px; padding: 6px 12px; border: 1px solid var(--danger); color: var(--danger); background: transparent; border-radius: 6px; cursor: pointer;" onclick="deleteGroup('${g.id}')">
+                        🗑️ REMOVE
+                    </button>
+                </div>
+            </div>
+            
+            <div class="feature-toggles" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">AI BRAIN</div>
+                    <div class="switch ${g.ai_enabled ? 'active' : ''}" id="switch-ai-${g.id}" onclick="toggleGroupFeature('${g.id}', 'AI_BRAIN', this)"></div>
+                </div>
+                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">GUARDIAN</div>
+                    <div class="switch ${g.guardian_enabled ? 'active' : ''}" id="switch-guard-${g.id}" onclick="toggleGroupFeature('${g.id}', 'GUARDIAN', this)"></div>
+                </div>
+                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">REPORTS</div>
+                    <div class="switch ${g.decimals_enabled ? 'active' : ''}" id="switch-rep-${g.id}" onclick="toggleGroupFeature('${g.id}', 'REPORT_DECIMALS', this)"></div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+/**
+ * Surgical Feature Control for Master Hub
+ */
+window.toggleGroupFeature = async (chatId, feature, el) => {
+    const isActactivating = !el.classList.contains('active');
+
+    // Optimistic UI
+    el.classList.toggle('active');
+    el.style.pointerEvents = 'none';
+    el.style.opacity = '0.5';
+
+    try {
+        const res = await fetch('/api/master/group/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId, feature, value: isActactivating })
+        });
+
+        if (!res.ok) throw new Error('Update Failed');
+
+        console.log(`✅ Surgical Command Executed: ${feature} set to ${isActactivating} for Group ${chatId}`);
+    } catch (e) {
+        alert('Surgical Update Failed: Database Connection Interrupted');
+        el.classList.toggle('active'); // Revert
+    } finally {
+        el.style.pointerEvents = 'auto';
+        el.style.opacity = '1';
+    }
+};
+
+/**
+ * Force Delete Group (Ghost Protocol)
+ */
+window.deleteGroup = async (chatId) => {
+    if (!confirm('🛑 WARNING: This will permanently delete this group from the registry.\n\nOnly proceed if the bot is already removed from the group.')) return;
+
+    try {
+        const res = await fetch('/api/master/group/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId })
+        });
+
+        if (res.ok) {
+            alert('Group Removed Successfully. 🗑️');
+            fetchNodes(); // Refresh
+        } else {
+            alert('Failed to remove group.');
+        }
+    } catch (e) {
+        alert('Server Error during deletion.');
+    }
+};
 
 /**
  * UI Syncing
@@ -209,22 +370,6 @@ function setupSwitchListeners() {
     });
 }
 
-/**
- * Node Access Logic
- */
-async function openNode(nodeId) {
-    try {
-        const res = await fetch(`/api/master/token/${nodeId}`);
-        const data = await res.json();
-        if (data.token) {
-            window.location.href = `/c/${data.token}`;
-        } else {
-            alert('Failed to generate master session for this node.');
-        }
-    } catch (e) {
-        alert('Connection to Node Failed: Node may be in deep sleep or maintenance.');
-    }
-}
 
 /**
  * Add New Cluster

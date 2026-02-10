@@ -727,6 +727,39 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('🛑 [CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+// --- 4. PRESENCE SYNCHRONIZATION (New Feature) ---
+bot.on('my_chat_member', async (ctx) => {
+    const status = ctx.myChatMember.new_chat_member.status;
+    const chatId = ctx.chat.id;
+    const title = ctx.chat.title || 'Unknown Group';
+
+    console.log(`[Presence Update] Group ${chatId} (${title}) -> Status: ${status}`);
+
+    if (status === 'kicked' || status === 'left') {
+        // Bot Removed: Auto-Cleanup
+        await db.query('DELETE FROM groups WHERE id = $1', [chatId]);
+        await db.query('DELETE FROM group_settings WHERE group_id = $1', [chatId]);
+        // Optional: Keep archives/transactions for audit, but remove from active control
+        console.log(`🗑️ Group ${chatId} removed from active registry.`);
+    }
+    else if (status === 'member' || status === 'administrator') {
+        // Bot Added: Auto-Register
+        await db.query(`
+            INSERT INTO groups (id, title, status, created_at)
+            VALUES ($1, $2, 'ACTIVE', NOW())
+            ON CONFLICT (id) DO UPDATE SET title = $2, status = 'ACTIVE'
+        `, [chatId, title]);
+
+        // Init Settings
+        await db.query(`
+            INSERT INTO group_settings (group_id) VALUES ($1)
+            ON CONFLICT (group_id) DO NOTHING
+        `, [chatId]);
+
+        console.log(`✅ Group ${chatId} registered successfully.`);
+    }
+});
+
 // Startup
 async function start() {
     try {
@@ -744,7 +777,7 @@ async function start() {
             onStart: (botInfo) => {
                 console.log(`✅ SUCCESS: Connected to Telegram as @${botInfo.username}`);
             },
-            allowed_updates: ["message", "callback_query", "channel_post", "edited_message"]
+            allowed_updates: ["message", "callback_query", "channel_post", "edited_message", "my_chat_member"]
         });
     } catch (err) {
         console.error('🛑 [FATAL] Startup failed:', err);
