@@ -172,49 +172,31 @@ window.openNode = (id) => {
 /**
  * Administer specific group settings
  */
+// --- 4. NAVIGATION & MODALS ---
+
+/**
+ * Open Secure Config Panel (New Tab)
+ */
 window.adminGroup = async (chatId, nodeUrl) => {
     try {
+        // Step 1: Request ONE-TIME secure token from Master
         const res = await fetch(`/api/master/token/${chatId}`);
         const data = await res.json();
+
         if (data.token) {
-            window.open(`${nodeUrl}/c/${data.token}`, '_blank');
+            // Step 2: Redirect to Node with Token
+            // If nodeUrl is localhost, use current origin
+            const targetUrl = nodeUrl.includes('localhost') ? window.location.origin : nodeUrl;
+            window.open(`${targetUrl}/c/${data.token}`, '_blank');
         } else {
-            alert('Failed to generate secure admin session.');
+            alert('Security Handshake Failed: Invalid Token Generation');
         }
     } catch (e) {
-        alert('Server Handshake Failed: Node might be isolated.');
+        console.error(e);
+        alert('Cluster Connection Error: Node is unreachable.');
     }
 };
 
-window.closeNodeModal = () => {
-    document.getElementById('nodeModal').style.display = 'none';
-};
-
-/**
- * Save Provisioning Data
- */
-window.saveNodeEntitlements = async () => {
-    const node = state.currentNode;
-    const features = [];
-    if (document.getElementById('feat_ai_brain').checked) features.push('AI_BRAIN');
-    if (document.getElementById('feat_guardian').checked) features.push('GUARDIAN');
-    if (document.getElementById('feat_reports').checked) features.push('REPORT_DECIMALS');
-
-    const limit = parseInt(document.getElementById('modalGroupLimit').value);
-
-    // MOCK SAVE LOGIC
-    console.log(`📡 PROVISIONING NODE ${node.id}: [${features.join(',')}] Limit: ${limit}`);
-
-    // Real API call (Future Phase)
-    // await fetch('/api/master/provision', { ... })
-
-    // Local update for simulation
-    node.features = features;
-    node.limit = limit;
-
-    renderNodes();
-    closeNodeModal();
-};
 
 /**
  * Tab Switching Logic
@@ -222,17 +204,16 @@ window.saveNodeEntitlements = async () => {
 function switchTab(tabId) {
     state.activeTab = tabId;
 
-    // Update Nav
+    // Update Sidebar State
     document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
     const activeNav = document.getElementById(`nav-${tabId}`);
     if (activeNav) activeNav.classList.add('active');
 
-    // Update Content Titles
+    // Update Header Text
     const titles = {
-        overview: { t: 'Overview', s: 'Real-time surveillance of all active nodes and client servers.' },
+        overview: { t: 'Overview', s: 'Real-time Group Intelligence and Master Control.' },
         fleet: { t: 'Fleet Control', s: 'Manage individual client servers and global distribution.' },
         ai: { t: 'AI Core Activation', s: 'Control Lily Intellect parameters across the entire network.' },
-        global: { t: 'Global Intelligence', s: 'Aggregated financial data and behavioral analytics.' },
         settings: { t: 'Master Settings', s: 'Core OS configurations and security protocols.' }
     };
 
@@ -240,15 +221,19 @@ function switchTab(tabId) {
     document.getElementById('tabTitle').textContent = header.t;
     document.getElementById('tabSubtitle').textContent = header.s;
 
-    // Logic for dynamic content
+    // Content Rendering Router
+    const container = document.getElementById('nodeList');
     if (tabId === 'overview') {
-        renderGlobalGroups(); // Overview now shows the FULL picture
+        container.style.display = 'grid'; // Ensure grid layout
+        renderGlobalGroups();
     } else if (tabId === 'fleet') {
-        renderNodes(); // Fleet Control shows Server Nodes
-    } else {
         renderNodes();
+    } else {
+        // Fallback or Placeholder for AI/Settings
+        container.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-dim);">Module '${header.t}' is active but has no visual components yet.</div>`;
     }
 }
+
 
 /**
  * Render All Groups Across Fleet (Admin View)
