@@ -250,13 +250,12 @@ function switchTab(tabId) {
 
 
 /**
- * Render All Groups Across Fleet (Admin View)
+ * Render All Groups Across Fleet (Luxury V3)
  */
 function renderGlobalGroups() {
     const container = document.getElementById('nodeList');
     if (!container) return;
 
-    // Aggregate all groups from all nodes
     const allGroups = [];
     state.nodes.forEach(node => {
         if (node.groups) {
@@ -268,52 +267,49 @@ function renderGlobalGroups() {
 
     if (allGroups.length === 0) {
         container.innerHTML = `
-            <div style="padding: 40px; text-align: center; color: var(--text-dim);">
-                <h3>No Active Groups Found</h3>
-                <p>Lily is not currently active in any Telegram groups.</p>
-                <div style="margin-top: 16px; font-size: 11px; opacity: 0.7;">
-                    Add Lily to a group to see it appear here automatically.
-                </div>
+            <div style="grid-column: 1 / -1; padding: 60px 40px; text-align: center; background: rgba(255,255,255,0.02); border-radius: 20px; border: 1px dashed var(--border);">
+                <div style="font-size: 32px; margin-bottom: 16px;">🔍</div>
+                <h3 style="font-weight: 600; color: white;">No Active Nodes Detected</h3>
+                <p style="color: var(--text-muted); font-size: 14px; max-width: 400px; margin: 12px auto;">
+                    Initialize Lily in a Telegram group using /admin or /start to begin tracking telemetry.
+                </p>
             </div>`;
         return;
     }
 
     container.innerHTML = allGroups.map(g => `
-        <div class="node-item" style="cursor: default; border-left: 3px solid var(--success); display: block; padding: 20px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px;">
+        <div class="node-item">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <div class="node-info">
                     <div class="node-avatar">💬</div>
                     <div class="node-details">
-                        <h4 style="color: white; font-size: 16px;">${g.title}</h4>
-                        <p style="font-size: 11px; opacity: 0.6; margin-top: 2px;">ID: <span style="font-family:monospace;">${g.id}</span> • Node: <span style="color:var(--accent); font-weight:700;">${g.nodeName}</span></p>
+                        <h4>${g.title}</h4>
+                        <p>ID: ${g.id} • ${g.nodeName}</p>
                     </div>
                 </div>
-                <div class="node-actions" style="display: flex; gap: 8px;">
-                    <button class="btn btn-primary" style="font-size: 11px; padding: 6px 14px; font-weight: 700; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;" onclick="adminGroup('${g.id}', '${g.nodeUrl}')">
-                        ⚙️ CONFIG
-                    </button>
-                    <button class="btn btn-del" style="font-size: 10px; padding: 6px 12px; border: 1px solid var(--danger); color: var(--danger); background: transparent; border-radius: 6px; cursor: pointer;" onclick="deleteGroup('${g.id}')">
-                        🗑️ REMOVE
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-outline" style="padding: 6px 12px; font-size: 12px;" onclick="adminGroup('${g.id}', '${g.nodeUrl}')">
+                        SETTINGS
                     </button>
                 </div>
             </div>
             
-            <div class="feature-toggles" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
-                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
-                    <div style="font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">CALC / LEDGER</div>
-                    <div class="switch ${g.calc_enabled ? 'active' : ''}" id="switch-calc-${g.id}" onclick="toggleGroupFeature('${g.id}', 'CALC', this)" style="margin: 0 auto;"></div>
+            <div class="feature-toggles">
+                <div class="toggle-card">
+                    <div>LEDGER</div>
+                    <div class="switch ${g.calc_enabled ? 'active' : ''}" onclick="toggleGroupFeature('${g.id}', 'CALC', this)"></div>
                 </div>
-                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
-                    <div style="font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">AI BRAIN</div>
-                    <div class="switch ${g.ai_enabled ? 'active' : ''}" id="switch-ai-${g.id}" onclick="toggleGroupFeature('${g.id}', 'AI_BRAIN', this)" style="margin: 0 auto;"></div>
+                <div class="toggle-card">
+                    <div>AI BRAIN</div>
+                    <div class="switch ${g.ai_enabled ? 'active' : ''}" onclick="toggleGroupFeature('${g.id}', 'AI_BRAIN', this)"></div>
                 </div>
-                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
-                    <div style="font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">GUARDIAN</div>
-                    <div class="switch ${g.guardian_enabled ? 'active' : ''}" id="switch-guard-${g.id}" onclick="toggleGroupFeature('${g.id}', 'GUARDIAN', this)" style="margin: 0 auto;"></div>
+                <div class="toggle-card">
+                    <div>GUARDIAN</div>
+                    <div class="switch ${g.guardian_enabled ? 'active' : ''}" onclick="toggleGroupFeature('${g.id}', 'GUARDIAN', this)"></div>
                 </div>
-                <div class="toggle-card" style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">
-                    <div style="font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">DETAILS</div>
-                    <div class="switch ${g.decimals_enabled ? 'active' : ''}" id="switch-rep-${g.id}" onclick="toggleGroupFeature('${g.id}', 'REPORT_DECIMALS', this)" style="margin: 0 auto;"></div>
+                <div class="toggle-card">
+                    <div>DECIMALS</div>
+                    <div class="switch ${g.decimals_enabled ? 'active' : ''}" onclick="toggleGroupFeature('${g.id}', 'REPORT_DECIMALS', this)"></div>
                 </div>
             </div>
         </div>

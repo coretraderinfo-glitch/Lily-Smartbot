@@ -5,11 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lily OS - Global Fleet Commander</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/dashboard_dark_pro.css">
+    <link rel="stylesheet" href="css/dashboard_luxury.css">
 </head>
 
 <body>
@@ -128,44 +124,32 @@
             </section>
 
             <!-- AI CONTROL SIDEBAR -->
-            <aside class="panel">
+            <aside class="panel" style="display: flex; flex-direction: column; gap: 20px;">
                 <div class="panel-header">
-                    <h2>AI Activation</h2>
+                    <h2>System Core</h2>
                 </div>
 
                 <div class="control-matrix">
-                    <div class="control-item">
-                        <div class="control-label">
-                            <div class="control-title">Master Intelligence</div>
-                            <div class="switch active"></div>
+                    <div class="stat-card" style="padding: 16px; margin-bottom: 12px; border-style: dashed;">
+                        <div class="stat-label">Master Status</div>
+                        <div
+                            style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--success);">
+                            <span
+                                style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></span>
+                            OS ONLINE
                         </div>
-                        <p class="control-subtitle">Enable Lily Brain logic globally across all client fleet nodes.</p>
                     </div>
 
-                    <div class="control-item">
-                        <div class="control-label">
-                            <div class="control-title">Guardian Protocol</div>
-                            <div class="switch active"></div>
-                        </div>
-                        <p class="control-subtitle">Real-time transaction policing and malicious user detection.</p>
+                    <div class="node-item" style="padding: 16px; border-left: 2px solid var(--accent);">
+                        <div style="font-size: 13px; font-weight: 600;">Neural Network</div>
+                        <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Dynamic learning active
+                            across nodes.</p>
                     </div>
 
-                    <div class="control-item">
-                        <div class="control-label">
-                            <div class="control-title">Deep Learning Sync</div>
-                            <div class="switch"></div>
-                        </div>
-                        <p class="control-subtitle">Allow fleet nodes to share non-sensitive behavioral patterns.</p>
-                    </div>
-
-                    <div
-                        style="margin-top: 20px; padding: 20px; border-radius: 16px; background: rgba(79, 70, 229, 0.1); border: 1px solid rgba(79, 70, 229, 0.2);">
-                        <h4 style="font-size: 14px; margin-bottom: 8px;">Master Activation Key</h4>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="password" value="********" readonly
-                                style="flex: 1; background: rgba(0,0,0,0.3); border: none; padding: 10px; border-radius: 8px; color: var(--primary); font-family: monospace;">
-                            <button class="btn btn-outline" style="padding: 10px;">📋</button>
-                        </div>
+                    <div class="node-item" style="padding: 16px; border-left: 2px solid var(--primary);">
+                        <div style="font-size: 13px; font-weight: 600;">Security Mesh</div>
+                        <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Real-time anti-injection
+                            monitoring.</p>
                     </div>
                 </div>
             </aside>

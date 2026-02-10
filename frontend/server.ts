@@ -152,6 +152,7 @@ app.get('/api/fleet', masterAuth, async (req, res) => {
             unlocked_features: ['ALL']
         };
 
+        console.log(`📡 [API] Fleet Discovery requested. Returning ${groupsRes.rows.length} groups.`);
         res.json([masterNode]);
     } catch (e) {
         console.error('Fleet Sync Error (DB Connection?):', e);

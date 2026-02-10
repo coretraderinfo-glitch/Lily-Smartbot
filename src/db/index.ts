@@ -5,20 +5,27 @@ import path from 'path';
 import { MockDB } from './MockDB';
 
 // Determine Mode
-const isDefaultUrl = !process.env.DATABASE_URL || process.env.DATABASE_URL.includes('host:5432');
+const dbUrl = process.env.DATABASE_URL || '';
+const isDefaultUrl = !dbUrl || dbUrl.includes('host:5432') || dbUrl.includes('placeholder');
 let dbClient: any;
 
 if (isDefaultUrl) {
-    console.warn('⚠️  DATABASE_URL is not configured. Switching to High-Speed InMemory Mode (Safe Mode).');
+    console.warn('⚠️  DATABASE_URL is placeholder or missing. Using Safe Mode (MockDB).');
     dbClient = new MockDB();
 } else {
-    // Connection Pool with High-Performance Tuning for Parallelism
+    // Extract info for logging (Surgical check)
+    const dbMatch = dbUrl.match(/@([^/]+)\/(.+)$/);
+    const dbHost = dbMatch ? dbMatch[1] : 'External';
+    const dbName = dbMatch ? dbMatch[2].split('?')[0] : 'Database';
+
+    console.log(`🔌 [DB] Connecting to Client Node: ${dbHost} [DB: ${dbName}]`);
+
     dbClient = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-        max: 30, // Increased from 10 to 30 for parallel FIGHTER processing
+        connectionString: dbUrl,
+        ssl: { rejectUnauthorized: false }, // Force SSL for Railway stability
+        max: 30,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000, // Increased to 5s for stability
+        connectionTimeoutMillis: 5000,
     });
 }
 
