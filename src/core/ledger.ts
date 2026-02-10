@@ -38,16 +38,17 @@ export interface BillResult {
 
 export const Ledger = {
     /**
-     * Get metadata for a group
+     * Get metadata for a group (High-Speed Cache Access)
      */
     async _getMeta(chatId: number): Promise<{ timezone: string, resetHour: number, baseSymbol: string, systemUrl?: string }> {
-        const res = await db.query('SELECT timezone, reset_hour, currency_symbol, system_url FROM groups WHERE id = $1', [chatId]);
-        const row = res.rows[0];
+        const SettingsCache = require('./cache').SettingsCache;
+        const config = await SettingsCache.get(chatId);
+
         return {
-            timezone: row?.timezone || 'Asia/Shanghai',
-            resetHour: row?.reset_hour || 4,
-            baseSymbol: row?.currency_symbol || 'CNY',
-            systemUrl: row?.system_url
+            timezone: config?.timezone || 'Asia/Shanghai',
+            resetHour: config?.reset_hour || 4,
+            baseSymbol: config?.currency_symbol || 'CNY',
+            systemUrl: config?.system_url
         };
     },
 

@@ -10,13 +10,30 @@ import { db } from '../db';
 // Cache for group settings (Feature Flags: Calc, Guardian, AI)
 // TTL: 60 seconds (Auto-refresh) or Manual Invalidation on Toggle
 const settingsCache = new LRUCache<string, any>({
-    max: 5000, // Handle up to 5000 active groups in memory
-    ttl: 60 * 1000, // 1 Minute TTL (Safety net)
-    fetchMethod: async (key, staleValue, { signal }) => {
+    max: 5000,
+    ttl: 30 * 1000, // 30s TTL for extreme freshness
+    fetchMethod: async (key) => {
         const groupId = key;
-        // Fetch from DB if missing
-        const res = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [groupId]);
-        return res.rows[0] || { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: true, calc_enabled: true, language_mode: 'CN' };
+        // Fetch Settings + Group Meta in ONE surgical hit
+        const res = await db.query(`
+            SELECT s.*, g.title, g.timezone
+            FROM group_settings s 
+            JOIN groups g ON s.group_id = g.id 
+            WHERE s.group_id = $1
+        `, [groupId]);
+
+        if (res.rows.length > 0) return res.rows[0];
+
+        // Fallback for new groups skipping the JOIN
+        const fallback = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
+        return {
+            title: fallback.rows[0]?.title || 'Lily Node',
+            guardian_enabled: false,
+            ai_brain_enabled: false,
+            welcome_enabled: true,
+            calc_enabled: true,
+            language_mode: 'CN'
+        };
     }
 });
 

@@ -78,36 +78,40 @@ app.get('/c/:token', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/control.html'));
 });
 
-/**
- * --- 📈 GLOBAL ANALYTICS ---
- */
+// --- 🛰️ INFRASTRUCTURE DATA ---
 app.get('/api/infra', (req, res) => {
     res.json(getInfraData());
 });
 
+// --- 📈 GLOBAL ANALYTICS (Elite Cache Layer) ---
+let lastStats: any = null;
+let lastStatsTime = 0;
+
 app.get('/api/stats', async (req, res) => {
     try {
+        const now = Date.now();
+        if (lastStats && (now - lastStatsTime < 10000)) {
+            return res.json(lastStats);
+        }
+
         const [txCount, groupCount, userCount] = await Promise.all([
             db.query('SELECT count(*) FROM transactions'),
             db.query('SELECT count(*) FROM groups'),
             db.query('SELECT count(DISTINCT user_id) FROM group_operators')
         ]);
-        res.json({
+
+        lastStats = {
             transactions: txCount.rows[0].count,
             groups: groupCount.rows[0].count,
             operators: userCount.rows[0].count,
             uptime: process.uptime()
-        });
+        };
+        lastStatsTime = now;
+
+        res.json(lastStats);
     } catch (e) {
-        console.error('Stats DB Error:', e);
-        // FAIL-SAFE: Elite Demo Mode
-        res.json({
-            transactions: "1.2M",
-            groups: "14",
-            operators: "28",
-            uptime: process.uptime(),
-            demo: true
-        });
+        console.error('Stats Sync Error:', e);
+        res.json({ transactions: "1.2M+", groups: "14", operators: "28", uptime: process.uptime(), demo: true });
     }
 });
 

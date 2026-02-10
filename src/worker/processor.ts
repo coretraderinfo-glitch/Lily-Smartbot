@@ -35,18 +35,14 @@ const combine = (prefix: string, bill: BillResult): BillResult => ({
 export const processCommand = async (job: Job<CommandJob>): Promise<BillResult | string | null> => {
     const { chatId, userId, username, text, imageUrl } = job.data;
 
-    // 1. Settings Fetch (SAFE ACCESS + CONTEXT AWARENESS)
-    const settingsRes = await db.query(`
-        SELECT s.language_mode, s.ai_brain_enabled, s.calc_enabled, g.title 
-        FROM group_settings s 
-        JOIN groups g ON s.group_id = g.id 
-        WHERE s.group_id = $1
-    `, [chatId]);
-    const config = settingsRes.rows[0];
+    // 1. Settings Fetch (ULTRA-FAST CACHE HIT)
+    const SettingsCache = require('../core/cache').SettingsCache;
+    const config = await SettingsCache.get(chatId);
+
     const lang = config?.language_mode || 'CN';
     const aiEnabled = config?.ai_brain_enabled || false;
     const calcEnabled = config?.calc_enabled !== false; // Default TRUE
-    const groupTitle = config?.title || 'Unknown Group';
+    const groupTitle = config?.title || 'Lily Node';
 
     // 2. Dynamic Mention Check (Evolved Hearing)
     // Detects: "Lily", "@LilyBot", or REPLY to a bot message
