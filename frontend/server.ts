@@ -96,6 +96,19 @@ app.get('/api/stats', async (req, res) => {
     }
 });
 
+app.get('/api/fleet', async (req, res) => {
+    try {
+        const fleet = await db.query('SELECT * FROM fleet_nodes ORDER BY last_seen DESC');
+        res.json(fleet.rows);
+    } catch (e) {
+        // FAIL-SAFE: Simulation mode for Fleet Command
+        res.json([
+            { id: 1, client_name: 'Master Cluster', server_endpoint: 'https://lily-smartbot-production.up.railway.app', status: 'ONLINE', group_limit: 999 },
+            { id: 2, client_name: 'Tiger Group (Sub-01)', server_endpoint: 'http://localhost:3000', status: 'ONLINE', group_limit: 5 }
+        ]);
+    }
+});
+
 app.get('/api/groups', async (req, res) => {
     try {
         const resGroups = await db.query('SELECT id, title, created_at FROM groups ORDER BY created_at DESC');

@@ -207,8 +207,29 @@ CREATE TABLE IF NOT EXISTS user_cache (
     PRIMARY KEY (group_id, username)
 );
 
+-- 9. Fleet Management (Master Mode)
+CREATE TABLE IF NOT EXISTS fleet_nodes (
+    id SERIAL PRIMARY KEY,
+    client_name VARCHAR(100) NOT NULL,
+    server_endpoint VARCHAR(255),          -- Where the sub-Lily lives
+    status VARCHAR(20) DEFAULT 'ONLINE',   -- ONLINE, OFFLINE, SUSPENDED
+    group_limit INT DEFAULT 5,             -- Hard cap for sub-accounts
+    unlocked_features JSONB,               -- e.g. ["AI_BRAIN", "GUARDIAN", "EXCEL"]
+    master_secret VARCHAR(64),             -- Secure token for Master-to-Node API
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS node_groups (
+    node_id INT REFERENCES fleet_nodes(id),
+    group_id BIGINT REFERENCES groups(id),
+    assigned_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (node_id, group_id)
+);
+
 -- Indices
 CREATE INDEX IF NOT EXISTS idx_ledger_day ON transactions (group_id, business_date, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ledger_balances ON transactions (group_id, business_date, currency);
 CREATE INDEX IF NOT EXISTS idx_archive_lookup ON historical_archives (group_id, business_date);
 CREATE INDEX IF NOT EXISTS idx_user_cache_id ON user_cache (group_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_fleet_groups ON node_groups (node_id);

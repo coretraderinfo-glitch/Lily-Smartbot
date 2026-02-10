@@ -6,7 +6,8 @@ const mockData: {
     groups: any[],
     settings: { [key: number]: any },
     operators: any[],
-    transactions: any[]
+    transactions: any[],
+    fleet_nodes: any[]
 } = {
     groups: [
         { id: 1001, title: 'Local Node: Primary', created_at: new Date(), timezone: 'Asia/Kuala_Lumpur' }
@@ -25,7 +26,11 @@ const mockData: {
     operators: [
         { user_id: 1, username: 'SystemAdmin', role: 'OWNER' }
     ],
-    transactions: []
+    transactions: [],
+    fleet_nodes: [
+        { id: 1, client_name: 'Master Cluster', server_endpoint: 'https://lily-smartbot-production.up.railway.app', status: 'ONLINE', group_limit: 999, unlocked_features: ['ALL'] },
+        { id: 2, client_name: 'Tiger Group (Sub-01)', server_endpoint: 'http://localhost:3000', status: 'ONLINE', group_limit: 5, unlocked_features: ['LEDGER', 'EXCEL'] }
+    ]
 };
 
 export class MockDB {
@@ -40,6 +45,10 @@ export class MockDB {
                 if (query.includes('FROM TRANSACTIONS')) rows = [{ count: mockData.transactions.length }];
                 else if (query.includes('FROM GROUPS')) rows = [{ count: mockData.groups.length }];
                 else if (query.includes('FROM GROUP_OPERATORS')) rows = [{ count: mockData.operators.length }];
+                else if (query.includes('FROM FLEET_NODES')) rows = [{ count: mockData.fleet_nodes.length }];
+            }
+            else if (query.includes('FROM FLEET_NODES')) {
+                rows = mockData.fleet_nodes;
             }
             else if (query.includes('FROM GROUPS')) {
                 // List Groups

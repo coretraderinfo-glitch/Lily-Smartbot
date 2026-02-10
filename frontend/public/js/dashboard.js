@@ -72,20 +72,21 @@ async function fetchInfra() {
  */
 async function fetchNodes() {
     try {
-        const res = await fetch('/api/groups');
-        const groups = await res.json();
+        const res = await fetch('/api/fleet');
+        const fleet = await res.json();
 
-        state.nodes = groups.map(g => ({
-            id: g.id,
-            name: g.title,
-            url: window.location.origin, // Local node url for Master view
-            status: 'online',
-            avatar: '🛰️'
+        state.nodes = fleet.map(node => ({
+            id: node.id,
+            name: node.client_name,
+            url: node.server_endpoint || 'Local Cluster',
+            status: node.status.toLowerCase(),
+            avatar: node.id === 1 ? '👑' : '🛰️',
+            limit: node.group_limit
         }));
 
         renderNodes();
     } catch (e) {
-        console.error('Node Discovery Failed');
+        console.error('Fleet Discovery Failed');
     }
 }
 
@@ -102,7 +103,8 @@ function renderNodes() {
                 <div class="node-avatar">${node.avatar}</div>
                 <div class="node-details">
                     <h4>${node.name}</h4>
-                    <p>Endpoint: ${node.url}</p>
+                    <p style="font-size: 11px; opacity: 0.7;">${node.url}</p>
+                    <div style="font-size: 10px; margin-top: 4px; color: var(--accent); font-weight: 700;">CAPACITY: ${node.limit} GROUPS</div>
                 </div>
             </div>
             <span class="status-badge status-${node.status === 'online' ? 'active' : 'offline'}">
