@@ -289,7 +289,7 @@ function renderGlobalGroups() {
                     </div>
                 </div>
                 <div class="node-actions" style="display: flex; gap: 8px;">
-                    <button class="btn btn-outline" style="font-size: 10px; padding: 6px 12px;" onclick="adminGroup('${g.id}', '${g.nodeUrl}')">
+                    <button class="btn btn-primary" style="font-size: 11px; padding: 6px 14px; font-weight: 700; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer;" onclick="adminGroup('${g.id}', '${g.nodeUrl}')">
                         ⚙️ CONFIG
                     </button>
                     <button class="btn btn-del" style="font-size: 10px; padding: 6px 12px; border: 1px solid var(--danger); color: var(--danger); background: transparent; border-radius: 6px; cursor: pointer;" onclick="deleteGroup('${g.id}')">
