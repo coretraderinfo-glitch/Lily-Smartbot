@@ -739,8 +739,8 @@ bot.on('my_chat_member', async (ctx) => {
         // Bot Removed: Auto-Cleanup
         await db.query('DELETE FROM groups WHERE id = $1', [chatId]);
         await db.query('DELETE FROM group_settings WHERE group_id = $1', [chatId]);
-        // Optional: Keep archives/transactions for audit, but remove from active control
-        console.log(`🗑️ Group ${chatId} removed from active registry.`);
+        await db.query('DELETE FROM node_groups WHERE group_id = $1', [chatId]);
+        console.log(`🗑️ Group ${chatId} removed from active registry and node link purged.`);
     }
     else if (status === 'member' || status === 'administrator') {
         // Bot Added: Auto-Register
