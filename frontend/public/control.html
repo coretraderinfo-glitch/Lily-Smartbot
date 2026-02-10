@@ -11,132 +11,153 @@
 </head>
 
 <body>
-    <div id="loader" class="loader-overlay">
-        <div class="logo-icon animate-pulse">L</div>
+    <!-- MASTER LOADER -->
+    <div id="loader" class="master-loader">
+        <div class="loader-spinner"></div>
+        <p style="margin-top: 20px; font-weight: 700; letter-spacing: 2px; color: var(--text-muted);">SYNCING NODE
+            SECURELY</p>
     </div>
 
-    <!-- SIDEBAR FOR CONSISTENCY -->
+    <!-- SHARED SIDEBAR -->
     <aside class="sidebar">
-        <div class="logo-area">
-            <div class="logo-icon">L</div>
-            <div class="logo-text">Lily OS</div>
+        <div class="brand">
+            <div class="brand-icon">L</div>
+            <div class="brand-text">LILY OS</div>
         </div>
-        <nav class="nav-menu">
-            <a href="/" class="nav-item">
-                <span class="icon">📊</span> <span>Master Hub</span>
+        <nav class="nav">
+            <a href="/" class="nav-link">
+                <i>📊</i> <span>Master Hub</span>
             </a>
-            <a class="nav-item active">
-                <span class="icon">⚙️</span> <span>Group Settings</span>
+            <a class="nav-link active">
+                <i>⚙️</i> <span>Node Settings</span>
             </a>
         </nav>
-        <div style="margin-top: auto; padding: 20px 30px; font-size: 11px; color: rgba(255,160,0,0.6);">
-            PRIVATE ACCESS TOKEN ACTIVE
+        <div
+            style="margin-top: auto; padding: 24px; font-size: 11px; color: var(--warning); opacity: 0.6; text-align: center;">
+            SECURE SESSION ACTIVE
         </div>
     </aside>
 
-    <main class="main-content">
-        <header class="header-bar">
-            <div>
-                <h1 id="groupTitle">Loading Node...</h1>
-                <p class="subtitle">Individualized node parameters & team orchestration</p>
+    <!-- MAIN CONTAINER -->
+    <main class="container">
+        <header>
+            <div class="header-meta">
+                <h1 id="groupTitle">Node Cluster</h1>
+                <p class="subtitle">Individualized client parameters & secure orchestration</p>
             </div>
-            <div
-                style="display: flex; align-items: center; gap: 10px; color: var(--success); font-weight: 700; font-size: 14px;">
-                <span class="pulse-dot"></span> LIVE NODE SYNC
+            <div class="header-actions">
+                <div
+                    style="display: flex; align-items: center; gap: 10px; color: var(--success); font-weight: 700; font-size: 14px;">
+                    <span class="pulse-dot"></span> LIVE SYNC
+                </div>
             </div>
         </header>
 
         <form id="masterForm">
-            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px;">
+            <div class="grid-layout">
 
-                <!-- LEFT COLUMN: SYSTEM -->
-                <div class="column">
-                    <section class="glass-card">
-                        <h3>🛰️ Intelligence Matrix</h3>
-                        <div class="toggle-row">
-                            <span>AI Brain (GPT-4o)</span>
-                            <label class="switch"><input type="checkbox" id="ai_brain_enabled"><span
-                                    class="slider"></span></label>
-                        </div>
-                        <div class="toggle-row">
-                            <span>Guardian Shield</span>
-                            <label class="switch"><input type="checkbox" id="guardian_enabled"><span
-                                    class="slider"></span></label>
-                        </div>
-                        <div class="toggle-row">
-                            <span>Report Decimals</span>
-                            <label class="switch"><input type="checkbox" id="show_decimals"><span
-                                    class="slider"></span></label>
+                <!-- LEFT: CORE INTELLIGENCE -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>🛰️ Intelligence Matrix</h2>
+                    </div>
+
+                    <div class="control-matrix">
+                        <div class="control-item">
+                            <div class="control-label">
+                                <div class="control-title">AI Brain (GPT-4o)</div>
+                                <label class="switch-container">
+                                    <input type="checkbox" id="ai_brain_enabled">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                            <p class="control-subtitle">Enable specialized AI responses for this specific node.</p>
                         </div>
 
-                        <div style="margin-top: 20px;">
+                        <div class="control-item">
+                            <div class="control-label">
+                                <div class="control-title">Guardian Shield</div>
+                                <label class="switch-container">
+                                    <input type="checkbox" id="guardian_enabled">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                            <p class="control-subtitle">Active policing of transactions and role permissions.</p>
+                        </div>
+
+                        <div class="control-item">
+                            <div class="control-label">
+                                <div class="control-title">High-Precision Reports</div>
+                                <label class="switch-container">
+                                    <input type="checkbox" id="show_decimals">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                            <p class="control-subtitle">Render all financial data with 2 decimal precision.</p>
+                        </div>
+
+                        <div style="margin-top: 24px;">
                             <label
-                                style="display:block; margin-bottom: 8px; font-size: 13px; color: var(--text-dim);">Language
+                                style="display:block; margin-bottom: 8px; font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Language
                                 Protocol</label>
-                            <select id="language_mode"
-                                style="width: 100%; background: rgba(0,0,0,0.3); color: white; border: 1px solid var(--border); padding: 12px; border-radius: 12px; font-family: inherit;">
-                                <option value="CN">🇨🇳 中文 (CN)</option>
+                            <select id="language_mode" class="custom-select">
+                                <option value="CN">🇨🇳 Chinese (CN)</option>
                                 <option value="EN">🇺🇸 English (EN)</option>
                                 <option value="BM">🇲🇾 B.Melayu (MY)</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div style="margin-top: 32px;">
+                        <button type="submit" class="btn btn-primary" id="saveBtn"
+                            style="width: 100%; height: 60px; font-size: 16px;">
+                            🚀 SYNC MASTER CONFIGURATION
+                        </button>
+                    </div>
+                </section>
+
+                <!-- RIGHT: FINANCIALS & ACCESS -->
+                <div style="display: flex; flex-direction: column; gap: 24px;">
+
+                    <section class="panel">
+                        <div class="panel-header">
+                            <h2>💰 Financial Ticker</h2>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="input-group">
+                                <label>Deposit %</label>
+                                <input type="number" id="rate_in" step="0.01" class="dark-input">
+                            </div>
+                            <div class="input-group">
+                                <label>Payout %</label>
+                                <input type="number" id="rate_out" step="0.01" class="dark-input">
+                            </div>
+                            <div class="input-group">
+                                <label>USD Rate</label>
+                                <input type="number" id="rate_usd" step="0.001" class="dark-input">
+                            </div>
+                            <div class="input-group">
+                                <label>MYR Rate</label>
+                                <input type="number" id="rate_myr" step="0.01" class="dark-input">
+                            </div>
+                        </div>
                     </section>
 
-                    <button type="submit" class="btn-primary" id="saveBtn"
-                        style="width: 100%; font-size: 18px; padding: 20px;">🚀 SYNC NODE PARAMETERS</button>
+                    <section class="panel">
+                        <div class="panel-header">
+                            <h2>👥 Team Radar</h2>
+                        </div>
+                        <div id="operatorList" class="team-list">
+                            <!-- Populated via JS -->
+                        </div>
+                    </section>
+
                 </div>
-
-                <!-- RIGHT COLUMN: FINANCE & TEAM -->
-                <div class="column">
-                    <section class="glass-card">
-                        <h3>💰 Financial Ticker</h3>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                            <div style="margin-bottom: 15px;">
-                                <label
-                                    style="display:block; margin-bottom: 5px; font-size: 12px; color: var(--text-dim);">Deposit
-                                    %</label>
-                                <input type="number" id="rate_in" step="0.01"
-                                    style="width:100%; background:rgba(0,0,0,0.3); color:white; border:1px solid var(--border); padding:10px; border-radius:8px;">
-                            </div>
-                            <div style="margin-bottom: 15px;">
-                                <label
-                                    style="display:block; margin-bottom: 5px; font-size: 12px; color: var(--text-dim);">Payout
-                                    %</label>
-                                <input type="number" id="rate_out" step="0.01"
-                                    style="width:100%; background:rgba(0,0,0,0.3); color:white; border:1px solid var(--border); padding:10px; border-radius:8px;">
-                            </div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                            <div>
-                                <label
-                                    style="display:block; margin-bottom: 5px; font-size: 12px; color: var(--text-dim);">USD
-                                    Rate</label>
-                                <input type="number" id="rate_usd" step="0.001"
-                                    style="width:100%; background:rgba(0,0,0,0.3); color:white; border:1px solid var(--border); padding:10px; border-radius:8px;">
-                            </div>
-                            <div>
-                                <label
-                                    style="display:block; margin-bottom: 5px; font-size: 12px; color: var(--text-dim);">MYR
-                                    Rate</label>
-                                <input type="number" id="rate_myr" step="0.01"
-                                    style="width:100%; background:rgba(0,0,0,0.3); color:white; border:1px solid var(--border); padding:10px; border-radius:8px;">
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="glass-card">
-                        <h3>👥 Team Radar</h3>
-                        <div id="operatorList" style="display: flex; flex-direction: column; gap: 10px;">
-                            <!-- Operators here -->
-                        </div>
-                    </section>
-                </div>
-
             </div>
         </form>
     </main>
 
-    <div id="toast" class="toast">Node Updated Successfully! ✅</div>
+    <div id="toast" class="toast">Sync Successful! ✅</div>
 
     <script src="../js/control.js"></script>
     <style>
