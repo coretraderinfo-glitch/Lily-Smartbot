@@ -20,13 +20,26 @@ if (isDefaultUrl) {
 
     console.log(`🔌 [DB] Connecting to Client Node: ${dbHost} [DB: ${dbName}]`);
 
+    // World-Class Persistence Tuning
+    const cleanUrl = dbUrl.split('?')[0]; // Strip URL params to prevent config collision
+
     dbClient = new Pool({
-        connectionString: dbUrl,
-        ssl: { rejectUnauthorized: false }, // Force SSL for Railway stability
-        max: 5,        // Lean pool (Starter-friendly) to prevent connection leaks
-        idleTimeoutMillis: 5000,
-        connectionTimeoutMillis: 10000,
-        keepAlive: true, // Prevent 'Connection terminated unexpectedly' ghosting
+        connectionString: cleanUrl,
+        ssl: {
+            rejectUnauthorized: false, // Standard Cloud DB Bypass
+        },
+        max: 5,                       // Conservative pool size
+        idleTimeoutMillis: 1000,      // Aggressively kill idle connections to prevent Ghosting
+        connectionTimeoutMillis: 30000, // 30s Handshake Buffer
+        application_name: 'Lily_Smartbot_V2',
+    });
+
+    // TCP KeepAlive Configuration (Cloud-Native)
+    dbClient.on('connect', (client) => {
+        // @ts-ignore - access internal socket for keepalive hardening
+        if (client.connection && client.connection.stream) {
+            client.connection.stream.setKeepAlive(true, 60000);
+        }
     });
 
     // CRITICAL: Prevent unhandled errors from crashing the bot process
@@ -36,8 +49,23 @@ if (isDefaultUrl) {
 }
 
 export const db = {
-    query: (text: string, params?: any[]) => dbClient.query(text, params),
-    getClient: () => dbClient.connect ? dbClient.connect() : dbClient.getClient(), // Handle Mock vs Pool
+    // Self-Healing Query Wrapper (THE ULTIMATE FIX)
+    query: async (text: string, params?: any[]) => {
+        try {
+            return await dbClient.query(text, params);
+        } catch (err: any) {
+            // If connection was lost, try one more time before giving up
+            const isDead = /terminated|closed|connection/i.test(err.message);
+            if (isDead) {
+                console.warn('🔄 [DB_RECOVERY] Connection dropped. Healing pipe and retrying...');
+                // Tiny delay to allow cloud stack to reset
+                await new Promise(r => setTimeout(r, 500));
+                return await dbClient.query(text, params);
+            }
+            throw err;
+        }
+    },
+    getClient: () => dbClient.connect ? dbClient.connect() : dbClient.getClient(),
 
     isReady: false,
 
