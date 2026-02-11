@@ -44,7 +44,12 @@ import { startWebServer } from '../../frontend/server';
 startWebServer();
 
 // Connection Pools & Queues
-const commandQueue = new Queue('lily-commands', { connection });
+// ROOT CAUSE FIX: Use DUPLICATE connections. Worker requires a BLOCKING connection.
+// Sharing a single connection instance causes the bot to hang.
+const queueConnection = connection.duplicate();
+const workerConnection = connection.duplicate();
+
+const commandQueue = new Queue('lily-commands', { connection: queueConnection });
 
 // 2. Global Bot Error Handler (ROOT CAUSE PROTECTION)
 bot.catch((err) => {
@@ -60,7 +65,6 @@ bot.catch((err) => {
     }
 });
 
-// 3. Worker Setup (Lazy Initialization)
 // 3. Worker Setup (AUTONOMOUS MODE)
 // The worker starts IMMEDIATELY to listen for jobs. 
 // It does NOT wait for DB. It handles DB states internally.
@@ -82,7 +86,7 @@ const worker = new Worker('lily-commands', async job => {
         throw e;
     }
 }, {
-    connection,
+    connection: workerConnection, // DEDICATED BLOCKING CONNECTION
     concurrency: 5, // Reduced concurrency for stability
     removeOnComplete: { count: 100 },
     removeOnFail: { count: 500 }
