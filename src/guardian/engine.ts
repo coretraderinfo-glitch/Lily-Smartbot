@@ -78,7 +78,7 @@ export const Guardian = {
         const config = await SettingsCache.get(ctx.chat.id);
 
         const guardianOn = config?.guardian_enabled || false;
-        const welcomeOn = config?.welcome_enabled !== false; // TRUE by default
+        const welcomeOn = config?.welcome_enabled || false;
         const lang = config?.language_mode || 'CN';
 
         if (!guardianOn && !welcomeOn) return;

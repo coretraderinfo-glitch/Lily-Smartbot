@@ -30,9 +30,10 @@ const settingsCache = new LRUCache<string, any>({
             title: fallback.rows[0]?.title || 'Lily Node',
             guardian_enabled: false,
             ai_brain_enabled: false,
-            welcome_enabled: true,
+            welcome_enabled: false,
             calc_enabled: true,
             auditor_enabled: false,
+            mc_enabled: false,
             language_mode: 'CN'
         };
     }

@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS group_settings (
     -- Feature Config
     guardian_enabled BOOLEAN DEFAULT FALSE,
     ai_brain_enabled BOOLEAN DEFAULT FALSE,
-    welcome_enabled BOOLEAN DEFAULT TRUE,
+    welcome_enabled BOOLEAN DEFAULT FALSE,
     calc_enabled BOOLEAN DEFAULT TRUE,
     
     -- Logic Config

@@ -139,7 +139,8 @@ app.get('/api/fleet', masterAuth, async (req, res) => {
                 COALESCE(s.guardian_enabled, false) as guardian_enabled,
                 COALESCE(s.auditor_enabled, false) as auditor_enabled,
                 COALESCE(s.show_decimals, true) as decimals_enabled,
-                COALESCE(s.calc_enabled, true) as calc_enabled
+                COALESCE(s.calc_enabled, true) as calc_enabled,
+                COALESCE(s.mc_enabled, false) as mc_enabled
             FROM groups g
             LEFT JOIN group_settings s ON g.id = s.group_id
             ORDER BY g.last_seen DESC NULLS LAST
@@ -340,12 +341,12 @@ app.post('/api/save', async (req, res) => {
             UPDATE group_settings SET
                 ai_brain_enabled = $1, guardian_enabled = $2, auditor_enabled = $3,
                 show_decimals = $4, language_mode = $5, rate_in = $6, rate_out = $7,
-                rate_usd = $8, rate_myr = $9, updated_at = NOW()
-            WHERE group_id = $10
+                rate_usd = $8, rate_myr = $9, mc_enabled = $10, updated_at = NOW()
+            WHERE group_id = $11
         `, [
             settings.ai_brain_enabled, settings.guardian_enabled, settings.auditor_enabled,
             settings.show_decimals, settings.language_mode, settings.rate_in, settings.rate_out,
-            settings.rate_usd, settings.rate_myr, chatId
+            settings.rate_usd, settings.rate_myr, settings.mc_enabled, chatId
         ]);
 
         res.json({ success: true });
@@ -362,7 +363,8 @@ app.post('/api/master/group/toggle', masterAuth, async (req, res) => {
             'GUARDIAN': 'guardian_enabled',
             'AUDITOR': 'auditor_enabled',
             'REPORT_DECIMALS': 'show_decimals',
-            'CALC': 'calc_enabled'
+            'CALC': 'calc_enabled',
+            'MC': 'mc_enabled'
         };
 
         const col = columnMap[feature];

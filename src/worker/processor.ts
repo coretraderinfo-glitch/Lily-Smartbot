@@ -47,6 +47,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     const aiEnabled = config?.ai_brain_enabled || false;
     const auditorEnabled = config?.auditor_enabled || false;
     const calcEnabled = config?.calc_enabled !== false; // Default TRUE
+    const mcEnabled = config?.mc_enabled || false;
     const groupTitle = config?.title || 'Lily Node';
 
     // 2. Dynamic Mention Check (Evolved Hearing)
@@ -248,7 +249,32 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             return `EXCEL_EXPORT:${csv}`;
         }
 
-        // --- 6. SILENT AUDITOR TRIGGER (The Stealth Accountant) ---
+        // --- 6. MONEY CHANGER (MC) MODULE ---
+        if (mcEnabled) {
+            // Feature 1: Set Rates (Client PM or specialized group cmd)
+            const mcRateMatch = t.match(/^\/setrate\s+(.+)$/i);
+            if (mcRateMatch) {
+                if (!isOwner && !(await RBAC.isAuthorized(chatId, userId))) return I18N.t(lang, 'err.unauthorized');
+                return await MoneyChanger.setRates(chatId, mcRateMatch[1]);
+            }
+
+            // Feature 1.5: Set Wallet
+            const mcWalletMatch = t.match(/^\/setwallet\s+(T[A-Za-z0-9]{33})$/i);
+            if (mcWalletMatch) {
+                if (!isOwner && !(await RBAC.isAuthorized(chatId, userId))) return I18N.t(lang, 'err.unauthorized');
+                return await MoneyChanger.setWallet(chatId, mcWalletMatch[1]);
+            }
+
+            // Feature 2: Deal Calculation (Automatic detection)
+            const mcTradeRes = await MoneyChanger.handleTrade(chatId, userId, username, t);
+            if (mcTradeRes) return mcTradeRes;
+
+            // Feature 3: TXID Verification (Blockchain scanner)
+            const mcVerifyRes = await MoneyChanger.verifyTXID(chatId, userId, t);
+            if (mcVerifyRes) return mcVerifyRes;
+        }
+
+        // --- 7. SILENT AUDITOR TRIGGER (The Stealth Accountant) ---
         if (auditorEnabled) {
             if (Auditor.isFinancialReport(text)) {
                 // Construct a robust fake context for the auditor

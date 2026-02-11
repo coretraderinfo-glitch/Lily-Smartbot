@@ -241,6 +241,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
         disable: I18N.t(lang, 'console.disable'),
         enable: I18N.t(lang, 'console.enable'),
         cycle: I18N.t(lang, 'console.cycle'),
+        mc: I18N.t(lang, 'console.mc'),
         back: I18N.t(lang, 'console.back')
     };
 
@@ -250,14 +251,23 @@ async function renderManagementConsole(ctx: Context, id: string) {
     msg += `🧠 ${labels.ai}: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `💎 ${labels.auditor}: ${s.auditor_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🥊 ${labels.welcome}: ${s.welcome_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `💰 ${labels.mc}: ${s.mc_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🌐 ${labels.langLabel}: **${lang}**\n`;
 
     const keyboard = new InlineKeyboard()
-        .text(s.calc_enabled !== false ? `${labels.disable} Calc` : `${labels.enable} Calc`, `toggle:calc:${id}`).row()
+        // Row 1: Core Ledger & Security
+        .text(s.calc_enabled !== false ? `${labels.disable} Calc` : `${labels.enable} Calc`, `toggle:calc:${id}`)
         .text(s.guardian_enabled ? `${labels.disable} Guardian` : `${labels.enable} Guardian`, `toggle:guardian:${id}`).row()
-        .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`).row()
+
+        // Row 2: Intelligence & Audit
+        .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`)
         .text(s.auditor_enabled ? `${labels.disable} Auditor` : `${labels.enable} Auditor`, `toggle:auditor:${id}`).row()
-        .text(s.welcome_enabled !== false ? `${labels.disable} Welcome` : `${labels.enable} Welcome`, `toggle:welcome:${id}`).row()
+
+        // Row 3: Hospitality & OTC
+        .text(s.welcome_enabled !== false ? `${labels.disable} Welcome` : `${labels.enable} Welcome`, `toggle:welcome:${id}`)
+        .text(s.mc_enabled ? `${labels.disable} MC` : `${labels.enable} MC`, `toggle:mc:${id}`).row()
+
+        // Row 4: Settings & Dangerous Actions
         .text(labels.cycle, `cycle_lang:${id}`).row()
         .text("🗑️ PURGE RECORD (DELETE)", `purge_group:${id}`).row()
         .text(labels.back, "admin_list");
@@ -407,7 +417,7 @@ bot.on('callback_query:data', async (ctx) => {
         return ctx.editMessageText(`👑 **Lily Master Control Center**\n📊 Total Active: \`${totalActive}\`\n\nSelect a group:`, { parse_mode: 'Markdown', reply_markup: keyboard });
     }
 
-    if (data === "admin_sync" && Security.isSystemOwner(userId)) {
+    if (data === "admin_sync" && isOwner) {
         await ctx.answerCallbackQuery({ text: "🔍 Running deep sync... Please wait." });
 
         const allGroups = await db.query('SELECT id FROM groups');
@@ -436,26 +446,36 @@ bot.on('callback_query:data', async (ctx) => {
                 }
             }
         }
-
-        ctx.answerCallbackQuery({ text: `✅ Sync Complete! Purged ${purged} ghost(s).`, show_alert: true });
-
-        // Refresh List
-        const groups = await db.query(`
-            SELECT id, title, last_seen FROM groups 
-            WHERE last_seen > NOW() - INTERVAL '15 days'
-            ORDER BY last_seen DESC
-        `);
-        const keyboard = new InlineKeyboard();
-        groups.rows.forEach((g: any, i: any) => {
-            const title = g.title || g.id;
-            const idSnippet = String(g.id).slice(-4);
-            keyboard.text(`${i + 1}. ${title} [..${idSnippet}]`, `manage_group:${g.id}`).row();
-        });
-        keyboard.text("🔄 REFRESH & SYNC LIST", "admin_sync").row();
-        return ctx.editMessageText(`👑 **Lily Master Control Center**\n📊 Total Active: \`${groups.rows.length}\` (Sync Complete)\n\nSelect a group:`, { parse_mode: 'Markdown', reply_markup: keyboard });
+        return ctx.answerCallbackQuery({ text: `✅ Sync Complete! Purged ${purged} ghost(s).`, show_alert: true });
     }
 
-    if (data.startsWith('purge_group:') && Security.isSystemOwner(userId)) {
+    // --- 💰 MONEY CHANGER HANDLERS ---
+    if (data.startsWith('mc_paid:') && isOwner) {
+        const dealId = data.split(':')[1];
+        try {
+            const res = await db.query(`
+                UPDATE mc_deals SET status = 'CLOSED', updated_at = NOW() 
+                WHERE id = $1 RETURNING *
+            `, [dealId]);
+
+            if (res.rows.length === 0) return ctx.answerCallbackQuery({ text: '⚠️ Deal not found.' });
+
+            const deal = res.rows[0];
+            await ctx.editMessageText(`✅ **DEAL CLOSED: RM ${deal.total_rm}**\nStatus: Payout Completed by Admin.\nClosed at: ${new Date().toLocaleTimeString()}`, { parse_mode: 'Markdown' });
+
+            // Notify Client (Optional but good)
+            try {
+                await bot.api.sendMessage(deal.group_id, `✅ **PAYOUT COMPLETED**\nClient: @${deal.username}\nAmount: RM ${deal.total_rm}\n*Lily verified your payment and Admin has sent the cash. Deal closed!*`);
+            } catch (e) { }
+
+            return ctx.answerCallbackQuery({ text: 'Deal Closed successfully.' });
+        } catch (e: any) {
+            console.error('MC Payout Fail:', e);
+            return ctx.answerCallbackQuery({ text: 'Error closing deal.' });
+        }
+    }
+
+    if (data.startsWith('purge_group:') && isOwner) {
         const id = data.split(':')[1];
         // Order: Children first to avoid FK errors
         await db.query('DELETE FROM node_groups WHERE group_id = $1', [id]);
@@ -488,6 +508,7 @@ bot.on('callback_query:data', async (ctx) => {
         if (type === 'welcome') column = 'welcome_enabled';
         if (type === 'auditor') column = 'auditor_enabled';
         if (type === 'calc') column = 'calc_enabled';
+        if (type === 'mc') column = 'mc_enabled';
 
         // Use UPSERT for Toggles with NULL-Safety (COALESCE)
         // If row is missing, we create it. If it exists, we flip it.

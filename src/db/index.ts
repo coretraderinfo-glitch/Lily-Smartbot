@@ -108,11 +108,21 @@ export const db = {
 
             // WORLD-CLASS CLEANUP: Ensure no NULLs exist for toggles (Root Cause for "Ghost Toggles")
             await client.query(`
+                DO $$ 
+                BEGIN 
+                    BEGIN
+                        ALTER TABLE group_settings ADD COLUMN mc_enabled BOOLEAN DEFAULT FALSE;
+                    EXCEPTION WHEN duplicate_column THEN NULL; END;
+                END $$;
+            `);
+
+            await client.query(`
                 UPDATE group_settings SET 
                     welcome_enabled = COALESCE(welcome_enabled, false),
                     auditor_enabled = COALESCE(auditor_enabled, false),
                     ai_brain_enabled = COALESCE(ai_brain_enabled, false),
                     guardian_enabled = COALESCE(guardian_enabled, false),
+                    mc_enabled = COALESCE(mc_enabled, false),
                     calc_enabled = COALESCE(calc_enabled, true)
                 WHERE welcome_enabled IS NULL 
                    OR auditor_enabled IS NULL 
@@ -152,6 +162,33 @@ export const db = {
                 );
             `);
             console.log('✅ Safeguard: Fleet Infrastructure verified.');
+
+            // ENSURE Money Changer Tables Exist
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS mc_settings (
+                    group_id BIGINT PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
+                    buy_rate NUMERIC(10, 4),
+                    sell_rate NUMERIC(10, 4),
+                    cash_rate NUMERIC(10, 4),
+                    wallet_address TEXT DEFAULT 'TNV4YvE1M4XJq8Z5Y8XqX4YvE1M4XJq8Z5', 
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS mc_deals (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT REFERENCES groups(id) ON DELETE CASCADE,
+                    user_id BIGINT,
+                    username TEXT,
+                    type VARCHAR(10),
+                    amount NUMERIC(20, 4),
+                    rate NUMERIC(10, 4),
+                    total_rm NUMERIC(20, 4),
+                    txid TEXT UNIQUE,
+                    status VARCHAR(20) DEFAULT 'PENDING',
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            `);
+            console.log('✅ Safeguard: Money Changer Infrastructure verified.');
 
             // Add new columns to fleet_nodes if missing
             await client.query(`
@@ -212,6 +249,13 @@ export const db = {
                     -- historical_archives
                     BEGIN ALTER TABLE historical_archives DROP CONSTRAINT IF EXISTS historical_archives_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
                     ALTER TABLE historical_archives ADD CONSTRAINT historical_archives_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+                    -- Money Changer (mc_settings & mc_deals)
+                    BEGIN ALTER TABLE mc_settings DROP CONSTRAINT IF EXISTS mc_settings_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE mc_settings ADD CONSTRAINT mc_settings_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+                    
+                    BEGIN ALTER TABLE mc_deals DROP CONSTRAINT IF EXISTS mc_deals_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE mc_deals ADD CONSTRAINT mc_deals_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
 
                     -- node_groups
                     BEGIN ALTER TABLE node_groups DROP CONSTRAINT IF EXISTS node_groups_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;

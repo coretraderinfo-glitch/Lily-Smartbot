@@ -35,6 +35,7 @@ async function init() {
         document.getElementById('rate_out').value = data.settings.rate_out || 0;
         document.getElementById('rate_usd').value = data.settings.rate_usd || 0;
         document.getElementById('rate_myr').value = data.settings.rate_myr || 0;
+        document.getElementById('mc_enabled').checked = data.settings.mc_enabled || false;
 
         renderOperators(data.operators);
         applyEntitlements(data.entitlements || []);
@@ -61,7 +62,8 @@ function applyEntitlements(unlocked) {
         { id: 'ai_brain_enabled', key: 'AI_BRAIN' },
         { id: 'guardian_enabled', key: 'GUARDIAN' },
         { id: 'auditor_enabled', key: 'AUDITOR' },
-        { id: 'show_decimals', key: 'REPORT_DECIMALS' }
+        { id: 'show_decimals', key: 'REPORT_DECIMALS' },
+        { id: 'mc_enabled', key: 'MC' }
     ];
 
     features.forEach(f => {
@@ -127,7 +129,8 @@ form.onsubmit = async (e) => {
         rate_in: parseFloat(document.getElementById('rate_in').value),
         rate_out: parseFloat(document.getElementById('rate_out').value),
         rate_usd: parseFloat(document.getElementById('rate_usd').value),
-        rate_myr: parseFloat(document.getElementById('rate_myr').value)
+        rate_myr: parseFloat(document.getElementById('rate_myr').value),
+        mc_enabled: document.getElementById('mc_enabled').checked
     };
 
     try {

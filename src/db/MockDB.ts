@@ -68,14 +68,16 @@ export class MockDB {
                         const s = mockData.settings[g.id] || {
                             ai_brain_enabled: false,
                             guardian_enabled: false,
-                            show_decimals: false
+                            show_decimals: false,
+                            mc_enabled: false
                         };
                         return {
                             id: g.id,
                             title: g.title,
                             ai_enabled: s.ai_brain_enabled,
                             guardian_enabled: s.guardian_enabled,
-                            decimals_enabled: s.show_decimals
+                            decimals_enabled: s.show_decimals,
+                            mc_enabled: s.mc_enabled
                         };
                     });
 
