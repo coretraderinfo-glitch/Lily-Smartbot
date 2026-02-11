@@ -49,12 +49,12 @@ export const db = {
         try {
             return await dbClient.query(text, params);
         } catch (err: any) {
-            // Self-Healing Logic: Detect lost or cold pipes
-            const isDead = /terminated|closed|connection|timeout/i.test(err.message);
+            // Self-Healing Logic: Detect lost, cold, or reset pipes
+            const isDead = /terminated|closed|connection|timeout|reset|pipe/i.test(err.message);
             if (isDead) {
-                console.warn('🔄 [DB_RECOVERY] Cold pipe detected. Warming up and retrying...');
-                // Wait 1.5s for the pool to re-establish a handshake
-                await new Promise(r => setTimeout(r, 1500));
+                console.warn('🔄 [DB_RECOVERY] Pipe instability detected. Healing and retrying...');
+                // Wait 2s for the cloud stack to reset the handshake
+                await new Promise(r => setTimeout(r, 2000));
                 return await dbClient.query(text, params);
             }
             throw err;
@@ -89,8 +89,13 @@ export const db = {
                     await client.query(fs.readFileSync(schemaPath, 'utf8'));
                 }
 
-                // 2. Migrations
-                const migrationsDir = path.join(process.cwd(), 'db/migrations');
+                // 2. Incremental Migrations (Deep Search)
+                let migrationsDir = path.join(process.cwd(), 'db/migrations');
+                if (!fs.existsSync(migrationsDir)) {
+                    // Try dist-relative path for production
+                    migrationsDir = path.join(process.cwd(), 'dist/db/migrations');
+                }
+
                 if (fs.existsSync(migrationsDir)) {
                     const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
                     for (const file of files) {
@@ -103,6 +108,8 @@ export const db = {
                             }
                         }
                     }
+                } else {
+                    console.log('ℹ️ No incremental migrations found in search paths.');
                 }
 
                 // 3. Logic Checks

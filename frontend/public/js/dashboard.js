@@ -158,6 +158,7 @@ window.openNode = (id) => {
     document.getElementById('feat_guardian').checked = node.features.includes('GUARDIAN') || node.features.includes('ALL');
     document.getElementById('feat_auditor').checked = node.features.includes('AUDITOR') || node.features.includes('ALL');
     document.getElementById('feat_reports').checked = node.features.includes('REPORT_DECIMALS') || node.features.includes('ALL');
+    document.getElementById('feat_mc').checked = node.features.includes('MC') || node.features.includes('ALL');
 
     // Populate Group List (Tracing + Management)
     const list = document.getElementById('modalGroupList');
@@ -315,6 +316,10 @@ function renderGlobalGroups() {
                 <div class="toggle-card">
                     <div>DECIMALS</div>
                     <div class="switch ${g.decimals_enabled ? 'active' : ''}" onclick="toggleGroupFeature('${g.id}', 'REPORT_DECIMALS', this)"></div>
+                </div>
+                <div class="toggle-card">
+                    <div>MONEY CHANGER</div>
+                    <div class="switch ${g.mc_enabled ? 'active' : ''}" onclick="toggleGroupFeature('${g.id}', 'MC', this)"></div>
                 </div>
             </div>
         </div>
