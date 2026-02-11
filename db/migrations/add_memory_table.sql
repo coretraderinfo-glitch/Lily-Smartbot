@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS user_memories (id SERIAL PRIMARY KEY, user_id BIGINT, type VARCHAR(50) DEFAULT 'DIRECTIVE', content TEXT, confidence FLOAT DEFAULT 1.0, created_at TIMESTAMPTZ DEFAULT NOW(), context_group_id BIGINT);

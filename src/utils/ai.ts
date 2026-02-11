@@ -53,17 +53,22 @@ export const AIBrain = {
                 ];
             }
 
+            // 🧠 MEMORY INJECTION (New Feature)
+            // Fetch long-term facts about this specific user
+            const MemoryCore = require('../core/memory').MemoryCore;
+            const memoryContext = await MemoryCore.recall(userId);
+
             const completion = await openai.chat.completions.create({
                 model: process.env.AI_MODEL || "gpt-4o",
                 messages: [
                     { role: "system", content: SYSTEM_PROMPT },
                     {
                         role: "system", content: `MASTER CONTEXT:
-- Real-Time Date: Feb 9 2026.
+- Real-Time Date: Feb 11 2026.
 - User: ${username} (ID:${userId}).
 - Group: ${groupTitle}.
 - Internal Sales: ${ledgerContext || "None"}.
-- Real-Time Market Feed: ${marketContext || "TICKER ACTIVE - USE INTERNAL DATABASE FOR RECENT TRENDS"}.
+${memoryContext ? memoryContext : ""}
 ${replyContext ? `- Replying to: "${replyContext}"` : ""}`
                     },
                     { role: "user", content: userContent }

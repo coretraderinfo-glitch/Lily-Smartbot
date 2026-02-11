@@ -9,6 +9,7 @@ import { Security } from '../utils/security';
 import { I18N } from '../utils/i18n';
 import { MarketData } from '../core/market';
 import { AIBrain } from '../utils/ai';
+import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
 
 interface CommandJob {
     chatId: number;
@@ -148,6 +149,29 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
         // --- 4. DATA FLOW & LIFECYCLE (PHASE C) ---
         if (isStartDay) return await Ledger.startDay(chatId);
+
+        // --- 4. MEMORY CORE COMMANDS (New Feature) ---
+        // Syntax: "Remember @User is the Boss" or "Ingat @User ialah Bos"
+        const rememberMatch = t.match(/^(?:Remember|Ingat|记住)\s+(@\w+)\s+(.+)$/i);
+        if (rememberMatch) {
+            // Security: Only Owner/Admin can implant memories
+            if (!isOwner && !(await RBAC.isAuthorized(chatId, userId))) {
+                return "⚠️ ACCESS DENIED: Only the Professor can edit my memory.";
+            }
+
+            const targetTag = rememberMatch[1];
+            const memoryContent = rememberMatch[2].trim();
+
+            // Resolve User ID from Cache
+            const cacheRes = await db.query(`SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2`, [chatId, targetTag.replace('@', '')]);
+
+            if (cacheRes.rows.length === 0) return `⚠️ I don't know who ${targetTag} is yet. Have they spoken here?`;
+
+            const targetId = parseInt(cacheRes.rows[0].user_id);
+            await MemoryCore.imprint(targetId, memoryContent, 'DIRECTIVE');
+
+            return `🧠 Memory Imprinted: I will remember that ${targetTag} -> "${memoryContent}"`;
+        }
         if (isClearDay) {
             if (!isOwner) return I18N.t(lang, 'err.unauthorized');
             await db.query(`DELETE FROM transactions WHERE group_id = $1 AND business_date = (SELECT business_date FROM transactions WHERE group_id = $1 ORDER BY recorded_at DESC LIMIT 1)`, [chatId]);
