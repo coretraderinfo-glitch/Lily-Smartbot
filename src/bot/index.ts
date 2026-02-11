@@ -216,7 +216,16 @@ async function renderManagementConsole(ctx: Context, id: string) {
 
     const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
     // WORLD-CLASS DEFAULTS: Welcome & Auditor start OFF (Sir's request), Calc & AI start ON if licensed.
-    const s = settings.rows[0] || { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: false, calc_enabled: true, auditor_enabled: false, language_mode: 'CN' };
+    const s = settings.rows[0];
+    if (s) {
+        // Normalize NULLs to match DB defaults
+        if (s.welcome_enabled === null) s.welcome_enabled = false;
+        if (s.auditor_enabled === null) s.auditor_enabled = false;
+        if (s.calc_enabled === null) s.calc_enabled = true;
+    } else {
+        // Fallback object if row is missing entirely
+        settings.rows[0] = { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: false, calc_enabled: true, auditor_enabled: false, language_mode: 'CN' };
+    }
 
     const title = group.rows[0]?.title || 'Group';
     const lang = s.language_mode || 'CN';
