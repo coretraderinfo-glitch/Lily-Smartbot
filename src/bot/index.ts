@@ -149,7 +149,14 @@ const DASHBOARD_TEXT = `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
 const MainMenuMarkup = {
     inline_keyboard: [
         [{ text: "📊 CALC", callback_data: "menu_calc" }],
-        [{ text: "🛡️ GUARDIAN", callback_data: "menu_guardian" }]
+        [{ text: "🛡️ GUARDIAN", callback_data: "menu_guardian" }],
+        [{ text: "💱 MONEY CHANGER", callback_data: "menu_mc" }]
+    ]
+};
+
+const MCMenuMarkup = {
+    inline_keyboard: [
+        [{ text: "⬅️ BACK TO MENU", callback_data: "menu_main" }]
     ]
 };
 
@@ -292,6 +299,28 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (!isOwner && !isOperator) {
         return ctx.answerCallbackQuery({ text: "❌ Unauthorized Access", show_alert: true });
+    }
+
+    if (data === "menu_mc") {
+        const settings = await db.query('SELECT mc_enabled FROM group_settings WHERE group_id = $1', [chatId]);
+        if (settings.rows[0]?.mc_enabled === false) {
+            return ctx.answerCallbackQuery({ text: "⚠️ Money Changer 未启用 (Feature Disabled: Enable in /admin)", show_alert: true });
+        }
+
+        return ctx.editMessageText(
+            `💱 **LILY MONEY CHANGER (OTC TRADING)**\n\n` +
+            `🚀 **CONFIGURATION (Settings)**\n` +
+            `• \`/setrate 3.9/4.1/3.81\`: Set Buy/Sell/Cash rates\n` +
+            `• \`/setwallet [Address]\`: Set USDT deposit wallet\n\n` +
+            `💰 **TRADING COMMANDS (Automatic)**\n` +
+            `• \`Sell USDT 1000\`: Initiate a selling request\n` +
+            `• \`Buy USDT 500\`: Initiate a buying request\n\n` +
+            `⛓️ **VERIFICATION**\n` +
+            `• Just paste the **TXID (Hash)** once transfer is done.\n` +
+            `• Submit a **Screenshot** of the slip for manual audit.\n\n` +
+            `💡 *Note: Rates must be configured before trading starts.*`,
+            { parse_mode: 'Markdown', reply_markup: MCMenuMarkup }
+        );
     }
 
     if (data === "menu_main") {
