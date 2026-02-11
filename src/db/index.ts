@@ -16,17 +16,16 @@ if (isDefaultUrl) {
 } else {
     console.log(`🔌 [DB] Initializing Standard Connection Pool...`);
 
-    // CLASSIC STABLE CONFIGURATION
-    // No fancy retry wrappers, no manual keep-alives. Just standard pg.
+    // CLASSIC STABLE CONFIGURATION (Hardened for Cloud)
     pool = new Pool({
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
-        max: 10,        // Increased to 10 for Concurrency
+        max: 10,
         min: 0,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 60000,
-        keepAlive: true, // Fix for "Terminated Unexpectedly"
-        keepAliveInitialDelayMillis: 10000
+        idleTimeoutMillis: 20000, // 20s (Recycle faster to avoid Server Kill)
+        connectionTimeoutMillis: 120000, // 120s (Extreme Patience)
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 0 // Start Keep-Alive immediately
     });
 
     pool.on('error', (err: any) => {
@@ -37,25 +36,43 @@ if (isDefaultUrl) {
 export const db = {
     isReady: false,
 
-    // SHIELDED QUERY - Retries ONCE on network drop
+    // SHIELDED QUERY - Retries 3 TIMES with DELAY
     query: async (text: string, params?: any[]) => {
-        try {
-            return await pool.query(text, params);
-        } catch (err: any) {
-            // If connection dropped, try one more time immediately
-            if (err.message.includes('terminated') ||
-                err.message.includes('closed') ||
-                err.message.includes('ended') ||
-                err.message.includes('timeout')) {
-                console.warn(`🔄 [DB_RETRY] Connection blip detected (${err.message}). Retrying...`);
+        let attempts = 0;
+        const maxAttempts = 3;
+
+        while (attempts < maxAttempts) {
+            try {
                 return await pool.query(text, params);
+            } catch (err: any) {
+                attempts++;
+                const isNetworkError = err.message.includes('terminated') ||
+                    err.message.includes('closed') ||
+                    err.message.includes('ended') ||
+                    err.message.includes('timeout');
+
+                if (isNetworkError && attempts < maxAttempts) {
+                    const delay = attempts * 1000; // 1s, 2s...
+                    console.warn(`🔄 [DB_RETRY_${attempts}] Connection blip detected (${err.message}). Sleeping ${delay}ms...`);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue; // Retry loop
+                }
+                throw err; // Final failure
             }
-            throw err;
         }
     },
 
     // STANDARD CLIENT GETTER
-    getClient: () => pool.connect(),
+    getClient: async () => {
+        // Retry Wrapper for direct client acquisition too
+        try {
+            return await pool.connect();
+        } catch (e) {
+            console.warn('🔄 [DB_CONNECT_RETRY] Initial connect failed. Retrying once...');
+            await new Promise(r => setTimeout(r, 1000));
+            return await pool.connect();
+        }
+    },
 
     /**
      * WAIT FOR FOUNDATION
