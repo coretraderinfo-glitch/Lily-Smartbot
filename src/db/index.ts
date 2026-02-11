@@ -20,14 +20,16 @@ if (isDefaultUrl) {
 
     console.log(`🔌 [DB] Connecting to Client Node: ${dbHost} [DB: ${dbName}]`);
 
-    // ELITE TUNING: Use full URL but override SSL for cloud compatibility
+    // RECOVERY MODE: Restoring the "Rock Solid" configuration
+    const cleanUrl = dbUrl.split('?')[0]; // Critical: Remove conflicting params
+
     dbClient = new Pool({
-        connectionString: dbUrl,
+        connectionString: cleanUrl,
         ssl: { rejectUnauthorized: false },
-        max: 15, // Balanced for Bot + Chronos + Web
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 30000,
-        application_name: 'Lily_Master_Bot',
+        max: 10,                       // Safe limit for stability
+        idleTimeoutMillis: 2000,       // Fast cycling to prevent dead pipes
+        connectionTimeoutMillis: 10000, // Faster failure detection (10s)
+        application_name: 'Lily_Production_Instance',
     });
 
     // TCP KeepAlive Configuration (Cloud-Native)
