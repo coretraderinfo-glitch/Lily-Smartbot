@@ -249,20 +249,23 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         // --- 6. SILENT AUDITOR TRIGGER (The Stealth Accountant) ---
         if (auditorEnabled) {
             if (Auditor.isFinancialReport(text)) {
-                // Run audit in background (Don't wait to speed up reply)
-                // We fake a 'ctx' object for the auditor since we are in worker
-                (async () => {
+                // Construct a robust fake context for the auditor
+                try {
                     const { bot } = require('../bot');
-                    // Construct a fake ctx-like object for the auditor
                     const fakeCtx: any = {
                         from: { id: userId, username, first_name: username },
                         chat: { id: chatId },
-                        message: { text },
+                        message: { message_id: job.data.messageId, text },
+                        api: bot.api, // Critical for reaction removal logic
                         reply: (msg: string, opt: any) => bot.api.sendMessage(chatId, msg, opt),
-                        react: (emoji: string) => bot.api.setMessageReaction(chatId, job.data.messageId, [{ type: 'emoji', emoji }])
+                        react: (emoji: string) => bot.api.setMessageReaction(chatId, job.data.messageId, emoji ? [{ type: 'emoji', emoji }] : [])
                     };
+                    // We await it to ensure the worker doesn't kill the process before OpenAI finishes
+                    console.log(`[Auditor] Triggering stealth audit for ${chatId}...`);
                     await Auditor.audit(fakeCtx, text, lang);
-                })();
+                } catch (auditErr) {
+                    console.error('[Auditor] Background Audit Failed:', auditErr);
+                }
             }
         }
 

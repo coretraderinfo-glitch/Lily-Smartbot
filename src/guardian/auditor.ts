@@ -18,7 +18,7 @@ export const Auditor = {
         const lines = text.split('\n').filter(l => l.trim().length > 0);
 
         // Pattern 1: Keywords
-        const keywords = ['MALAYSIA', 'GROUP', 'TOTAL', 'HUAT', 'ALL TOTAL', 'ONG', 'BALIK', 'IN', 'OUT'];
+        const keywords = ['MALAYSIA', 'GROUP', 'TOTAL', 'HUAT', 'ALL TOTAL', 'ONG', 'BALIK', 'IN', 'OUT', 'RM'];
         const foundKeywords = keywords.filter(k => text.toUpperCase().includes(k));
 
         // Pattern 2: Financial Structure (Lines containing numbers)
@@ -86,7 +86,8 @@ export const Auditor = {
                 }
                 return;
             } else if (verdict && verdict !== 'NONE') {
-                const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'Fighter');
+                const userId = ctx.from?.id;
+                const name = ctx.from?.username ? `@${ctx.from.username}` : `[Fighter](tg://user?id=${userId})`;
                 await ctx.reply(`⚠️ **[FINANCE AUDIT ALERT]**\n\n${verdict}\n\ncc: ${name}`, { parse_mode: 'Markdown' });
             }
 

@@ -32,7 +32,7 @@ import { startWebServer } from '../../frontend/server';
 startWebServer();
 
 // Connection Pools
-const bot = new Bot(process.env.BOT_TOKEN!);
+export const bot = new Bot(process.env.BOT_TOKEN!);
 
 // ioredis connection with better stability
 const connection = new IORedis(process.env.REDIS_URL!, {
