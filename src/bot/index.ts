@@ -713,10 +713,11 @@ bot.on('message', async (ctx, next) => {
             await connection.expire(spamKey, 2); // 2 Second Window
         }
 
-        // Check if Admin/Operator (Higher limit)
-        const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
-        const isOperator = await RBAC.isAuthorized(ctx.chat.id, userId);
-        const limit = (isAdmin.rows.length > 0 || isOperator) ? 5 : 1;
+        // Check if Admin/Operator (INSTANT CACHE HIT)
+        const settings = await SettingsCache.get(ctx.chat.id);
+        const isAdmin = settings.admins && settings.admins.includes(String(userId));
+        const isOperator = settings.operators && settings.operators.includes(String(userId));
+        const limit = (isAdmin || isOperator) ? 5 : 1;
 
         if (currentCount > limit) {
             if (currentCount === limit + 1) {
@@ -784,7 +785,41 @@ bot.on('message', async (ctx, next) => {
             }
 
             await db.query('INSERT INTO group_admins (group_id, user_id, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chatId, targetId, targetName]);
+            await SettingsCache.invalidate(chatId); // ⚡ Sync Permissions
             return ctx.reply(`✅ **Sentinel Activated**\n👤 @${targetName} has been registered as a Group Admin of the Guardian Shield.`);
+        }
+    }
+
+    if (text.startsWith('移除管理员') || text.startsWith('/deladmin')) {
+        const userId = ctx.from?.id;
+        const chatId = ctx.chat.id;
+        if (!userId || !Security.isSystemOwner(userId)) {
+            return ctx.reply("❌ **Owner Only**");
+        }
+
+        let targetId: number | undefined;
+        let targetName: string | undefined;
+
+        if (ctx.message?.reply_to_message?.from) {
+            targetId = ctx.message.reply_to_message.from.id;
+            targetName = ctx.message.reply_to_message.from.username || ctx.message.reply_to_message.from.first_name;
+        } else {
+            const parts = text.split(/\s+/);
+            const tag = parts.find(p => p.startsWith('@'));
+            if (tag) {
+                const username = tag.replace('@', '');
+                const cached = await db.query('SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2', [chatId, username]);
+                if (cached.rows.length > 0) {
+                    targetId = parseInt(cached.rows[0].user_id);
+                    targetName = username;
+                }
+            }
+        }
+
+        if (targetId) {
+            await db.query('DELETE FROM group_admins WHERE group_id = $1 AND user_id = $2', [chatId, targetId]);
+            await SettingsCache.invalidate(chatId); // ⚡ Sync Permissions
+            return ctx.reply(`✅ **Sentinel Deactivated**\n👤 @${targetName} has been removed from the Guardian Shield.`);
         }
     }
 
@@ -1105,13 +1140,17 @@ async function start() {
         console.log('🔄 Initializing Lily Foundation (Async Mode)...');
 
         // NON-BLOCKING STARTUP: Launch bot immediately, connect DB in background
-        db.migrate().catch(err => {
-            console.error('⚠️ [BACKGROUND_DB_ERROR] Migration failed:', err);
-        });
-
-        // Initialize Internal Modules (Non-blocking)
-        Chronos.init(bot).catch(e => console.error('⚠️ [CHRONOS] Init failure:', e));
-        MoneyChanger.init().catch(e => console.error('⚠️ [MC] Init failure:', e));
+        (async () => {
+            try {
+                await db.migrate();
+                // FOUNDATION READY: Now start sub-modules safely
+                await Chronos.init(bot);
+                await MoneyChanger.init();
+                console.log('✅ Lily Modules: SECURED & INITIALIZED.');
+            } catch (err) {
+                console.error('⚠️ [FOUNDATION_CRITICAL] Module initialization failed:', err);
+            }
+        })();
 
         // Security: Reset Webhook & Commands
         await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);

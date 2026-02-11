@@ -17,6 +17,7 @@ export const MoneyChanger = {
      */
     async init() {
         try {
+            await db.waitForReady(); // Absolute Foundation Safety
             await db.query(`
                 CREATE TABLE IF NOT EXISTS mc_settings (
                     group_id BIGINT PRIMARY KEY,
@@ -50,7 +51,6 @@ export const MoneyChanger = {
      * Sets the rates for a specific group.
      */
     async setRates(groupId: number, rateString: string) {
-        await this.init();
         const parts = rateString.split('/').map(p => parseFloat(p.trim()));
 
         if (parts.length !== 3 || parts.some(isNaN)) {
@@ -105,7 +105,6 @@ export const MoneyChanger = {
         const wallet = settings.wallet_address || 'TNV4YvE1M4XJq8Z5Y8XqX4YvE1M4XJq8Z5';
 
         // Pre-log the deal as PENDING
-        await this.init();
         await db.query(`
             INSERT INTO mc_deals (group_id, user_id, username, type, amount, rate, total_rm, status)
             VALUES ($1, $2, $3, 'SELL', $4, $5, $6, 'WAITING_USDT')
@@ -197,7 +196,6 @@ export const MoneyChanger = {
      * Sets a custom wallet address for a group.
      */
     async setWallet(groupId: number, address: string) {
-        await this.init();
         await db.query(`
             INSERT INTO mc_settings (group_id, wallet_address)
             VALUES ($1, $2)

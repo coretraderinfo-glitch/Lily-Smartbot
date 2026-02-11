@@ -40,6 +40,8 @@ export const RBAC = {
             `, [chatId, userId, username, addedBy]);
 
             await client.query('COMMIT');
+            const { SettingsCache } = require('./cache');
+            SettingsCache.invalidate(chatId);
             return `✅ **经办人设置成功 (Operator Added)**\n👤 @${username} 现在可以录入账单。`;
 
         } catch (e) {
@@ -64,6 +66,8 @@ export const RBAC = {
             return `ℹ️ **@${username}** was not an operator.`;
         }
 
+        const { SettingsCache } = require('./cache');
+        SettingsCache.invalidate(chatId);
         return `✅ **经办人已移除 (Operator Removed)**\n👤 @${username} 不再拥有操作权限。`;
     },
 

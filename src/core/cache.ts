@@ -16,17 +16,24 @@ const settingsCache = new LRUCache<string, any>({
         const groupId = key;
 
         // 1. Fetch Actual Settings First (Priority: Feature Accuracy)
-        const sRes = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [groupId]);
-        const s = sRes.rows[0];
+        const [sRes, gRes, aRes, oRes] = await Promise.all([
+            db.query('SELECT * FROM group_settings WHERE group_id = $1', [groupId]),
+            db.query('SELECT title FROM groups WHERE id = $1', [groupId]),
+            db.query('SELECT user_id FROM group_admins WHERE group_id = $1', [groupId]),
+            db.query('SELECT user_id FROM group_operators WHERE group_id = $1', [groupId])
+        ]);
 
-        // 2. Fetch Title Second (Non-Breaking)
-        const gRes = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
+        const s = sRes.rows[0];
         const title = gRes.rows[0]?.title || 'Lily Node';
+        const admins = aRes.rows.map((r: any) => String(r.user_id));
+        const operators = oRes.rows.map((r: any) => String(r.user_id));
 
         if (s) {
             return {
                 ...s,
                 title,
+                admins,
+                operators,
                 // Hard-coded defaults for the engine to ensure NO NULLs
                 guardian_enabled: !!s.guardian_enabled,
                 ai_brain_enabled: !!s.ai_brain_enabled,

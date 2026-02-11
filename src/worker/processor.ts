@@ -12,7 +12,8 @@ import { bot } from '../bot/instance';
 import { Auditor } from '../guardian/auditor'; // 💎 Silent Auditor
 import { AIBrain } from '../utils/ai';
 import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
-import { MoneyChanger } from '../MC'; // 💱 Money Changer (New Module)
+import { MoneyChanger } from '../MC';
+import { SettingsCache } from '../core/cache'; // ⚡ Optimized Import
 
 interface CommandJob {
     chatId: number;
@@ -40,7 +41,6 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     const { chatId, userId, username, text, imageUrl } = job.data;
 
     // 1. Settings Fetch (ULTRA-FAST CACHE HIT)
-    const SettingsCache = require('../core/cache').SettingsCache;
     const config = await SettingsCache.get(chatId);
 
     const lang = config?.language_mode || 'CN';

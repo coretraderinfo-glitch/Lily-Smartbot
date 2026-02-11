@@ -22,12 +22,13 @@ if (isDefaultUrl) {
 
     // ELITE SYSTEM RESTORATION: Use full URL for handshake integrity
     dbClient = new Pool({
-        connectionString: dbUrl, // Use the FULL URL (no stripping)
+        connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
-        max: 15, // Higher capacity for scale
-        idleTimeoutMillis: 10000, // 10s Hold (Prevents over-aggressive recycling)
-        connectionTimeoutMillis: 30000, // 30s Buffer
-        application_name: 'Lily_Master_Final',
+        max: 20, // Increased for hyper-scale
+        min: 2,  // Keep 2 warm connections at all times
+        idleTimeoutMillis: 30000, // 30s Hold (More stable for cold providers)
+        connectionTimeoutMillis: 60000, // 60s Buffer (Crucial for cold starts)
+        application_name: 'Lily_Master_HyperScale',
     });
 
     // TCP KeepAlive (Standard)
@@ -50,12 +51,12 @@ export const db = {
             return await dbClient.query(text, params);
         } catch (err: any) {
             // Self-Healing Logic: Detect lost, cold, or reset pipes
-            // Included 'fatal' for specific cloud provider handshake failures
-            const isDead = /terminated|closed|connection|timeout|reset|pipe|fatal/i.test(err.message);
+            // Included 'fatal' and 'auth' for specific cloud provider handshake failures
+            const isDead = /terminated|closed|connection|timeout|reset|pipe|fatal|auth|handshake/i.test(err.message);
             if (isDead) {
                 console.warn('🔄 [DB_RECOVERY] Pipe instability detected. Healing and retrying...');
-                // Wait 2s for the cloud stack to reset the handshake
-                await new Promise(r => setTimeout(r, 2000));
+                // Wait 3s for the cloud stack to reset the handshake
+                await new Promise(r => setTimeout(r, 3000));
                 return await dbClient.query(text, params);
             }
             throw err;
@@ -64,6 +65,20 @@ export const db = {
     getClient: () => dbClient.connect ? dbClient.connect() : dbClient.getClient(),
 
     isReady: false,
+
+    /**
+     * WAIT FOR FOUNDATION: Blocks execution until the DB is migrated and ready.
+     * Prevents modules from crashing during the initial 5-10s cold boot.
+     */
+    waitForReady: async (maxWaitMs: number = 60000) => {
+        const start = Date.now();
+        while (!db.isReady) {
+            if (Date.now() - start > maxWaitMs) {
+                throw new Error('🛑 [DB_TIMEOUT] Foundation took too long to synchronize.');
+            }
+            await new Promise(r => setTimeout(r, 500)); // Poll every 500ms
+        }
+    },
 
     /**
      * AUTO-MIGRATE: The "Wake Up" Protocol

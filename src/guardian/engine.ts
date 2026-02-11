@@ -146,16 +146,14 @@ export const Guardian = {
         const hasRegexLink = linkRegex.test(text);
 
         if (hasEntityLink || hasRegexLink) {
-            const userId = ctx.from.id;
+            const userId = String(ctx.from.id);
 
-            // 2. Authorization Check (Atomic Multi-Role Verification)
-            const authRes = await db.query(`
-                SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2
-                UNION
-                SELECT 1 FROM group_operators WHERE group_id = $1 AND user_id = $2
-            `, [ctx.chat.id, userId]);
+            // 2. Authorization Check (INSTANT CACHE LOOKUP)
+            const isAuthorized =
+                (settings.admins && settings.admins.includes(userId)) ||
+                (settings.operators && settings.operators.includes(userId));
 
-            if (authRes.rows.length === 0) {
+            if (!isAuthorized) {
                 try {
                     // 🚨 ACTION: PURGE LINK
                     await ctx.deleteMessage();
