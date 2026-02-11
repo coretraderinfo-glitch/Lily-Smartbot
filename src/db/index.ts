@@ -24,11 +24,11 @@ if (isDefaultUrl) {
     dbClient = new Pool({
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
-        max: 20, // Increased for hyper-scale
-        min: 4,  // Keep 4 warm connections to absorb bursts
-        idleTimeoutMillis: 30000, // 30s Hold (More stable for cold providers)
-        connectionTimeoutMillis: 60000, // 60s Buffer (Crucial for cold starts)
-        application_name: 'Lily_Master_HyperScale',
+        max: 10, // Optimized for stability
+        min: 1,  // Reduced to prevent pool exhaustion on Railway
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 30000,
+        application_name: 'Lily_Master_Stable',
     });
 
     // TCP KeepAlive (Standard)
@@ -83,7 +83,8 @@ export const db = {
         const start = Date.now();
         while (!db.isReady) {
             if (Date.now() - start > maxWaitMs) {
-                throw new Error('🛑 [DB_TIMEOUT] Foundation took too long to synchronize.');
+                console.warn('⚠️ [DB_TIMEOUT] Forcing Degraded Mode execution.');
+                return; // Breakout
             }
             await new Promise(r => setTimeout(r, 500)); // Poll every 500ms
         }
@@ -101,9 +102,18 @@ export const db = {
 
         console.log('🔄 Lily Foundation: Synchronizing Memory Banks...');
 
+        // FAILSAFE: Allow 15s max for migration, then force-start
+        // This prevents the bot from hanging in "Synchronizing" forever.
+        setTimeout(() => {
+            if (!db.isReady) {
+                console.warn('⚠️ [FAILSAFE] Migration taking too long. Forcing Degraded Mode.');
+                db.isReady = true;
+            }
+        }, 15000);
+
         // RETRY LOOP: Infinite Resilience (Capped logs)
         let attempt = 1;
-        while (true) {
+        while (!db.isReady) {
             let client;
             try {
                 // Attempt Connection
@@ -171,7 +181,7 @@ export const db = {
                     attempt++;
                 } else {
                     console.error('🛑 [DB_FATAL] Foundation Sync Critical Failure:', err.message);
-                    await new Promise(r => setTimeout(r, 10000)); // Still wait 10s before next try
+                    await new Promise(r => setTimeout(r, 10000));
                     attempt++;
                 }
             } finally {
