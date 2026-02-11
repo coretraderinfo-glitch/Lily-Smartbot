@@ -106,6 +106,22 @@ export const db = {
             `);
             console.log('✅ Safeguard: auditor_enabled verified.');
 
+            // WORLD-CLASS CLEANUP: Ensure no NULLs exist for toggles (Root Cause for "Ghost Toggles")
+            await client.query(`
+                UPDATE group_settings SET 
+                    welcome_enabled = COALESCE(welcome_enabled, false),
+                    auditor_enabled = COALESCE(auditor_enabled, false),
+                    ai_brain_enabled = COALESCE(ai_brain_enabled, false),
+                    guardian_enabled = COALESCE(guardian_enabled, false),
+                    calc_enabled = COALESCE(calc_enabled, true)
+                WHERE welcome_enabled IS NULL 
+                   OR auditor_enabled IS NULL 
+                   OR ai_brain_enabled IS NULL 
+                   OR guardian_enabled IS NULL 
+                   OR calc_enabled IS NULL;
+            `);
+            console.log('✅ Safeguard: Settings Integrity Cleaned.');
+
             // ENSURE 'last_seen' exists in 'groups' (Critical for Dashboard Sync)
             await client.query(`
                 DO $$ 

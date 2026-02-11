@@ -157,9 +157,8 @@ export const Guardian = {
                     // 🚨 ACTION: PURGE LINK
                     await ctx.deleteMessage();
 
-                    // 1. Check Language for Warning
-                    const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
-                    const lang = settingsRes.rows[0]?.language_mode || 'CN';
+                    // 1. Check Language for Warning (CACHE HIT for speed)
+                    const lang = settings.language_mode || 'CN';
 
                     const name = ctx.from.username ? `@${ctx.from.username}` : (ctx.from.first_name || 'FIGHTER');
                     const warning = Personality.getLinkWarning(lang, name);

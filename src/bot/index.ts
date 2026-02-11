@@ -227,7 +227,8 @@ async function renderManagementConsole(ctx: Context, id: string) {
     `, [id]);
 
     const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
-    const s = settings.rows[0] || { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: true, calc_enabled: true, language_mode: 'CN' };
+    // WORLD-CLASS DEFAULTS: Welcome & Auditor start OFF (Sir's request), Calc & AI start ON if licensed.
+    const s = settings.rows[0] || { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: false, calc_enabled: true, auditor_enabled: false, language_mode: 'CN' };
 
     const title = group.rows[0]?.title || 'Group';
     const lang = s.language_mode || 'CN';
@@ -491,10 +492,14 @@ bot.on('callback_query:data', async (ctx) => {
         if (type === 'auditor') column = 'auditor_enabled';
         if (type === 'calc') column = 'calc_enabled';
 
-        // Use UPSERT for Toggles too!
+        // Use UPSERT for Toggles with NULL-Safety (COALESCE)
+        // If row is missing, we create it. If it exists, we flip it.
         await db.query(`
-            INSERT INTO group_settings (group_id, ${column}) VALUES ($1, true)
-            ON CONFLICT (group_id) DO UPDATE SET ${column} = NOT group_settings.${column}, updated_at = NOW()
+            INSERT INTO group_settings (group_id, ${column}) 
+            VALUES ($1, true)
+            ON CONFLICT (group_id) DO UPDATE 
+            SET ${column} = NOT COALESCE(group_settings.${column}, false), 
+                updated_at = NOW()
         `, [id]);
 
         // ⚡ CACHE INVALIDATION (INSTANT UPDATE)
