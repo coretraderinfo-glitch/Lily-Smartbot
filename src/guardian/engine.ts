@@ -148,11 +148,14 @@ export const Guardian = {
         if (hasEntityLink || hasRegexLink) {
             const userId = ctx.from.id;
 
-            // 2. Authorization Check (Only Admins & Operators can post links)
-            const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
-            const isOperator = await db.query('SELECT 1 FROM group_operators WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
+            // 2. Authorization Check (Atomic Multi-Role Verification)
+            const authRes = await db.query(`
+                SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2
+                UNION
+                SELECT 1 FROM group_operators WHERE group_id = $1 AND user_id = $2
+            `, [ctx.chat.id, userId]);
 
-            if (isAdmin.rows.length === 0 && isOperator.rows.length === 0) {
+            if (authRes.rows.length === 0) {
                 try {
                     // 🚨 ACTION: PURGE LINK
                     await ctx.deleteMessage();

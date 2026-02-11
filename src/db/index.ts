@@ -20,22 +20,18 @@ if (isDefaultUrl) {
 
     console.log(`🔌 [DB] Connecting to Client Node: ${dbHost} [DB: ${dbName}]`);
 
-    // World-Class Persistence Tuning
-    const cleanUrl = dbUrl.split('?')[0]; // Strip URL params to prevent config collision
-
+    // ELITE TUNING: Use full URL but override SSL for cloud compatibility
     dbClient = new Pool({
-        connectionString: cleanUrl,
-        ssl: {
-            rejectUnauthorized: false, // Standard Cloud DB Bypass
-        },
-        max: 5,                       // Conservative pool size
-        idleTimeoutMillis: 1000,      // Aggressively kill idle connections to prevent Ghosting
-        connectionTimeoutMillis: 30000, // 30s Handshake Buffer
-        application_name: 'Lily_Smartbot_V2',
+        connectionString: dbUrl,
+        ssl: { rejectUnauthorized: false },
+        max: 15, // Balanced for Bot + Chronos + Web
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 30000,
+        application_name: 'Lily_Master_Bot',
     });
 
     // TCP KeepAlive Configuration (Cloud-Native)
-    dbClient.on('connect', (client) => {
+    dbClient.on('connect', (client: any) => {
         // @ts-ignore - access internal socket for keepalive hardening
         if (client.connection && client.connection.stream) {
             client.connection.stream.setKeepAlive(true, 60000);
@@ -69,54 +65,64 @@ export const db = {
 
     isReady: false,
 
-    // Auto-Migrate function with NON-BLOCKING RESILIENCE (Ultra Fix)
+    /**
+     * AUTO-MIGRATE: The Foundation of Lily
+     * Ensures all tables and columns are ready before the bot takes her first breath.
+     */
     migrate: async () => {
         if (isDefaultUrl) {
             db.isReady = true;
             return;
         }
 
-        // We run this in the background to avoid holding up the 'AI Soul' startup
-        (async () => {
-            console.log('🔄 Lily Engine: Initializing Memory Banks (Background)...');
+        const client = await dbClient.connect();
+        try {
+            console.log('🔄 Lily Foundation: Synchronizing Memory Banks...');
 
-            for (let attempt = 1; attempt <= 5; attempt++) {
-                let client;
-                try {
-                    client = await dbClient.connect();
+            // 1. Base Schema (schema.sql)
+            const schemaPath = path.join(__dirname, 'schema.sql');
+            if (fs.existsSync(schemaPath)) {
+                await client.query(fs.readFileSync(schemaPath, 'utf8'));
+            }
 
-                    // Atomic Integrity Check
-                    await client.query('SELECT 1');
-
-                    const schemaPath = path.join(__dirname, 'schema.sql');
-                    if (fs.existsSync(schemaPath)) {
-                        await client.query(fs.readFileSync(schemaPath, 'utf8'));
+            // 2. Incremental Migrations (db/migrations/*.sql)
+            const migrationsDir = path.join(process.cwd(), 'db/migrations');
+            if (fs.existsSync(migrationsDir)) {
+                const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+                for (const file of files) {
+                    try {
+                        const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+                        await client.query(sql);
+                    } catch (e: any) {
+                        // Skip if already applied
+                        if (!e.message.includes('already exists') && !e.message.includes('duplicate')) {
+                            console.warn(`[DB] Migration ${file} warning:`, e.message);
+                        }
                     }
-
-                    // Consolidated Surgical Safeguards
-                    await client.query(`
-                        DO $$ 
-                        BEGIN 
-                            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='welcome_enabled') THEN
-                                ALTER TABLE group_settings ADD COLUMN welcome_enabled BOOLEAN DEFAULT FALSE;
-                                ALTER TABLE group_settings ADD COLUMN calc_enabled BOOLEAN DEFAULT TRUE;
-                            END IF;
-                        END $$;
-                    `);
-
-                    db.isReady = true;
-                    console.log(`💎 Database Connectivity: STABLE (Attempt ${attempt}).`);
-                    return;
-
-                } catch (err: any) {
-                    console.warn(`⏳ [DB_WARMUP] Memory bank busy (Attempt ${attempt}/5): ${err.message}`);
-                    await new Promise(r => setTimeout(r, 4000));
-                } finally {
-                    if (client) client.release();
                 }
             }
-            console.error('🛑 [CRITICAL] Memory banks offline. Lily running in Degraded Mode.');
-        })();
+
+            // 3. FINAL INTEGRITY WRAPPER
+            await client.query(`
+                UPDATE group_settings SET 
+                    welcome_enabled = COALESCE(welcome_enabled, false),
+                    calc_enabled = COALESCE(calc_enabled, true),
+                    auditor_enabled = COALESCE(auditor_enabled, false),
+                    ai_brain_enabled = COALESCE(ai_brain_enabled, false),
+                    guardian_enabled = COALESCE(guardian_enabled, false),
+                    mc_enabled = COALESCE(mc_enabled, false)
+                WHERE welcome_enabled IS NULL OR calc_enabled IS NULL;
+            `);
+
+            db.isReady = true;
+            console.log('💎 Lily Foundation: STABLE & SYNCED.');
+
+        } catch (err: any) {
+            console.error('🛑 [DB_FATAL] Foundation Sync Failed:', err.message);
+            throw err; // In blocking mode, we want to know if foundations are broken
+        } finally {
+            client.release();
+        }
     },
 
     // Supergroup Migration Support

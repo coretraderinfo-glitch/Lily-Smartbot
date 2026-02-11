@@ -1089,9 +1089,8 @@ bot.on('my_chat_member', async (ctx) => {
 // --- 5. EXECUTION ENGINE (THE HEART) ---
 async function start() {
     try {
-        console.log('🔄 Initializing Lily Foundation (Async)...');
-        db.migrate(); // Fire and forget (Background persistence)
-        await new Promise(r => setTimeout(r, 500)); // Quick stabilization
+        console.log('🔄 Initializing Lily Foundation...');
+        await db.migrate(); // Blocking: Ensure memory banks are 100% synced
         await Chronos.init(bot);
 
         // Security: Reset Webhook & Commands
