@@ -259,7 +259,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
         .text(s.guardian_enabled ? `${labels.disable} Guardian` : `${labels.enable} Guardian`, `toggle:guardian:${id}`).row()
         .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`).row()
         .text(s.auditor_enabled ? `${labels.disable} Auditor` : `${labels.enable} Auditor`, `toggle:auditor:${id}`).row()
-        .text(s.welcome_enabled !== false ? `${labels.disable} Greeting` : `${labels.enable} Greeting`, `toggle:welcome:${id}`).row()
+        .text(s.welcome_enabled !== false ? `${labels.disable} Welcome` : `${labels.enable} Welcome`, `toggle:welcome:${id}`).row()
         .text(labels.cycle, `cycle_lang:${id}`).row()
         .text("🗑️ PURGE RECORD (DELETE)", `purge_group:${id}`).row()
         .text(labels.back, "admin_list");
