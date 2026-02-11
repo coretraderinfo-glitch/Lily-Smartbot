@@ -10,6 +10,7 @@ import { I18N } from '../utils/i18n';
 import { MarketData } from '../core/market';
 import { AIBrain } from '../utils/ai';
 import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
+import { Auditor } from '../guardian/auditor'; // 💎 Silent Auditor
 
 interface CommandJob {
     chatId: number;
@@ -42,6 +43,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
     const lang = config?.language_mode || 'CN';
     const aiEnabled = config?.ai_brain_enabled || false;
+    const auditorEnabled = config?.auditor_enabled || false;
     const calcEnabled = config?.calc_enabled !== false; // Default TRUE
     const groupTitle = config?.title || 'Lily Node';
 
@@ -114,6 +116,13 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             await Settings.setDisplayMode(chatId, 1);
             const res = await Settings.setDecimals(chatId, true);
             return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+
+        // Toggle Silent Auditor
+        const auditorMatch = t.match(/^(?:开启审计|关闭审计|Auditor)\s+(on|off)$/i);
+        if (auditorMatch && isOwner) {
+            const enabled = auditorMatch[1].toLowerCase() === 'on';
+            return await Settings.toggleAuditor(chatId, enabled);
         }
 
         // --- 3. TEAM & SECURITY (PHASE B) ---
@@ -235,6 +244,26 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         if (isExportExcel) {
             const csv = await ExcelExport.generateDailyCSV(chatId);
             return `EXCEL_EXPORT:${csv}`;
+        }
+
+        // --- 6. SILENT AUDITOR TRIGGER (The Stealth Accountant) ---
+        if (auditorEnabled && !isNameTrigger) {
+            if (Auditor.isFinancialReport(text)) {
+                // Run audit in background (Don't wait to speed up reply)
+                // We fake a 'ctx' object for the auditor since we are in worker
+                (async () => {
+                    const { bot } = require('../bot');
+                    // Construct a fake ctx-like object for the auditor
+                    const fakeCtx: any = {
+                        from: { id: userId, username, first_name: username },
+                        chat: { id: chatId },
+                        message: { text },
+                        reply: (msg: string, opt: any) => bot.api.sendMessage(chatId, msg, opt),
+                        react: (emoji: string) => bot.api.setMessageReaction(chatId, job.data.messageId, [{ type: 'emoji', emoji }])
+                    };
+                    await Auditor.audit(fakeCtx, text, lang);
+                })();
+            }
         }
 
         // --- 6. AI BRAIN CHAT (GPT-4o + VISION + LEDGER + MARKET DATA) ---

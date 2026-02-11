@@ -112,6 +112,22 @@ export const Settings = {
     },
 
     /**
+     * Set Silent Auditor Mode
+     */
+    async toggleAuditor(chatId: number, enabled: boolean): Promise<string> {
+        await Settings.ensureSettings(chatId);
+        await db.query(`
+            UPDATE group_settings 
+            SET auditor_enabled = $1, updated_at = NOW()
+            WHERE group_id = $2
+        `, [enabled, chatId]);
+
+        return enabled
+            ? `💎 **Silent Auditor: ACTIVATED**\nLily is now watching all financial lists 24/7. Error detection is ON.`
+            : `💎 **Silent Auditor: DEACTIVATED**\nLily will no longer auto-audit lists in this group.`;
+    },
+
+    /**
      * Get Current Settings
      */
     async getSettings(chatId: number): Promise<any> {

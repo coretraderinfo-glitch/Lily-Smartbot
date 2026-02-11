@@ -93,6 +93,19 @@ export const db = {
             `);
             console.log('✅ Safeguard: calc_enabled verified.');
 
+            // Ensure 'auditor_enabled' exists (Silent Auditor)
+            await client.query(`
+                DO $$ 
+                BEGIN 
+                    BEGIN
+                        ALTER TABLE group_settings ADD COLUMN auditor_enabled BOOLEAN DEFAULT FALSE;
+                    EXCEPTION
+                        WHEN duplicate_column THEN NULL;
+                    END;
+                END $$;
+            `);
+            console.log('✅ Safeguard: auditor_enabled verified.');
+
             // ENSURE 'last_seen' exists in 'groups' (Critical for Dashboard Sync)
             await client.query(`
                 DO $$ 
