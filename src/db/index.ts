@@ -50,7 +50,8 @@ export const db = {
             return await dbClient.query(text, params);
         } catch (err: any) {
             // Self-Healing Logic: Detect lost, cold, or reset pipes
-            const isDead = /terminated|closed|connection|timeout|reset|pipe/i.test(err.message);
+            // Included 'fatal' for specific cloud provider handshake failures
+            const isDead = /terminated|closed|connection|timeout|reset|pipe|fatal/i.test(err.message);
             if (isDead) {
                 console.warn('🔄 [DB_RECOVERY] Pipe instability detected. Healing and retrying...');
                 // Wait 2s for the cloud stack to reset the handshake
@@ -66,7 +67,7 @@ export const db = {
 
     /**
      * AUTO-MIGRATE: The "Wake Up" Protocol
-     * Retries connection 5 times to handle Cold Boots gracefully.
+     * Retries connection until stable to handle Cold Boots gracefully.
      */
     migrate: async () => {
         if (isDefaultUrl) {
@@ -76,27 +77,32 @@ export const db = {
 
         console.log('🔄 Lily Foundation: Synchronizing Memory Banks...');
 
-        // RETRY LOOP: The fix for "Startup Failed"
-        for (let attempt = 1; attempt <= 10; attempt++) {
+        // RETRY LOOP: Infinite Resilience (Capped logs)
+        let attempt = 1;
+        while (true) {
             let client;
             try {
                 // Attempt Connection
                 client = await dbClient.connect();
 
-                // 1. Base Schema
-                const schemaPath = path.join(__dirname, 'schema.sql');
-                if (fs.existsSync(schemaPath)) {
+                // 1. Base Schema (Universal Path)
+                const schemaPath = [
+                    path.join(__dirname, 'schema.sql'),
+                    path.join(process.cwd(), 'src/db/schema.sql'),
+                    path.join(process.cwd(), 'dist/src/db/schema.sql')
+                ].find(p => fs.existsSync(p));
+
+                if (schemaPath) {
                     await client.query(fs.readFileSync(schemaPath, 'utf8'));
                 }
 
                 // 2. Incremental Migrations (Deep Search)
-                let migrationsDir = path.join(process.cwd(), 'db/migrations');
-                if (!fs.existsSync(migrationsDir)) {
-                    // Try dist-relative path for production
-                    migrationsDir = path.join(process.cwd(), 'dist/db/migrations');
-                }
+                let migrationsDir = [
+                    path.join(process.cwd(), 'db/migrations'),
+                    path.join(process.cwd(), 'dist/db/migrations')
+                ].find(p => fs.existsSync(p));
 
-                if (fs.existsSync(migrationsDir)) {
+                if (migrationsDir) {
                     const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
                     for (const file of files) {
                         try {
@@ -104,15 +110,13 @@ export const db = {
                             await client.query(sql);
                         } catch (e: any) {
                             if (!e.message.includes('already exists') && !e.message.includes('duplicate')) {
-                                console.warn(`[DB] Migration warning: ${e.message}`);
+                                console.warn(`[DB] Migration warning (${file}): ${e.message}`);
                             }
                         }
                     }
-                } else {
-                    console.log('ℹ️ No incremental migrations found in search paths.');
                 }
 
-                // 3. Logic Checks
+                // 3. Global Logic Verification
                 await client.query(`
                     UPDATE group_settings SET 
                         welcome_enabled = COALESCE(welcome_enabled, false),
@@ -125,18 +129,20 @@ export const db = {
                 `);
 
                 db.isReady = true;
-                console.log(`💎 Lily Foundation: STABLE & SYNCED (Attempt ${attempt}).`);
+                console.log(`💎 Lily Foundation: STABLE & SYNCED (Attempts: ${attempt}).`);
                 return; // Success!
 
             } catch (err: any) {
-                const isTimeout = err.message.includes('timeout') || err.message.includes('terminated');
-                if (isTimeout || attempt < 10) {
-                    console.warn(`⏳ [DB_WAKEUP] Database is sleeping/busy (Attempt ${attempt}/10). Waiting 5s...`);
-                    // Linear Backoff: 5s, 5s, 5s...
+                const isConnectionErr = /terminated|closed|connection|timeout|reset|pipe|fatal|auth|handshake/i.test(err.message);
+                if (isConnectionErr || attempt < 100) {
+                    if (attempt % 5 === 0) console.warn(`⏳ [DB_WAKEUP] Database is still sleeping/busy (Attempt ${attempt})...`);
+                    // Backoff: Wait 5s and try again
                     await new Promise(r => setTimeout(r, 5000));
+                    attempt++;
                 } else {
-                    console.error('🛑 [DB_FATAL] Foundation Sync Failed:', err.message);
-                    throw err; // Give up after 10 tries
+                    console.error('🛑 [DB_FATAL] Foundation Sync Critical Failure:', err.message);
+                    await new Promise(r => setTimeout(r, 10000)); // Still wait 10s before next try
+                    attempt++;
                 }
             } finally {
                 if (client) client.release();

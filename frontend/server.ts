@@ -83,6 +83,26 @@ app.get('/api/infra', (req, res) => {
     res.json(getInfraData());
 });
 
+app.get('/api/health', async (req, res) => {
+    try {
+        const dbRes = await db.query('SELECT NOW()');
+        res.json({
+            status: 'ONLINE',
+            database: 'CONNECTED',
+            db_time: dbRes.rows[0].now,
+            bot_ready: db.isReady,
+            uptime: process.uptime()
+        });
+    } catch (e: any) {
+        res.status(500).json({
+            status: 'DEGRADED',
+            database: 'ERROR',
+            error: e.message,
+            bot_ready: db.isReady
+        });
+    }
+});
+
 // --- 📈 GLOBAL ANALYTICS (Elite Cache Layer) ---
 let lastStats: any = null;
 let lastStatsTime = 0;

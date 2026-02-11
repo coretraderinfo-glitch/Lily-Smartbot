@@ -37,7 +37,8 @@ export const MoneyChanger = {
                     total_rm NUMERIC(20, 4),
                     txid TEXT UNIQUE,
                     status VARCHAR(20) DEFAULT 'PENDING',
-                    created_at TIMESTAMPTZ DEFAULT NOW()
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
                 );
             `);
         } catch (e) {

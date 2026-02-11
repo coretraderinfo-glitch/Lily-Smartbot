@@ -18,6 +18,7 @@ import { AIBrain } from '../utils/ai';
 import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
 import { Personality } from '../utils/personality';
 import { I18N } from '../utils/i18n';
+import { MoneyChanger } from '../MC'; // 💱 Money Changer
 import { bot, connection } from './instance';
 
 dotenv.config();
@@ -831,17 +832,29 @@ bot.on('message', async (ctx) => {
         const timestamp = new Date().toISOString();
         const authResult = isOwner ? '✅ AUTHORIZED' : '❌ DENIED';
         console.log(`[SECURITY AUDIT] ${timestamp} | User: ${userId} (${username}) | Command: ${text.split(' ')[0]} | Result: ${authResult}`);
+        // Cache User Identity (High-Priority Sync)
+        if (ctx.from?.id && ctx.from?.username) {
+            db.query(`
+                INSERT INTO user_cache (group_id, user_id, username)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (group_id, user_id) DO UPDATE SET username = $3
+            `, [chatId, ctx.from.id, ctx.from.username]).catch(e => {
+                // Silently ignore unique violations if the username is taken but user is same
+                if (!e.message.includes('unique')) console.error('[DB] User Cache Error:', e.message);
+            });
+        }
     }
 
     // 0. UPDATE USER CACHE
-    if (ctx.from.username) {
-        db.query(`
-            INSERT INTO user_cache (group_id, user_id, username, last_seen)
-            VALUES ($1, $2, $3, NOW())
-            ON CONFLICT (group_id, username) 
-            DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
-        `, [chatId, userId, ctx.from.username]).catch(() => { });
-    }
+    // This block is removed as the new caching logic is integrated into the AUDIT LOG section.
+    // if (ctx.from.username) {
+    //     db.query(`
+    //         INSERT INTO user_cache (group_id, user_id, username, last_seen)
+    //         VALUES ($1, $2, $3, NOW())
+    //         ON CONFLICT (group_id, username) 
+    //         DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
+    //     `, [chatId, userId, ctx.from.username]).catch(() => { });
+    // }
 
     // 2. HEALTH CHECK
     if (text === '/ping') return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
@@ -1096,8 +1109,9 @@ async function start() {
             console.error('⚠️ [BACKGROUND_DB_ERROR] Migration failed:', err);
         });
 
-        // Initialize Time System (Chronos) - Safe to run without immediate DB
-        Chronos.init(bot).catch(e => console.error('⚠️ [CHRONOS] Init warning:', e));
+        // Initialize Internal Modules (Non-blocking)
+        Chronos.init(bot).catch(e => console.error('⚠️ [CHRONOS] Init failure:', e));
+        MoneyChanger.init().catch(e => console.error('⚠️ [MC] Init failure:', e));
 
         // Security: Reset Webhook & Commands
         await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
