@@ -855,9 +855,8 @@ bot.on('message', async (ctx) => {
         /^[+\-取]\s*\d/.test(text) ||
         /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*[\d.]+/i.test(text);
 
-    // FETCH SETTINGS ONCE
-    const settingsRes = await db.query('SELECT ai_brain_enabled, auditor_enabled FROM group_settings WHERE group_id = $1', [chatId]);
-    const config = settingsRes.rows[0];
+    // 4. SETTINGS & TRIGGER DETECTION (Ultra-Fast Cache Layer)
+    const config = await SettingsCache.get(chatId);
     const aiEnabled = config?.ai_brain_enabled || false;
     const auditorEnabled = config?.auditor_enabled || false;
 
@@ -865,14 +864,17 @@ bot.on('message', async (ctx) => {
     const isReplyToBot = ctx.message.reply_to_message?.from?.id === ctx.me.id;
     const caption = ctx.message.caption || "";
     const isNameMention = /lily/i.test(t) || /lily/i.test(caption) ||
-        (ctx.message.entities?.some(e => e.type === 'mention') && (t.includes('@') || caption.includes('@'))) ||
+        (ctx.message.entities?.some(e => e.type === 'mention' || e.type === 'text_mention')) ||
         isReplyToBot;
 
-    // SILENT AUDITOR BYPASS: If auditor is ON and message looks like a report, wake up!
+    // PROFESSOR OVERRIDE: Lily never ignores her Master.
+    const isTriggered = isCommand || (aiEnabled && isNameMention) || (isOwner && isNameMention);
+
+    // SILENT AUDITOR BYPASS
     const { Auditor } = require('../guardian/auditor');
     const isReport = auditorEnabled && Auditor.isFinancialReport(text);
 
-    if (isCommand || (aiEnabled && isNameMention) || isReport) {
+    if (isTriggered || isReport) {
         if (text.startsWith('/start')) {
             return ctx.reply(`✨ **Lily Smart Ledger**\nID: \`${userId}\` | Status: ${isOwner ? '👑 Owner' : '👤 User'}`, { parse_mode: 'Markdown' });
         }

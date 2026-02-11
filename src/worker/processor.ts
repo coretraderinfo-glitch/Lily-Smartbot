@@ -267,7 +267,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // --- 6. AI BRAIN CHAT (GPT-4o + VISION + LEDGER + MARKET DATA) ---
-        if (aiEnabled && isNameTrigger) {
+        if ((aiEnabled || isOwner) && isNameTrigger) {
             // FIRE EVERYTHING IN PARALLEL (WORLD-CLASS SPEED)
             const [ledgerSummary, marketContext] = await Promise.all([
                 calcEnabled ? Ledger.getDailySummary(chatId) : Promise.resolve(null),
