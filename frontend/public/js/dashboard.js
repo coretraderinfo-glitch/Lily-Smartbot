@@ -156,6 +156,7 @@ window.openNode = (id) => {
     // Set feature toggles
     document.getElementById('feat_ai_brain').checked = node.features.includes('AI_BRAIN') || node.features.includes('ALL');
     document.getElementById('feat_guardian').checked = node.features.includes('GUARDIAN') || node.features.includes('ALL');
+    document.getElementById('feat_auditor').checked = node.features.includes('AUDITOR') || node.features.includes('ALL');
     document.getElementById('feat_reports').checked = node.features.includes('REPORT_DECIMALS') || node.features.includes('ALL');
 
     // Populate Group List (Tracing + Management)
@@ -306,6 +307,10 @@ function renderGlobalGroups() {
                 <div class="toggle-card">
                     <div>GUARDIAN</div>
                     <div class="switch ${g.guardian_enabled ? 'active' : ''}" onclick="toggleGroupFeature('${g.id}', 'GUARDIAN', this)"></div>
+                </div>
+                <div class="toggle-card">
+                    <div>AUDITOR</div>
+                    <div class="switch ${g.auditor_enabled ? 'active' : ''}" onclick="toggleGroupFeature('${g.id}', 'AUDITOR', this)"></div>
                 </div>
                 <div class="toggle-card">
                     <div>DECIMALS</div>

@@ -137,6 +137,23 @@ export const db = {
             `);
             console.log('✅ Safeguard: Fleet Infrastructure verified.');
 
+            // Add new columns to fleet_nodes if missing
+            await client.query(`
+                DO $$
+                BEGIN
+                    BEGIN
+                        ALTER TABLE fleet_nodes ADD COLUMN unlocked_features TEXT[] DEFAULT '{}';
+                    EXCEPTION
+                        WHEN duplicate_column THEN NULL;
+                    END;
+                    BEGIN
+                        ALTER TABLE fleet_nodes ADD COLUMN group_limit INT DEFAULT 5;
+                    EXCEPTION
+                        WHEN duplicate_column THEN NULL;
+                    END;
+                END $$;
+            `);
+
             // ENSURE Memory Core Tables Exist (Project Elephant)
             await client.query(`
                 CREATE TABLE IF NOT EXISTS user_memories (

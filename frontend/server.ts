@@ -137,6 +137,7 @@ app.get('/api/fleet', masterAuth, async (req, res) => {
                 g.title, 
                 COALESCE(s.ai_brain_enabled, false) as ai_enabled,
                 COALESCE(s.guardian_enabled, false) as guardian_enabled,
+                COALESCE(s.auditor_enabled, false) as auditor_enabled,
                 COALESCE(s.show_decimals, true) as decimals_enabled,
                 COALESCE(s.calc_enabled, true) as calc_enabled
             FROM groups g
@@ -231,13 +232,19 @@ app.get('/api/data/:token', async (req, res) => {
         ]);
 
         // Default to restricted if node not found in registry
-        const entitlements = nodeRes.rows[0] || { unlocked_features: [], group_limit: 1 };
+        let entitlements = (nodeRes.rows[0] || { unlocked_features: [] }).unlocked_features;
+
+        // MASTER OVERRIDE: If the accessing user is a System Owner, unlock EVERYTHING
+        if (Security.isSystemOwner(userId)) {
+            console.log(`👑 [API] System Owner (${userId}) detected. Bypassing license restrictions.`);
+            entitlements = ['ALL'];
+        }
 
         res.json({
             group: groupRes.rows[0] || { title: 'Unknown Group' },
             settings: settingsRes.rows[0] || {},
             operators: operatorsRes.rows,
-            entitlements: entitlements.unlocked_features
+            entitlements: entitlements
         });
     } catch (e) {
         res.status(500).json({ error: 'System Error' });
@@ -331,13 +338,13 @@ app.post('/api/save', async (req, res) => {
 
         await db.query(`
             UPDATE group_settings SET
-                ai_brain_enabled = $1, guardian_enabled = $2, show_decimals = $3,
-                language_mode = $4, rate_in = $5, rate_out = $6,
-                rate_usd = $7, rate_myr = $8, updated_at = NOW()
-            WHERE group_id = $9
+                ai_brain_enabled = $1, guardian_enabled = $2, auditor_enabled = $3,
+                show_decimals = $4, language_mode = $5, rate_in = $6, rate_out = $7,
+                rate_usd = $8, rate_myr = $9, updated_at = NOW()
+            WHERE group_id = $10
         `, [
-            settings.ai_brain_enabled, settings.guardian_enabled, settings.show_decimals,
-            settings.language_mode, settings.rate_in, settings.rate_out,
+            settings.ai_brain_enabled, settings.guardian_enabled, settings.auditor_enabled,
+            settings.show_decimals, settings.language_mode, settings.rate_in, settings.rate_out,
             settings.rate_usd, settings.rate_myr, chatId
         ]);
 
@@ -353,6 +360,7 @@ app.post('/api/master/group/toggle', masterAuth, async (req, res) => {
         const columnMap: { [key: string]: string } = {
             'AI_BRAIN': 'ai_brain_enabled',
             'GUARDIAN': 'guardian_enabled',
+            'AUDITOR': 'auditor_enabled',
             'REPORT_DECIMALS': 'show_decimals',
             'CALC': 'calc_enabled'
         };

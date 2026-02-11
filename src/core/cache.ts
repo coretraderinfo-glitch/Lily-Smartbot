@@ -32,6 +32,7 @@ const settingsCache = new LRUCache<string, any>({
             ai_brain_enabled: false,
             welcome_enabled: true,
             calc_enabled: true,
+            auditor_enabled: false,
             language_mode: 'CN'
         };
     }

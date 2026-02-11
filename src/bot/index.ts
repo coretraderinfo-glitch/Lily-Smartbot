@@ -852,8 +852,10 @@ bot.on('message', async (ctx) => {
         /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*[\d.]+/i.test(text);
 
     // FETCH SETTINGS ONCE
-    const settingsRes = await db.query('SELECT ai_brain_enabled FROM group_settings WHERE group_id = $1', [chatId]);
-    const aiEnabled = settingsRes.rows[0]?.ai_brain_enabled || false;
+    const settingsRes = await db.query('SELECT ai_brain_enabled, auditor_enabled FROM group_settings WHERE group_id = $1', [chatId]);
+    const config = settingsRes.rows[0];
+    const aiEnabled = config?.ai_brain_enabled || false;
+    const auditorEnabled = config?.auditor_enabled || false;
 
     // EVOLVED HEARING: Detect "Lily", Mentions, OR Replies to Bot
     const isReplyToBot = ctx.message.reply_to_message?.from?.id === ctx.me.id;
@@ -862,7 +864,11 @@ bot.on('message', async (ctx) => {
         (ctx.message.entities?.some(e => e.type === 'mention') && (t.includes('@') || caption.includes('@'))) ||
         isReplyToBot;
 
-    if (isCommand || (aiEnabled && isNameMention)) {
+    // SILENT AUDITOR BYPASS: If auditor is ON and message looks like a report, wake up!
+    const { Auditor } = require('../guardian/auditor');
+    const isReport = auditorEnabled && Auditor.isFinancialReport(text);
+
+    if (isCommand || (aiEnabled && isNameMention) || isReport) {
         if (text.startsWith('/start')) {
             return ctx.reply(`✨ **Lily Smart Ledger**\nID: \`${userId}\` | Status: ${isOwner ? '👑 Owner' : '👤 User'}`, { parse_mode: 'Markdown' });
         }

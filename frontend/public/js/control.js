@@ -28,6 +28,7 @@ async function init() {
         document.getElementById('groupTitle').textContent = data.group.title;
         document.getElementById('ai_brain_enabled').checked = data.settings.ai_brain_enabled;
         document.getElementById('guardian_enabled').checked = data.settings.guardian_enabled;
+        document.getElementById('auditor_enabled').checked = data.settings.auditor_enabled;
         document.getElementById('show_decimals').checked = data.settings.show_decimals !== false;
         document.getElementById('language_mode').value = data.settings.language_mode || 'CN';
         document.getElementById('rate_in').value = data.settings.rate_in || 0;
@@ -59,6 +60,7 @@ function applyEntitlements(unlocked) {
     const features = [
         { id: 'ai_brain_enabled', key: 'AI_BRAIN' },
         { id: 'guardian_enabled', key: 'GUARDIAN' },
+        { id: 'auditor_enabled', key: 'AUDITOR' },
         { id: 'show_decimals', key: 'REPORT_DECIMALS' }
     ];
 
@@ -119,6 +121,7 @@ form.onsubmit = async (e) => {
         token: state.token,
         ai_brain_enabled: document.getElementById('ai_brain_enabled').checked,
         guardian_enabled: document.getElementById('guardian_enabled').checked,
+        auditor_enabled: document.getElementById('auditor_enabled').checked,
         show_decimals: document.getElementById('show_decimals').checked,
         language_mode: document.getElementById('language_mode').value,
         rate_in: parseFloat(document.getElementById('rate_in').value),
