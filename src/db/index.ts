@@ -20,11 +20,13 @@ if (isDefaultUrl) {
     // No fancy retry wrappers, no manual keep-alives. Just standard pg.
     pool = new Pool({
         connectionString: dbUrl,
-        ssl: { rejectUnauthorized: false }, // Required for Railway
-        max: 5,         // Reasonable limit for standard plans
-        min: 0,         // Don't force open connections if not needed
+        ssl: { rejectUnauthorized: false },
+        max: 10,        // Increased to 10 for Concurrency
+        min: 0,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 60000, // 60s Buffer (Crucial for cold starts)
+        connectionTimeoutMillis: 60000,
+        keepAlive: true, // Fix for "Terminated Unexpectedly"
+        keepAliveInitialDelayMillis: 10000
     });
 
     pool.on('error', (err: any) => {
@@ -35,9 +37,21 @@ if (isDefaultUrl) {
 export const db = {
     isReady: false,
 
-    // STANDARD QUERY - No "Extreme Resilience" wrapper that swallows errors
+    // SHIELDED QUERY - Retries ONCE on network drop
     query: async (text: string, params?: any[]) => {
-        return pool.query(text, params);
+        try {
+            return await pool.query(text, params);
+        } catch (err: any) {
+            // If connection dropped, try one more time immediately
+            if (err.message.includes('terminated') ||
+                err.message.includes('closed') ||
+                err.message.includes('ended') ||
+                err.message.includes('timeout')) {
+                console.warn(`🔄 [DB_RETRY] Connection blip detected (${err.message}). Retrying...`);
+                return await pool.query(text, params);
+            }
+            throw err;
+        }
     },
 
     // STANDARD CLIENT GETTER
