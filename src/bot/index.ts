@@ -598,7 +598,15 @@ bot.on('callback_query:data', async (ctx) => {
             }
         }
 
-        return await renderManagementConsole(ctx, id);
+        try {
+            return await renderManagementConsole(ctx, id);
+        } catch (e: any) {
+            // Ignore "message is not modified" errors (User clicked same button twice)
+            if (e.description?.includes('message is not modified')) {
+                return;
+            }
+            throw e;
+        }
     }
 });
 
