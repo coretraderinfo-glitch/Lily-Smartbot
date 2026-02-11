@@ -87,10 +87,17 @@ const worker = new Worker('lily-commands', async job => {
     }
 }, {
     connection: workerConnection, // DEDICATED BLOCKING CONNECTION
-    concurrency: 5, // Reduced concurrency for stability
+    concurrency: 5, // Reduced from High
+    lockDuration: 60000, // 60s Lock (Prevents AI timeouts from re-triggering job)
+    maxStalledCount: 0, // CRITICAL: If job stalls/crashes, DO NOT RETRY. Fail it. Prevents loops.
     removeOnComplete: { count: 100 },
     removeOnFail: { count: 500 }
 });
+
+// HEARTBEAT LOGGER (Prove Aliveness)
+setInterval(() => {
+    console.log(`💓 [HEARTBEAT] Worker Active. Queue Connection: ${queueConnection.status}, Worker Connection: ${workerConnection.status}`);
+}, 30000);
 
 worker.on('completed', async (job, returnValue) => {
     if (!returnValue || !job.data.chatId) return;
