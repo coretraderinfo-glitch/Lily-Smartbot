@@ -37,7 +37,10 @@ export const Guardian = {
             // B. "Masquerade" Check (e.g., "virus.pdf.exe" or "image.jpg" that is actually an executable)
             // If mime_type is 'application/x-msdownload' (exe) but name ends in .jpg -> DELETE
             const mimeType = doc.mime_type || '';
-            const isExecutableMime = mimeType.includes('application/x-msdownload') || mimeType.includes('application/x-dosexec');
+            const isExecutableMime =
+                mimeType.includes('application/x-msdownload') ||
+                mimeType.includes('application/x-dosexec') ||
+                mimeType.includes('application/vnd.microsoft.portable-executable');
             const isMasquerade = isExecutableMime && !ext.endsWith('.exe') && !ext.endsWith('.msi');
 
             if (isBlacklisted || isMasquerade) {

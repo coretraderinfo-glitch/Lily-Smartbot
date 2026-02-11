@@ -124,6 +124,21 @@ export const db = {
             `);
             console.log('✅ Safeguard: Fleet Infrastructure verified.');
 
+            // ENSURE Memory Core Tables Exist (Project Elephant)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS user_memories (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT,
+                    type VARCHAR(50) DEFAULT 'DIRECTIVE',
+                    content TEXT,
+                    confidence FLOAT DEFAULT 1.0,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    context_group_id BIGINT
+                );
+                CREATE INDEX IF NOT EXISTS idx_mem_user ON user_memories(user_id);
+            `);
+            console.log('✅ Safeguard: Memory Core Infrastructure verified.');
+
         } catch (err) {
             console.error('❌ Migration Failed:', err);
             // Don't throw in production to keep app alive
