@@ -12,6 +12,7 @@ import { bot } from '../bot/instance';
 import { Auditor } from '../guardian/auditor'; // 💎 Silent Auditor
 import { AIBrain } from '../utils/ai';
 import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
+import { MoneyChanger } from '../MC'; // 💱 Money Changer (New Module)
 
 interface CommandJob {
     chatId: number;
