@@ -97,8 +97,13 @@ export const AIBrain = {
         try {
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-            // 🧠 MEMORY RECALL (Now Ultra-Fast LRU Cache)
-            const memoryContext = await MemoryCore.recall(userId);
+            // 🧠 MEMORY RECALL (Now Ultra-Fast LRU Cache) -- SHIELDED
+            let memoryContext = '';
+            try {
+                memoryContext = await MemoryCore.recall(userId);
+            } catch (memErr) {
+                console.warn('[AI] Memory Access Failed (Skipping)');
+            }
 
             let userContent: any = effectiveText;
             if (imageUrl) {
@@ -120,7 +125,8 @@ export const AIBrain = {
 - Internal Sales: ${ledgerContext || "None"}.
 - Market Feed: ${marketContext || "ACTIVE"}.
 ${memoryContext}
-${replyContext ? `- Replying to: "${replyContext}"` : ""}`
+${replyContext ? `- Replying to: "${replyContext}"` : ""}.
+(If market data fails, just say 'Market data currently unavailable')`
                     },
                     { role: "user", content: userContent }
                 ],
