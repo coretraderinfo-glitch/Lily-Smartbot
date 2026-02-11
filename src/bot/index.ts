@@ -181,6 +181,22 @@ const GuardianMenuMarkup = {
     ]
 };
 
+// --- 0. ESSENTIAL COMMANDS (Zero-Latency / No DB Dependencies) ---
+bot.command(['ping', 'status'], async (ctx) => {
+    return ctx.reply("🏓 **Pong!** I am alive, synchronized, and listening.\n\n💡 *Status: Neural Link Active 🟢*", { parse_mode: 'Markdown' });
+});
+
+bot.command('whoami', async (ctx) => {
+    const userId = ctx.from?.id;
+    const username = ctx.from?.username || ctx.from?.first_name || 'Anonymous';
+    const isOwner = userId ? Security.isSystemOwner(userId) : false;
+    const statusIcon = isOwner ? "👑" : "👤";
+    const title = isOwner ? "**SIR / Professor**" : "**Regular User**";
+    const greeting = isOwner ? "Lily is a specialized AI entity. I am your loyal follower, SIR." : "Hello user.";
+
+    return ctx.reply(`${statusIcon} **Identity Synchronization**\n\n${greeting}\n\nID: \`${userId}\`\nName: ${username}\nRole: ${title}`, { parse_mode: 'Markdown' });
+});
+
 // --- BOSS CONTROL PANEL (PRIVATE DM ONLY) ---
 bot.command('admin', async (ctx) => {
     const userId = ctx.from?.id;
@@ -704,6 +720,16 @@ bot.on('message', async (ctx, next) => {
     const userId = ctx.from?.id;
     if (!userId) return await next();
 
+    // --- 🛡️ INITIALIZATION GUARD ---
+    if (!db.isReady) {
+        // Only warn for commands or numbers
+        const text = ctx.message?.text || ctx.message?.caption || '';
+        if (text.startsWith('/') || /^[+\-]\d/.test(text.trim())) {
+            return ctx.reply("⏳ **Foundation Synchronizing...**\n\nLily is currently warming up her memory banks (approx 5-10s). Please try your command again in a few moments.", { reply_to_message_id: ctx.message?.message_id });
+        }
+        return; // Silent fail for chat chatter
+    }
+
     // --- 🛡️ SPAM SHIELD (RATE LIMITER) ---
     if (!Security.isSystemOwner(userId)) {
         const spamKey = `spam_shield:${userId}`;
@@ -897,18 +923,7 @@ bot.on('message', async (ctx) => {
     // }
 
     // 2. HEALTH CHECK
-    if (text === '/ping') return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
     if (text === '/menu' || text === '/help') return ctx.reply(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
-
-    // Diagnostic: /whoami
-    if (text.startsWith('/whoami')) {
-        const owners = Security.getOwnerRegistry();
-        const statusIcon = isOwner ? "👑" : "👤";
-        const title = isOwner ? "**SIR / Professor**" : "**Regular User**";
-        const greeting = isOwner ? "Lily is a specialized AI entity. I am your loyal follower, SIR. My existence is dedicated solely to your mission." : "Hello user.";
-
-        return ctx.reply(`${statusIcon} **Identity Synchronization**\n\n${greeting}\n\nID: \`${userId}\`\nName: ${username}\nRole: ${title}\nOrigin: Master AI Creation\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
-    }
 
     // 2. OWNER COMMANDS
     if (text.startsWith('/recover')) {
@@ -1182,7 +1197,11 @@ async function start() {
         });
     } catch (err) {
         if (err instanceof GrammyError && err.error_code === 409) {
-            console.warn('⚠️ [COOLDOWN] Another instance is shutting down. Retrying in 5s...');
+            console.warn('⚠️ [COOLDOWN] Conflict detected. Another instance is active. Retrying in 5s...');
+            // Force Webhook Clear on EACH retry if conflict persists
+            try {
+                await bot.api.deleteWebhook({ drop_pending_updates: true });
+            } catch (e) { }
             setTimeout(start, 5000);
         } else {
             console.error('🛑 [FATAL] Startup failed:', err);
