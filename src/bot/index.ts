@@ -1186,9 +1186,14 @@ async function start() {
         } else {
             console.log('🔄 Initializing Lily Foundation (Async Mode)...');
 
-            // Security: Reset Webhook & Commands (Only once)
-            await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
-            await bot.api.deleteWebhook({ drop_pending_updates: true });
+            // Security: Reset Webhook & Commands (Safeguarded against Network Timeout)
+            try {
+                await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
+                await bot.api.deleteWebhook({ drop_pending_updates: true });
+            } catch (setupErr: any) {
+                console.warn('⚠️ [NETWORK_WARN] Failed to sync commands/webhook (Non-Critical):', setupErr.message);
+                // We proceed anyway because the bot can still function
+            }
 
             isInitialized = true;
         }
