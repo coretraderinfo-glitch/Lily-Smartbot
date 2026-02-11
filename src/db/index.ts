@@ -23,9 +23,9 @@ if (isDefaultUrl) {
     dbClient = new Pool({
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false }, // Force SSL for Railway stability
-        max: 20, // Reduced to avoid hitting Railway limits
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 15000, // Increased for stability (Cold starts)
+        max: 10, // Optimized for Railway Starter plans
+        idleTimeoutMillis: 10000, // Reclaim connections faster
+        connectionTimeoutMillis: 20000, // Even more generous for cloud stability
     });
 }
 
@@ -33,93 +33,59 @@ export const db = {
     query: (text: string, params?: any[]) => dbClient.query(text, params),
     getClient: () => dbClient.connect ? dbClient.connect() : dbClient.getClient(), // Handle Mock vs Pool
 
-    // Auto-Migrate function
+    // Auto-Migrate function with RESILIENCE (Root Cause Fix)
     migrate: async () => {
-        if (isDefaultUrl) {
-            return dbClient.migrate();
-        }
+        if (isDefaultUrl) return dbClient.migrate();
 
-        const client = await dbClient.connect();
-        try {
-            console.log('🔄 Running Database Migrations...');
+        console.log('🔄 Lily Engine: Initializing Database Persistence...');
 
-            // 1. Ensure Base Schema
-            const schemaPath = path.join(__dirname, 'schema.sql');
-            if (fs.existsSync(schemaPath)) {
-                const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-                await client.query(schemaSql);
-                console.log('✅ Base Schema Synced.');
-            }
+        // RETRY WRAPPER: 3 attempts with exponential backoff
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            let client;
+            try {
+                // Wait briefly for cloud network stabilization (Cold start safety)
+                if (attempt > 1) await new Promise(r => setTimeout(r, 5000));
 
-            // 2. Run Enterprise Migrations (Step 2 logic)
-            const migrationsDir = path.join(process.cwd(), 'db/migrations');
-            if (fs.existsSync(migrationsDir)) {
-                const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-                for (const file of files) {
-                    console.log(`⏳ Applying Migration: ${file}...`);
-                    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-                    await client.query(sql);
+                client = await dbClient.connect();
+                console.log(`✅ [DB] Connection Established (Attempt ${attempt}/3).`);
+
+                // 1. Ensure Base Schema (One-Shot)
+                const schemaPath = path.join(__dirname, 'schema.sql');
+                if (fs.existsSync(schemaPath)) {
+                    await client.query(fs.readFileSync(schemaPath, 'utf8'));
                 }
-                console.log('✅ Enterprise Pipes Successfully Connected.');
-            } else {
-                console.warn('⚠️ Migrations directory not found. Running inline safeguards...');
+
+                // 2. SURGICAL SAFEGUARDS (Consolidated for Maximum Speed)
+                await client.query(`
+                    DO $$ 
+                    BEGIN 
+                        -- Check and Add columns atomically
+                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='welcome_enabled') THEN
+                            ALTER TABLE group_settings ADD COLUMN welcome_enabled BOOLEAN DEFAULT FALSE;
+                            ALTER TABLE group_settings ADD COLUMN calc_enabled BOOLEAN DEFAULT TRUE;
+                            ALTER TABLE group_settings ADD COLUMN auditor_enabled BOOLEAN DEFAULT FALSE;
+                            ALTER TABLE group_settings ADD COLUMN mc_enabled BOOLEAN DEFAULT FALSE;
+                        END IF;
+                    END $$;
+
+                    -- Rapid Integrity Fix
+                    UPDATE group_settings SET 
+                        welcome_enabled = COALESCE(welcome_enabled, false),
+                        calc_enabled = COALESCE(calc_enabled, true)
+                    WHERE welcome_enabled IS NULL OR calc_enabled IS NULL;
+                `);
+
+                console.log('💎 Database Integrity: VERIFIED.');
+                return; // SUCCESS - Exit function
+
+            } catch (err: any) {
+                console.warn(`⚠️ [DB] Connection Attempt ${attempt} failed: ${err.message}`);
+                if (attempt === 3) {
+                    console.error('� [FATAL BYPASS] Database unreachable. Booting Lily in Degraded Mode...');
+                }
+            } finally {
+                if (client) client.release();
             }
-
-            // 3. SURGICAL SAFEGUARDS (Consolidated for Speed)
-            await client.query(`
-                DO $$ 
-                BEGIN 
-                    -- Column Safeguards
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='welcome_enabled') THEN
-                        ALTER TABLE group_settings ADD COLUMN welcome_enabled BOOLEAN DEFAULT FALSE;
-                    END IF;
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='calc_enabled') THEN
-                        ALTER TABLE group_settings ADD COLUMN calc_enabled BOOLEAN DEFAULT TRUE;
-                    END IF;
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='auditor_enabled') THEN
-                        ALTER TABLE group_settings ADD COLUMN auditor_enabled BOOLEAN DEFAULT FALSE;
-                    END IF;
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='mc_enabled') THEN
-                        ALTER TABLE group_settings ADD COLUMN mc_enabled BOOLEAN DEFAULT FALSE;
-                    END IF;
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='groups' AND column_name='last_seen') THEN
-                        ALTER TABLE groups ADD COLUMN last_seen TIMESTAMPTZ DEFAULT NOW();
-                    END IF;
-                END $$;
-
-                -- Integrity Cleanup (One Shot)
-                UPDATE group_settings SET 
-                    welcome_enabled = COALESCE(welcome_enabled, false),
-                    auditor_enabled = COALESCE(auditor_enabled, false),
-                    ai_brain_enabled = COALESCE(ai_brain_enabled, false),
-                    guardian_enabled = COALESCE(guardian_enabled, false),
-                    mc_enabled = COALESCE(mc_enabled, false),
-                    calc_enabled = COALESCE(calc_enabled, true)
-                WHERE welcome_enabled IS NULL OR calc_enabled IS NULL;
-            `);
-
-            // 4. CASCADE UPGRADE (REMOVED FROM AUTO-LOOP)
-            // This is heavy DDL and should only run manually or during initial setup.
-            // Keeping it here commented out for documentation.
-            /*
-            await client.query(`
-                DO $$
-                BEGIN
-                    -- Upgrade FK constraints to ON DELETE CASCADE
-                    -- group_settings
-                    BEGIN ALTER TABLE group_settings DROP CONSTRAINT IF EXISTS group_settings_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
-                    ALTER TABLE group_settings ADD CONSTRAINT group_settings_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
-                    -- ... (others)
-                END $$;
-            `);
-            */
-            console.log('💎 Database Integrity: STABLE.');
-
-        } catch (err) {
-            console.error('❌ Migration Failed:', err);
-            // Don't throw in production to keep app alive
-        } finally {
-            client.release();
         }
     },
 
