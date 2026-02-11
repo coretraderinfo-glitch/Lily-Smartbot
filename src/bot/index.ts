@@ -61,118 +61,119 @@ bot.catch((err) => {
 });
 
 // 3. Worker Setup (Lazy Initialization)
-let worker: Worker;
+// 3. Worker Setup (AUTONOMOUS MODE)
+// The worker starts IMMEDIATELY to listen for jobs. 
+// It does NOT wait for DB. It handles DB states internally.
+console.log('👷 [WORKER] Initializing Command Processor...');
 
-const initWorker = () => {
-    if (worker) return; // Prevent double init
-
-    console.log('👷 [WORKER] Initializing Command Processor...');
-
-    worker = new Worker('lily-commands', async job => {
-        // HYPER-DETAIL: Circuit Breaker for Job Processing
-        try {
-            if (!db.isReady) {
-                // If DB is still cold, wait 2s once, then proceed or fail
-                await new Promise(r => setTimeout(r, 2000));
-                if (!db.isReady) throw new Error('Database not ready');
-            }
-            return await processCommand(job);
-        } catch (e: any) {
-            console.error(`❌ [JOB_FAIL] ${job.id}:`, e.message);
-            throw e;
+const worker = new Worker('lily-commands', async job => {
+    // HYPER-DETAIL: Circuit Breaker for Job Processing
+    try {
+        if (!db.isReady) {
+            // If DB is still cold, wait 2s once, then proceed or fail
+            await new Promise(r => setTimeout(r, 2000));
+            // If still not ready, we throw. BullMQ will retry this job later.
+            // This is better than hanging forever.
+            if (!db.isReady) throw new Error('Database Synchronizing... Job Deferred.');
         }
-    }, {
-        connection,
-        concurrency: 5, // Reduced concurrency for stability
-        removeOnComplete: { count: 100 },
-        removeOnFail: { count: 500 }
-    });
+        return await processCommand(job);
+    } catch (e: any) {
+        console.error(`❌ [JOB_FAIL] ${job.id}:`, e.message);
+        throw e;
+    }
+}, {
+    connection,
+    concurrency: 5, // Reduced concurrency for stability
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 500 }
+});
 
-    worker.on('completed', async (job, returnValue) => {
-        if (!returnValue || !job.data.chatId) return;
+worker.on('completed', async (job, returnValue) => {
+    if (!returnValue || !job.data.chatId) return;
 
-        try {
-            // --- 1. HANDLE FILE EXPORTS (STRINGS) ---
-            if (typeof returnValue === 'string') {
-                if (returnValue.startsWith('PDF_EXPORT:')) {
-                    const base64 = returnValue.replace('PDF_EXPORT:', '');
-                    const filename = `Lily_Statement_${new Date().toISOString().split('T')[0]}.pdf`;
-                    await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(base64, 'base64'), filename), {
-                        reply_to_message_id: job.data.messageId
-                    });
-                    return;
-                }
-                if (returnValue.startsWith('EXCEL_EXPORT:')) {
-                    const csv = returnValue.replace('EXCEL_EXPORT:', '');
-                    const filename = `Lily_Ledger_${new Date().toISOString().split('T')[0]}.csv`;
-                    await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(csv), filename), {
-                        reply_to_message_id: job.data.messageId
-                    });
-                    return;
-                }
-                // Standard text reply (With Markdown Fallback)
-                try {
-                    await bot.api.sendMessage(job.data.chatId, returnValue, {
-                        reply_to_message_id: job.data.messageId,
-                        parse_mode: 'Markdown'
-                    });
-                } catch (e) {
-                    console.warn('[Markdown Fail] Retrying as plain text...');
-                    await bot.api.sendMessage(job.data.chatId, returnValue, {
-                        reply_to_message_id: job.data.messageId
-                    });
-                }
+    try {
+        // --- 1. HANDLE FILE EXPORTS (STRINGS) ---
+        if (typeof returnValue === 'string') {
+            if (returnValue.startsWith('PDF_EXPORT:')) {
+                const base64 = returnValue.replace('PDF_EXPORT:', '');
+                const filename = `Lily_Statement_${new Date().toISOString().split('T')[0]}.pdf`;
+                await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(base64, 'base64'), filename), {
+                    reply_to_message_id: job.data.messageId
+                });
                 return;
             }
-
-            // --- 2. HANDLE RICH RESULTS (OBJECTS) ---
-            if (typeof returnValue === 'object') {
-                const res = returnValue as BillResult;
-                // Fast-fail language check
-                let lang = 'CN';
-                try {
-                    const settings = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [job.data.chatId]);
-                    lang = settings.rows[0]?.language_mode || 'CN';
-                } catch (e) { }
-
-                if (res.text) {
-                    const options: any = { reply_to_message_id: job.data.messageId, parse_mode: 'Markdown' };
-                    if (res.showMore && res.url) {
-                        const btnLabel = lang === 'CN' ? '检查明细 (MORE)' : lang === 'MY' ? 'Lihat Butiran' : 'View Details';
-                        options.reply_markup = new InlineKeyboard().url(btnLabel, res.url);
-                    }
-                    await bot.api.sendMessage(job.data.chatId, res.text, options);
-                }
-
-                if (res.pdf) {
-                    const filename = `Lily_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-                    await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(res.pdf, 'base64'), filename), {
-                        caption: lang === 'CN' ? '📊 本日本对账单' : lang === 'MY' ? '📊 Laporan Transaksi' : '📊 Daily Transaction Report'
-                    });
-                }
+            if (returnValue.startsWith('EXCEL_EXPORT:')) {
+                const csv = returnValue.replace('EXCEL_EXPORT:', '');
+                const filename = `Lily_Ledger_${new Date().toISOString().split('T')[0]}.csv`;
+                await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(csv), filename), {
+                    reply_to_message_id: job.data.messageId
+                });
                 return;
             }
-        } catch (err) {
-            console.error('Error sending worker response:', err);
-        }
-    });
-
-    worker.on('failed', async (job, err) => {
-        console.error(`Job ${job?.id} failed:`, err);
-        if (job?.data.chatId) {
+            // Standard text reply (With Markdown Fallback)
             try {
-                await bot.api.sendMessage(job.data.chatId, `⚠️ **System Error**: ${err.message}`, {
+                await bot.api.sendMessage(job.data.chatId, returnValue, {
                     reply_to_message_id: job.data.messageId,
                     parse_mode: 'Markdown'
                 });
-            } catch (msgErr) {
-                console.error('Failed to report job failure to user');
+            } catch (e) {
+                console.warn('[Markdown Fail] Retrying as plain text...');
+                await bot.api.sendMessage(job.data.chatId, returnValue, {
+                    reply_to_message_id: job.data.messageId
+                });
             }
+            return;
         }
-    });
 
-    console.log('✅ [WORKER] Command Processor is ONLINE.');
-};
+        // --- 2. HANDLE RICH RESULTS (OBJECTS) ---
+        if (typeof returnValue === 'object') {
+            const res = returnValue as BillResult;
+            // Fast-fail language check
+            let lang = 'CN';
+            try {
+                const settings = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [job.data.chatId]);
+                lang = settings.rows[0]?.language_mode || 'CN';
+            } catch (e) { }
+
+            if (res.text) {
+                const options: any = { reply_to_message_id: job.data.messageId, parse_mode: 'Markdown' };
+                if (res.showMore && res.url) {
+                    const btnLabel = lang === 'CN' ? '检查明细 (MORE)' : lang === 'MY' ? 'Lihat Butiran' : 'View Details';
+                    options.reply_markup = new InlineKeyboard().url(btnLabel, res.url);
+                }
+                await bot.api.sendMessage(job.data.chatId, res.text, options);
+            }
+
+            if (res.pdf) {
+                const filename = `Lily_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+                await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(res.pdf, 'base64'), filename), {
+                    caption: lang === 'CN' ? '📊 本日本对账单' : lang === 'MY' ? '📊 Laporan Transaksi' : '📊 Daily Transaction Report'
+                });
+            }
+            return;
+        }
+    } catch (err) {
+        console.error('Error sending worker response:', err);
+    }
+});
+
+worker.on('failed', async (job, err) => {
+    console.error(`Job ${job?.id} failed:`, err);
+    if (job?.data.chatId) {
+        try {
+            await bot.api.sendMessage(job.data.chatId, `⚠️ **System Error**: ${err.message}`, {
+                reply_to_message_id: job.data.messageId,
+                parse_mode: 'Markdown'
+            });
+        } catch (msgErr) {
+            console.error('Failed to report job failure to user');
+        }
+    }
+});
+
+worker.on('ready', () => {
+    console.log('✅ [WORKER] Command Processor is ONLINE (Autonomous).');
+});
 
 // Worker Events Handlers moved inside initWorker
 
@@ -1204,12 +1205,8 @@ async function start() {
                 try {
                     await db.migrate();
                     // FOUNDATION READY: Now start sub-modules safely
-                    // FOUNDATION READY: Now start sub-modules safely
                     await Chronos.init(bot);
                     await MoneyChanger.init();
-
-                    // START WORKER NOW (Safe Time)
-                    initWorker();
 
                     console.log('✅ Lily Modules: SECURED & INITIALIZED.');
                 } catch (err) {
