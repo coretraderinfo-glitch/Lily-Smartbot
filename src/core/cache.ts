@@ -15,36 +15,38 @@ const settingsCache = new LRUCache<string, any>({
     fetchMethod: async (key) => {
         const groupId = key;
 
-        // 1. Fetch Actual Settings First (Priority: Feature Accuracy)
-        const [sRes, gRes, aRes, oRes] = await Promise.all([
-            db.query('SELECT * FROM group_settings WHERE group_id = $1', [groupId]),
-            db.query('SELECT title FROM groups WHERE id = $1', [groupId]),
-            db.query('SELECT user_id FROM group_admins WHERE group_id = $1', [groupId]),
-            db.query('SELECT user_id FROM group_operators WHERE group_id = $1', [groupId])
-        ]);
+        // 1. ATOMIC IDENTITY FETCH (Merged 4 queries into 1 for stability)
+        const res = await db.query(`
+            SELECT 
+                g.title,
+                s.*, 
+                (SELECT json_agg(user_id::text) FROM group_admins WHERE group_id = $1) as admin_list,
+                (SELECT json_agg(user_id::text) FROM group_operators WHERE group_id = $1) as operator_list
+            FROM groups g
+            LEFT JOIN group_settings s ON g.id = s.group_id
+            WHERE g.id = $1
+        `, [groupId]);
 
-        const s = sRes.rows[0];
-        const title = gRes.rows[0]?.title || 'Lily Node';
-        const admins = aRes.rows.map((r: any) => String(r.user_id));
-        const operators = oRes.rows.map((r: any) => String(r.user_id));
+        const data = res.rows[0];
+        const title = data?.title || 'Lily Node';
 
-        if (s) {
+        if (data && data.group_id) {
             return {
-                ...s,
+                ...data,
                 title,
-                admins,
-                operators,
+                admins: data.admin_list || [],
+                operators: data.operator_list || [],
                 // Hard-coded defaults for the engine to ensure NO NULLs
-                guardian_enabled: !!s.guardian_enabled,
-                ai_brain_enabled: !!s.ai_brain_enabled,
-                welcome_enabled: !!s.welcome_enabled,
-                calc_enabled: !!(s.calc_enabled ?? true),
-                auditor_enabled: !!s.auditor_enabled,
-                mc_enabled: !!s.mc_enabled
+                guardian_enabled: !!data.guardian_enabled,
+                ai_brain_enabled: !!data.ai_brain_enabled,
+                welcome_enabled: !!data.welcome_enabled,
+                calc_enabled: !!(data.calc_enabled ?? true),
+                auditor_enabled: !!data.auditor_enabled,
+                mc_enabled: !!data.mc_enabled
             };
         }
 
-        // 3. Absolute Fallback (New Groups)
+        // 3. Absolute Fallback (New Groups or Settings missing)
         return {
             title,
             guardian_enabled: false,

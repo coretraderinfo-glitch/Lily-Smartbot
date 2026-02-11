@@ -25,7 +25,7 @@ if (isDefaultUrl) {
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
         max: 20, // Increased for hyper-scale
-        min: 2,  // Keep 2 warm connections at all times
+        min: 4,  // Keep 4 warm connections to absorb bursts
         idleTimeoutMillis: 30000, // 30s Hold (More stable for cold providers)
         connectionTimeoutMillis: 60000, // 60s Buffer (Crucial for cold starts)
         application_name: 'Lily_Master_HyperScale',
@@ -46,23 +46,32 @@ if (isDefaultUrl) {
 }
 
 export const db = {
+    /**
+     * EXTREME RESILIENCE QUERY: The unbreakable heart of Lily.
+     * Automatically heals dead connections and retries failed queries.
+     */
     query: async (text: string, params?: any[]) => {
-        try {
-            return await dbClient.query(text, params);
-        } catch (err: any) {
-            // Self-Healing Logic: Detect lost, cold, or reset pipes
-            // Included 'fatal' and 'auth' for specific cloud provider handshake failures
-            const isDead = /terminated|closed|connection|timeout|reset|pipe|fatal|auth|handshake/i.test(err.message);
-            if (isDead) {
-                console.warn('🔄 [DB_RECOVERY] Pipe instability detected. Healing and retrying...');
-                // Wait 3s for the cloud stack to reset the handshake
-                await new Promise(r => setTimeout(r, 3000));
+        const execute = async (retryCount = 0): Promise<any> => {
+            try {
                 return await dbClient.query(text, params);
+            } catch (err: any) {
+                // Detect Cloud/Network Instability
+                const isDead = /terminated|closed|connection|timeout|reset|pipe|fatal|auth|handshake/i.test(err.message);
+
+                if (isDead && retryCount < 2) {
+                    const delay = retryCount === 0 ? 1000 : 3000; // Progressive healing wait time
+                    console.warn(`🔄 [DB_RECOVERY] Pipe instability detected. Healing and retrying in ${delay}ms...`);
+                    await new Promise(r => setTimeout(r, delay));
+                    return execute(retryCount + 1);
+                }
+                throw err; // Real errors (SQL syntax, violations) throw immediately
             }
-            throw err;
-        }
+        };
+        return await execute();
     },
-    getClient: () => dbClient.connect ? dbClient.connect() : dbClient.getClient(),
+
+    // Bridge for Transactional Operations (BEGIN/COMMIT/ROLLBACK)
+    getClient: () => dbClient.connect(),
 
     isReady: false,
 
