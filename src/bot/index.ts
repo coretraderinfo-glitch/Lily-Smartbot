@@ -238,6 +238,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
         ai: I18N.t(lang, 'console.ai'),
         calc: I18N.t(lang, 'console.calc'),
         welcome: I18N.t(lang, 'console.welcome'),
+        auditor: I18N.t(lang, 'console.auditor'),
         langLabel: I18N.t(lang, 'console.lang'),
         disable: I18N.t(lang, 'console.disable'),
         enable: I18N.t(lang, 'console.enable'),
@@ -249,6 +250,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
     msg += `ℹ️ ${labels.calc}: ${s.calc_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🛡️ ${labels.guardian}: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🧠 ${labels.ai}: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `💎 ${labels.auditor}: ${s.auditor_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🥊 ${labels.welcome}: ${s.welcome_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🌐 ${labels.langLabel}: **${lang}**\n`;
 
@@ -256,6 +258,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
         .text(s.calc_enabled !== false ? `${labels.disable} Calc` : `${labels.enable} Calc`, `toggle:calc:${id}`).row()
         .text(s.guardian_enabled ? `${labels.disable} Guardian` : `${labels.enable} Guardian`, `toggle:guardian:${id}`).row()
         .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`).row()
+        .text(s.auditor_enabled ? `${labels.disable} Auditor` : `${labels.enable} Auditor`, `toggle:auditor:${id}`).row()
         .text(s.welcome_enabled !== false ? `${labels.disable} Greeting` : `${labels.enable} Greeting`, `toggle:welcome:${id}`).row()
         .text(labels.cycle, `cycle_lang:${id}`).row()
         .text("🗑️ PURGE RECORD (DELETE)", `purge_group:${id}`).row()
@@ -485,6 +488,7 @@ bot.on('callback_query:data', async (ctx) => {
         let column = 'guardian_enabled';
         if (type === 'ai') column = 'ai_brain_enabled';
         if (type === 'welcome') column = 'welcome_enabled';
+        if (type === 'auditor') column = 'auditor_enabled';
         if (type === 'calc') column = 'calc_enabled';
 
         // Use UPSERT for Toggles too!
