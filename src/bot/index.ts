@@ -1,6 +1,5 @@
-import { Bot, Context, InputFile, InlineKeyboard, GrammyError, HttpError } from 'grammy';
+import { Context, InputFile, InlineKeyboard, GrammyError, HttpError } from 'grammy';
 import { Worker, Queue } from 'bullmq';
-import IORedis from 'ioredis';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
 import { SettingsCache } from '../core/cache';
@@ -14,8 +13,12 @@ import { Chronos } from '../core/scheduler';
 import { BillResult } from '../core/ledger';
 import { Security } from '../utils/security';
 import { Guardian } from '../guardian/engine';
+import { Auditor } from '../guardian/auditor'; // 💎 Silent Auditor
+import { AIBrain } from '../utils/ai';
+import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
 import { Personality } from '../utils/personality';
 import { I18N } from '../utils/i18n';
+import { bot, connection } from './instance';
 
 dotenv.config();
 checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL', 'OPENAI_API_KEY']);
@@ -31,22 +34,7 @@ import { startWebServer } from '../../frontend/server';
 // Start the Web Server (Dashboard & API)
 startWebServer();
 
-// Connection Pools
-export const bot = new Bot(process.env.BOT_TOKEN!);
-
-// ioredis connection with better stability
-const connection = new IORedis(process.env.REDIS_URL!, {
-    maxRetriesPerRequest: null,
-    connectTimeout: 10000,
-    retryStrategy(times) {
-        return Math.min(times * 50, 2000);
-    }
-});
-
-connection.on('error', (err) => {
-    console.error('❌ Redis Connection Error:', err.message);
-});
-
+// Connection Pools & Queues
 const commandQueue = new Queue('lily-commands', { connection });
 
 // 2. Global Bot Error Handler (ROOT CAUSE PROTECTION)
@@ -1001,28 +989,37 @@ bot.on('my_chat_member', async (ctx) => {
     }
 });
 
-// Startup
+// --- 5. EXECUTION ENGINE (THE HEART) ---
 async function start() {
     try {
+        console.log('🔄 Initializing Lily Foundation...');
         await db.migrate();
         await Chronos.init(bot);
 
+        // Security: Reset Webhook & Commands
         await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
-        // ROOT CAUSE FIX: 409 Conflict (Ghost Instances)
-        // Dropping pending updates ensures a clean start on Railway.
         await bot.api.deleteWebhook({ drop_pending_updates: true });
 
         console.log('🚀 Lily Bot Starting (Fighter Mode)...');
+        // We use Long Polling (Safe for Railway)
         await bot.start({
-            drop_pending_updates: true, // Kill old ghost polling
+            drop_pending_updates: true,
             onStart: (botInfo) => {
                 console.log(`✅ SUCCESS: Connected to Telegram as @${botInfo.username}`);
             },
             allowed_updates: ["message", "callback_query", "channel_post", "edited_message", "my_chat_member"]
         });
     } catch (err) {
-        console.error('🛑 [FATAL] Startup failed:', err);
+        if (err instanceof GrammyError && err.error_code === 409) {
+            console.warn('⚠️ [COOLDOWN] Another instance is shutting down. Retrying in 5s...');
+            setTimeout(start, 5000);
+        } else {
+            console.error('🛑 [FATAL] Startup failed:', err);
+        }
     }
 }
 
-start();
+// PROTECTIVE BOOT: Only start if this is the main process
+if (require.main === module) {
+    start();
+}

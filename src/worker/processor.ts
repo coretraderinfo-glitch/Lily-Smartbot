@@ -8,9 +8,10 @@ import { db } from '../db';
 import { Security } from '../utils/security';
 import { I18N } from '../utils/i18n';
 import { MarketData } from '../core/market';
+import { bot } from '../bot/instance';
+import { Auditor } from '../guardian/auditor'; // 💎 Silent Auditor
 import { AIBrain } from '../utils/ai';
 import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
-import { Auditor } from '../guardian/auditor'; // 💎 Silent Auditor
 
 interface CommandJob {
     chatId: number;
@@ -251,14 +252,13 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             if (Auditor.isFinancialReport(text)) {
                 // Construct a robust fake context for the auditor
                 try {
-                    const { bot } = require('../bot');
                     const fakeCtx: any = {
                         from: { id: userId, username, first_name: username },
                         chat: { id: chatId },
                         message: { message_id: job.data.messageId, text },
                         api: bot.api, // Critical for reaction removal logic
                         reply: (msg: string, opt: any) => bot.api.sendMessage(chatId, msg, opt),
-                        react: (emoji: string) => bot.api.setMessageReaction(chatId, job.data.messageId, emoji ? [{ type: 'emoji', emoji }] : [])
+                        react: (emoji: string) => (bot.api as any).setMessageReaction(chatId, job.data.messageId, emoji ? [{ type: 'emoji', emoji }] : [])
                     };
                     // We await it to ensure the worker doesn't kill the process before OpenAI finishes
                     console.log(`[Auditor] Triggering stealth audit for ${chatId}...`);
