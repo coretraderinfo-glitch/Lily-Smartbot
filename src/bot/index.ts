@@ -823,32 +823,37 @@ bot.on('message', async (ctx, next) => {
         }
     }
 
-    // C. SELF-HEALING REGISTRY (Fixes Blind Spot)
+    // C. SELF-HEALING REGISTRY (Optimized Throttle)
     try {
         const currentChatId = ctx.chat.id;
-        // Upsert Group Metadata on EVERY message
-        // This ensures the Dashboard is 100% in sync with reality.
-        const chatTitle = ctx.chat.title || `Private Group ${currentChatId}`;
 
-        // Use non-blocking promise to not slow down bot response
-        db.query(`
-            INSERT INTO groups (id, title, status, last_seen)
-            VALUES ($1, $2, 'ACTIVE', NOW())
-            ON CONFLICT (id) DO UPDATE SET 
-                title = $2, 
-                status = 'ACTIVE',
-                last_seen = NOW()
-        `, [currentChatId, chatTitle]).catch((err: any) => console.error('Registry Sync Error:', err));
+        // PRESENCE CACHE: Only sync metadata once every 10 minutes to save DB I/O
+        const presenceKey = `presence:${currentChatId}`;
+        const hasRecentSync = await connection.get(presenceKey);
 
-        // Ensure Settings Exist
-        db.query(`
-            INSERT INTO group_settings (group_id) VALUES ($1)
-            ON CONFLICT (group_id) DO NOTHING
-        `, [currentChatId]).catch(() => { });
+        if (!hasRecentSync) {
+            const chatTitle = ctx.chat.title || `Private Group ${currentChatId}`;
 
-    } catch (e) {
-        // Silent fail
-    }
+            // Sync with DB (Non-blocking)
+            db.query(`
+                INSERT INTO groups (id, title, status, last_seen)
+                VALUES ($1, $2, 'ACTIVE', NOW())
+                ON CONFLICT (id) DO UPDATE SET 
+                    title = $2, 
+                    status = 'ACTIVE',
+                    last_seen = NOW()
+            `, [currentChatId, chatTitle]).catch(() => { });
+
+            // Ensure Settings Exist
+            db.query(`
+                INSERT INTO group_settings (group_id) VALUES ($1)
+                ON CONFLICT (group_id) DO NOTHING
+            `, [currentChatId]).catch(() => { });
+
+            // Set lockout for 10 minutes
+            await connection.set(presenceKey, 'SYNCED', 'EX', 600);
+        }
+    } catch (e) { }
 
     await next();
 });
@@ -1135,26 +1140,36 @@ bot.on('my_chat_member', async (ctx) => {
 });
 
 // --- 5. EXECUTION ENGINE (THE HEART) ---
+let isInitialized = false;
+
 async function start() {
     try {
-        console.log('🔄 Initializing Lily Foundation (Async Mode)...');
+        if (isInitialized) {
+            console.log('🔄 [RECOVERY] Resuming polling loop...');
+        } else {
+            console.log('🔄 Initializing Lily Foundation (Async Mode)...');
+
+            // Security: Reset Webhook & Commands (Only once)
+            await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
+            await bot.api.deleteWebhook({ drop_pending_updates: true });
+
+            isInitialized = true;
+        }
 
         // NON-BLOCKING STARTUP: Launch bot immediately, connect DB in background
-        (async () => {
-            try {
-                await db.migrate();
-                // FOUNDATION READY: Now start sub-modules safely
-                await Chronos.init(bot);
-                await MoneyChanger.init();
-                console.log('✅ Lily Modules: SECURED & INITIALIZED.');
-            } catch (err) {
-                console.error('⚠️ [FOUNDATION_CRITICAL] Module initialization failed:', err);
-            }
-        })();
-
-        // Security: Reset Webhook & Commands
-        await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
-        await bot.api.deleteWebhook({ drop_pending_updates: true });
+        if (!db.isReady) {
+            (async () => {
+                try {
+                    await db.migrate();
+                    // FOUNDATION READY: Now start sub-modules safely
+                    await Chronos.init(bot);
+                    await MoneyChanger.init();
+                    console.log('✅ Lily Modules: SECURED & INITIALIZED.');
+                } catch (err) {
+                    console.error('⚠️ [FOUNDATION_CRITICAL] Module initialization failed:', err);
+                }
+            })();
+        }
 
         console.log('🚀 Lily Bot Starting (Fighter Mode)...');
         // We use Long Polling (Safe for Railway)
@@ -1174,6 +1189,18 @@ async function start() {
         }
     }
 }
+
+// --- 6. GRACEFUL SHUTDOWN (The Railway Protocol) ---
+process.once('SIGINT', () => {
+    console.log('🛑 [SHUTDOWN] Received SIGINT. Closing Lily...');
+    bot.stop();
+    process.exit(0);
+});
+process.once('SIGTERM', () => {
+    console.log('🛑 [SHUTDOWN] Received SIGTERM (Railway). Yielding to new instance...');
+    bot.stop(); // Stop polling immediately
+    process.exit(0);
+});
 
 // PROTECTIVE BOOT: Only start if this is the main process
 if (require.main === module) {

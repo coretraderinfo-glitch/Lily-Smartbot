@@ -100,15 +100,21 @@ export const db = {
                 // Attempt Connection
                 client = await dbClient.connect();
 
-                // 1. Base Schema (Universal Path)
-                const schemaPath = [
-                    path.join(__dirname, 'schema.sql'),
-                    path.join(process.cwd(), 'src/db/schema.sql'),
-                    path.join(process.cwd(), 'dist/src/db/schema.sql')
-                ].find(p => fs.existsSync(p));
+                // 1. Base Schema (Check if core 'groups' table exists first)
+                const checkRes = await client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'groups'");
+                const needsBase = checkRes.rows.length === 0;
 
-                if (schemaPath) {
-                    await client.query(fs.readFileSync(schemaPath, 'utf8'));
+                if (needsBase) {
+                    const schemaPath = [
+                        path.join(__dirname, 'schema.sql'),
+                        path.join(process.cwd(), 'src/db/schema.sql'),
+                        path.join(process.cwd(), 'dist/src/db/schema.sql')
+                    ].find(p => fs.existsSync(p));
+
+                    if (schemaPath) {
+                        console.log('📦 Applying Base Foundation Schema...');
+                        await client.query(fs.readFileSync(schemaPath, 'utf8'));
+                    }
                 }
 
                 // 2. Incremental Migrations (Deep Search)
