@@ -20,43 +20,40 @@ if (isDefaultUrl) {
 
     console.log(`🔌 [DB] Connecting to Client Node: ${dbHost} [DB: ${dbName}]`);
 
-    // RECOVERY MODE: Restoring the "Rock Solid" configuration
-    const cleanUrl = dbUrl.split('?')[0]; // Critical: Remove conflicting params
+    // ELITE RECOVERY: Extended timeouts for Cold Start Databases
+    const cleanUrl = dbUrl.split('?')[0];
 
     dbClient = new Pool({
         connectionString: cleanUrl,
         ssl: { rejectUnauthorized: false },
-        max: 10,                       // Safe limit for stability
-        idleTimeoutMillis: 2000,       // Fast cycling to prevent dead pipes
-        connectionTimeoutMillis: 10000, // Faster failure detection (10s)
+        max: 10,
+        idleTimeoutMillis: 2000,
+        connectionTimeoutMillis: 60000, // 60s Tolerance for "Sleeping" Databases
         application_name: 'Lily_Production_Instance',
     });
 
-    // TCP KeepAlive Configuration (Cloud-Native)
+    // TCP KeepAlive (Standard)
     dbClient.on('connect', (client: any) => {
-        // @ts-ignore - access internal socket for keepalive hardening
+        // @ts-ignore
         if (client.connection && client.connection.stream) {
             client.connection.stream.setKeepAlive(true, 60000);
         }
     });
 
-    // CRITICAL: Prevent unhandled errors from crashing the bot process
+    // Error Shield
     dbClient.on('error', (err: any) => {
         console.error('⚠️ [DB_POOL_ERROR] Unexpected pool error:', err.message);
     });
 }
 
 export const db = {
-    // Self-Healing Query Wrapper (THE ULTIMATE FIX)
     query: async (text: string, params?: any[]) => {
         try {
             return await dbClient.query(text, params);
         } catch (err: any) {
-            // If connection was lost, try one more time before giving up
             const isDead = /terminated|closed|connection/i.test(err.message);
             if (isDead) {
                 console.warn('🔄 [DB_RECOVERY] Connection dropped. Healing pipe and retrying...');
-                // Tiny delay to allow cloud stack to reset
                 await new Promise(r => setTimeout(r, 500));
                 return await dbClient.query(text, params);
             }
@@ -68,8 +65,8 @@ export const db = {
     isReady: false,
 
     /**
-     * AUTO-MIGRATE: The Foundation of Lily
-     * Ensures all tables and columns are ready before the bot takes her first breath.
+     * AUTO-MIGRATE: The "Wake Up" Protocol
+     * Retries connection 5 times to handle Cold Boots gracefully.
      */
     migrate: async () => {
         if (isDefaultUrl) {
@@ -77,53 +74,66 @@ export const db = {
             return;
         }
 
-        const client = await dbClient.connect();
-        try {
-            console.log('🔄 Lily Foundation: Synchronizing Memory Banks...');
+        console.log('🔄 Lily Foundation: Synchronizing Memory Banks...');
 
-            // 1. Base Schema (schema.sql)
-            const schemaPath = path.join(__dirname, 'schema.sql');
-            if (fs.existsSync(schemaPath)) {
-                await client.query(fs.readFileSync(schemaPath, 'utf8'));
-            }
+        // RETRY LOOP: The fix for "Startup Failed"
+        for (let attempt = 1; attempt <= 10; attempt++) {
+            let client;
+            try {
+                // Attempt Connection
+                client = await dbClient.connect();
 
-            // 2. Incremental Migrations (db/migrations/*.sql)
-            const migrationsDir = path.join(process.cwd(), 'db/migrations');
-            if (fs.existsSync(migrationsDir)) {
-                const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-                for (const file of files) {
-                    try {
-                        const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-                        await client.query(sql);
-                    } catch (e: any) {
-                        // Skip if already applied
-                        if (!e.message.includes('already exists') && !e.message.includes('duplicate')) {
-                            console.warn(`[DB] Migration ${file} warning:`, e.message);
+                // 1. Base Schema
+                const schemaPath = path.join(__dirname, 'schema.sql');
+                if (fs.existsSync(schemaPath)) {
+                    await client.query(fs.readFileSync(schemaPath, 'utf8'));
+                }
+
+                // 2. Migrations
+                const migrationsDir = path.join(process.cwd(), 'db/migrations');
+                if (fs.existsSync(migrationsDir)) {
+                    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+                    for (const file of files) {
+                        try {
+                            const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+                            await client.query(sql);
+                        } catch (e: any) {
+                            if (!e.message.includes('already exists') && !e.message.includes('duplicate')) {
+                                console.warn(`[DB] Migration warning: ${e.message}`);
+                            }
                         }
                     }
                 }
+
+                // 3. Logic Checks
+                await client.query(`
+                    UPDATE group_settings SET 
+                        welcome_enabled = COALESCE(welcome_enabled, false),
+                        calc_enabled = COALESCE(calc_enabled, true),
+                        auditor_enabled = COALESCE(auditor_enabled, false),
+                        ai_brain_enabled = COALESCE(ai_brain_enabled, false),
+                        guardian_enabled = COALESCE(guardian_enabled, false),
+                        mc_enabled = COALESCE(mc_enabled, false)
+                    WHERE welcome_enabled IS NULL OR calc_enabled IS NULL;
+                `);
+
+                db.isReady = true;
+                console.log(`💎 Lily Foundation: STABLE & SYNCED (Attempt ${attempt}).`);
+                return; // Success!
+
+            } catch (err: any) {
+                const isTimeout = err.message.includes('timeout') || err.message.includes('terminated');
+                if (isTimeout || attempt < 10) {
+                    console.warn(`⏳ [DB_WAKEUP] Database is sleeping/busy (Attempt ${attempt}/10). Waiting 5s...`);
+                    // Linear Backoff: 5s, 5s, 5s...
+                    await new Promise(r => setTimeout(r, 5000));
+                } else {
+                    console.error('🛑 [DB_FATAL] Foundation Sync Failed:', err.message);
+                    throw err; // Give up after 10 tries
+                }
+            } finally {
+                if (client) client.release();
             }
-
-            // 3. FINAL INTEGRITY WRAPPER
-            await client.query(`
-                UPDATE group_settings SET 
-                    welcome_enabled = COALESCE(welcome_enabled, false),
-                    calc_enabled = COALESCE(calc_enabled, true),
-                    auditor_enabled = COALESCE(auditor_enabled, false),
-                    ai_brain_enabled = COALESCE(ai_brain_enabled, false),
-                    guardian_enabled = COALESCE(guardian_enabled, false),
-                    mc_enabled = COALESCE(mc_enabled, false)
-                WHERE welcome_enabled IS NULL OR calc_enabled IS NULL;
-            `);
-
-            db.isReady = true;
-            console.log('💎 Lily Foundation: STABLE & SYNCED.');
-
-        } catch (err: any) {
-            console.error('🛑 [DB_FATAL] Foundation Sync Failed:', err.message);
-            throw err; // In blocking mode, we want to know if foundations are broken
-        } finally {
-            client.release();
         }
     },
 
