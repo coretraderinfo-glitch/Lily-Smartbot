@@ -50,10 +50,13 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     const mcEnabled = config?.mc_enabled || false;
     const groupTitle = config?.title || 'Lily Node';
 
-    // 2. Dynamic Mention Check (Evolved Hearing)
-    // Detects: "Lily", "@LilyBot", or REPLY to a bot message
-    const isNameTrigger = /lily/i.test(text) ||
+    // 2. Dynamic Mention Check (EVOLVED HEARING HYPER-SENSITIVE)
+    // Detects: "Lily" (any case), "@Lily", REPLY to bot, or JUST STARTING WITH "Lily"
+    const tLower = text.toLowerCase();
+    const isNameTrigger = tLower.includes('lily') ||
         (job.data.replyToMessage && job.data.replyToMessage.from?.is_bot);
+
+    console.log(`[Job ${job.id}] Group:${chatId} User:${username} Text:"${text}" Trigger:${isNameTrigger} Calc:${calcEnabled} AI:${aiEnabled}`);
 
     // Security Check
     const isOwner = Security.isSystemOwner(userId);
@@ -70,8 +73,10 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         const isShowOps = /^(?:显示操作人|Show Operators|Senarai Operator|operators)$/i.test(t);
 
         // 🚨 FEATURE FLAG: Calc (Ledger)
-        if (!calcEnabled && !isNameTrigger) {
-            // Unpurchased/Disabled mode: Lily ignores ledger commands
+        // FORCE-OVERRIDE: If "calc_enabled" is explicitly false, we skip.
+        // But if it's undefined or true, we ALLOW it.
+        if (calcEnabled === false && !isNameTrigger) {
+            console.log(`[Job ${job.id}] Skipped: Calc Disabled & Not AI Trigger`);
             return null;
         }
 
