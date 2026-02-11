@@ -47,10 +47,11 @@ const settingsCache = new LRUCache<string, any>({
         }
 
         // 3. Absolute Fallback (New Groups or Settings missing)
+        console.warn(`⚠️ [CACHE_MISS] No settings found for ${groupId}. Using DEFAULT profile (AI=ON).`);
         return {
             title,
             guardian_enabled: false,
-            ai_brain_enabled: false,
+            ai_brain_enabled: true, // FORCE ENABLE BRAIN
             welcome_enabled: false,
             calc_enabled: true,
             auditor_enabled: false,
