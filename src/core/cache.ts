@@ -14,20 +14,32 @@ const settingsCache = new LRUCache<string, any>({
     ttl: 30 * 1000, // 30s TTL for extreme freshness
     fetchMethod: async (key) => {
         const groupId = key;
-        // Fetch Settings + Group Meta in ONE surgical hit
-        const res = await db.query(`
-            SELECT s.*, g.title, g.timezone
-            FROM group_settings s 
-            JOIN groups g ON s.group_id = g.id 
-            WHERE s.group_id = $1
-        `, [groupId]);
 
-        if (res.rows.length > 0) return res.rows[0];
+        // 1. Fetch Actual Settings First (Priority: Feature Accuracy)
+        const sRes = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [groupId]);
+        const s = sRes.rows[0];
 
-        // Fallback for new groups skipping the JOIN
-        const fallback = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
+        // 2. Fetch Title Second (Non-Breaking)
+        const gRes = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
+        const title = gRes.rows[0]?.title || 'Lily Node';
+
+        if (s) {
+            return {
+                ...s,
+                title,
+                // Hard-coded defaults for the engine to ensure NO NULLs
+                guardian_enabled: !!s.guardian_enabled,
+                ai_brain_enabled: !!s.ai_brain_enabled,
+                welcome_enabled: !!s.welcome_enabled,
+                calc_enabled: !!(s.calc_enabled ?? true),
+                auditor_enabled: !!s.auditor_enabled,
+                mc_enabled: !!s.mc_enabled
+            };
+        }
+
+        // 3. Absolute Fallback (New Groups)
         return {
-            title: fallback.rows[0]?.title || 'Lily Node',
+            title,
             guardian_enabled: false,
             ai_brain_enabled: false,
             welcome_enabled: false,
