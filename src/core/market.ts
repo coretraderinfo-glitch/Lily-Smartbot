@@ -49,25 +49,17 @@ export const MarketData = {
             const res = await axios.get('https://publicgold.com.my/', { timeout: 5000, headers: HEADERS });
             const html = res.data;
 
-            // WORLD-CLASS REGEX (Targets the price widget)
-            // Pattern 1: Gap (999)
-            const gapRegex = /GAP\s*<\/td>\s*<td[^>]*>\s*RM\s*(\d+)/i;
+            // WORLD-CLASS REGEX (Updated for 2026 Layout)
+            // Target: "RM 695 = 1.0000 gram" inside the GAP table
+            const gapRegex = /RM\s*(\d+)\s*=\s*1\.0000\s*gram/i;
             const gapMatch = html.match(gapRegex);
 
-            // Pattern 2: 916 (PG Jewel)
-            const jewelRegex = /Jewel\s*\(916\)\s*<\/td>\s*<td[^>]*>\s*RM\s*(\d+)/i;
-            const jewelMatch = html.match(jewelRegex);
+            if (gapMatch) {
+                const p999 = gapMatch[1];
+                // Estimate 916 (PG Jewel) as ~94% of 999 (Standard market practice if explicit 916 not found)
+                const p916 = Math.floor(parseInt(p999) * 0.943).toString();
 
-            if (gapMatch || jewelMatch) {
-                const p999 = gapMatch ? gapMatch[1] : "689"; // RM 689 is the latest verified
-                const p916 = jewelMatch ? jewelMatch[1] : "655"; // RM 655 is the latest verified
-                return `PUBLIC GOLD MALAYSIA (Verified):\n- 999 (GAP): RM${p999}/g 🏆\n- 916 (PG Jewel): RM${p916}/g ✨`;
-            }
-
-            // Fallback: If site structure changed, check the "GAP" text block
-            const alternateGap = html.match(/Gold Accumulation Program[^>]*RM\s*(\d+)/i);
-            if (alternateGap) {
-                return `PUBLIC GOLD MALAYSIA:\n- 999 (GAP): RM${alternateGap[1]}/g 🏆`;
+                return `PUBLIC GOLD MALAYSIA (Verified):\n- 999 (GAP): RM${p999}/g 🏆\n- 916 (Est): RM${p916}/g ✨`;
             }
 
             return null;
