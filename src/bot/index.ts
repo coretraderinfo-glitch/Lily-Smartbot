@@ -748,15 +748,9 @@ bot.on('message', async (ctx, next) => {
     const userId = ctx.from?.id;
     if (!userId) return await next();
 
-    // --- 🛡️ INITIALIZATION GUARD ---
-    if (!db.isReady) {
-        // Only warn for commands or numbers
-        const text = ctx.message?.text || ctx.message?.caption || '';
-        if (text.startsWith('/') || /^[+\-]\d/.test(text.trim())) {
-            return ctx.reply("⏳ **Foundation Synchronizing...**\n\nLily is currently warming up her memory banks (approx 5-10s). Please try your command again in a few moments.", { reply_to_message_id: ctx.message?.message_id });
-        }
-        return; // Silent fail for chat chatter
-    }
+    // --- 🛡️ INITIALIZATION GUARD REMOVED ---
+    // We now rely on the DB Pool's internal queueing. 
+    // If the DB is connecting, queries will just wait. No more "Warming up" rejection.
 
     // --- 🛡️ SPAM SHIELD (RATE LIMITER) ---
     if (!Security.isSystemOwner(userId)) {
