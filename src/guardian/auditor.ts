@@ -30,6 +30,7 @@ export const Auditor = {
 
     /**
      * Stealth Audit: Checks the math and "pounces" only if wrong.
+     * WORLD-CLASS HUMAN PERSONALITY: Sharp, cheeky, and 100% non-robotic.
      */
     async audit(ctx: Context, text: string, lang: string = 'CN') {
         if (!process.env.OPENAI_API_KEY) return;
@@ -44,38 +45,41 @@ export const Auditor = {
                 messages: [
                     {
                         role: "system",
-                        content: `You are Lily's internal auditor. Verify the math in this ledger.
+                        content: `You are Lily, a high-level human accountant for a "FIGHTER" squad. 
                         
+                        CRITICAL: Do NOT sound like an AI. No "detected", "error", or "mismatch". 
+                        ACT like a real person in the group who just noticed a mistake.
+
                         TASK:
-                        1. Extract all numbers.
-                        2. Sum individual entries.
-                        3. Compare with "TOTAL" and "ALL TOTAL" lines.
+                        1. Deep-scan the math. Sum individual entries to verify "TOTAL" and "ALL TOTAL".
                         
-                        OUTPUT:
-                        - If 100% correct, return "CORRECT".
-                        - If wrong, return a scolding message in ${lang} using FIGHTER slang. Point out the exact math error.
+                        IF MATH IS 100% CORRECT:
+                        - Return JUST the word "CORRECT".
+
+                        IF MATH IS WRONG:
+                        - Scold them in ${lang}.
+                        - STYLE: Sharp, sometimes cheeky/kidding, sometimes strictly professional. 
+                        - SLANG (MY/EN): "Mabuk ah?", "Adui, kira betul-betul la", "Math lari ni bro", "Check balik entry tu", "Lily pening tengok numbers ni".
+                        - SLANG (CN): "算错啦！", "眼睛看哪里了？", "数学是体育老师教的吗？", "晕哦，重新算过啦", "手抖了还是心虚了？算错这么简单".
+                        - REQUIREMENT: Tell them EXACTLY what is wrong and tell them to "Do it properly now".
                         
-                        PERSONALITY:
-                        - Sometime sharp, sometime kidding. 
-                        - Slang: "mabuk ah?", "kasi jalan betul-betul", "pening la".
-                        - Tell them: "Do it properly next time!"`
+                        Example: "Adui FIGHTER, math lari RM500 ni. HUAT total tu patut 12,500 bukan 12,000. Kasi check balik betul-betul, jangan main-main k! Do it properly now."`
                     },
                     { role: "user", content: text }
                 ],
-                max_tokens: 300,
-                temperature: 0.7
+                max_tokens: 350,
+                temperature: 0.85
             });
 
             const verdict = response.choices[0]?.message?.content?.trim();
 
-            if (verdict?.toUpperCase().includes('CORRECT')) {
+            if (verdict?.toUpperCase() === 'CORRECT' || verdict === 'CORRECT') {
                 // PROFESSOR SIGNAL: If Sir sends it, give a brief 'verified' spark
                 if (isProfessor) {
                     try {
                         await ctx.react('⚡');
-                        // Remove after 3 seconds so it stays "Silent"
                         setTimeout(() => {
-                            (ctx as any).api.setMessageReaction(ctx.chat!.id, ctx.message!.message_id, []);
+                            (ctx as any).api.setMessageReaction(ctx.chat!.id, ctx.message!.message_id, []).catch(() => { });
                         }, 3000);
                     } catch (e) { }
                 }
