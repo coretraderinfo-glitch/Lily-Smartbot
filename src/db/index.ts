@@ -23,9 +23,15 @@ if (isDefaultUrl) {
     dbClient = new Pool({
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false }, // Force SSL for Railway stability
-        max: 10, // Optimized for Railway Starter plans
-        idleTimeoutMillis: 10000, // Reclaim connections faster
-        connectionTimeoutMillis: 20000, // Even more generous for cloud stability
+        max: 5,        // Lean pool (Starter-friendly) to prevent connection leaks
+        idleTimeoutMillis: 5000,
+        connectionTimeoutMillis: 10000,
+        keepAlive: true, // Prevent 'Connection terminated unexpectedly' ghosting
+    });
+
+    // CRITICAL: Prevent unhandled errors from crashing the bot process
+    dbClient.on('error', (err: any) => {
+        console.error('⚠️ [DB_POOL_ERROR] Unexpected pool error:', err.message);
     });
 }
 
@@ -33,75 +39,56 @@ export const db = {
     query: (text: string, params?: any[]) => dbClient.query(text, params),
     getClient: () => dbClient.connect ? dbClient.connect() : dbClient.getClient(), // Handle Mock vs Pool
 
-    // Auto-Migrate function with RESILIENCE (Root Cause Fix)
+    isReady: false,
+
+    // Auto-Migrate function with NON-BLOCKING RESILIENCE (Ultra Fix)
     migrate: async () => {
-        if (isDefaultUrl) return dbClient.migrate();
-
-        console.log('🔄 Lily Engine: Initializing Database Persistence...');
-
-        // RETRY WRAPPER: 3 attempts with exponential backoff
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            let client;
-            try {
-                // Wait briefly for cloud network stabilization (Cold start safety)
-                if (attempt > 1) await new Promise(r => setTimeout(r, 5000));
-
-                client = await dbClient.connect();
-                console.log(`✅ [DB] Connection Established (Attempt ${attempt}/3).`);
-
-                // 1. Ensure Base Schema (One-Shot)
-                const schemaPath = path.join(__dirname, 'schema.sql');
-                if (fs.existsSync(schemaPath)) {
-                    await client.query(fs.readFileSync(schemaPath, 'utf8'));
-                }
-
-                // 2. Run Enterprise Migrations (Fast Scan)
-                const migrationsDir = path.join(process.cwd(), 'db/migrations');
-                if (fs.existsSync(migrationsDir)) {
-                    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-                    for (const file of files) {
-                        try {
-                            const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-                            await client.query(sql);
-                        } catch (e: any) {
-                            console.warn(`[DB] Migration ${file} skip (already applied or error): ${e.message}`);
-                        }
-                    }
-                }
-
-                // 3. SURGICAL SAFEGUARDS (Final Integrity Check)
-                await client.query(`
-                    DO $$ 
-                    BEGIN 
-                        -- Ensure groups table has last_seen
-                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='groups' AND column_name='last_seen') THEN
-                            ALTER TABLE groups ADD COLUMN last_seen TIMESTAMPTZ DEFAULT NOW();
-                        END IF;
-                        
-                        -- Final Safeguard for group_settings toggles
-                        UPDATE group_settings SET 
-                            welcome_enabled = COALESCE(welcome_enabled, false),
-                            calc_enabled = COALESCE(calc_enabled, true),
-                            auditor_enabled = COALESCE(auditor_enabled, false),
-                            ai_brain_enabled = COALESCE(ai_brain_enabled, false),
-                            guardian_enabled = COALESCE(guardian_enabled, false),
-                            mc_enabled = COALESCE(mc_enabled, false)
-                        WHERE welcome_enabled IS NULL OR calc_enabled IS NULL;
-                    END $$;
-                `);
-
-                console.log('💎 Database Integrity: SYNCHRONIZED.');
-                return; // SUCCESS - Exit function
-
-            } catch (err: any) {
-                console.warn(`⚠️ [DB] Connection Attempt ${attempt} failed: ${err.message}`);
-                if (attempt === 3) {
-                    console.error('� [FATAL BYPASS] Database unreachable. Booting Lily in Degraded Mode...');
-                }
-            } finally {
-                if (client) client.release();
-            }
+        if (isDefaultUrl) {
+            db.isReady = true;
+            return;
         }
+
+        // We run this in the background to avoid holding up the 'AI Soul' startup
+        (async () => {
+            console.log('🔄 Lily Engine: Initializing Memory Banks (Background)...');
+
+            for (let attempt = 1; attempt <= 5; attempt++) {
+                let client;
+                try {
+                    client = await dbClient.connect();
+
+                    // Atomic Integrity Check
+                    await client.query('SELECT 1');
+
+                    const schemaPath = path.join(__dirname, 'schema.sql');
+                    if (fs.existsSync(schemaPath)) {
+                        await client.query(fs.readFileSync(schemaPath, 'utf8'));
+                    }
+
+                    // Consolidated Surgical Safeguards
+                    await client.query(`
+                        DO $$ 
+                        BEGIN 
+                            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='welcome_enabled') THEN
+                                ALTER TABLE group_settings ADD COLUMN welcome_enabled BOOLEAN DEFAULT FALSE;
+                                ALTER TABLE group_settings ADD COLUMN calc_enabled BOOLEAN DEFAULT TRUE;
+                            END IF;
+                        END $$;
+                    `);
+
+                    db.isReady = true;
+                    console.log(`💎 Database Connectivity: STABLE (Attempt ${attempt}).`);
+                    return;
+
+                } catch (err: any) {
+                    console.warn(`⏳ [DB_WARMUP] Memory bank busy (Attempt ${attempt}/5): ${err.message}`);
+                    await new Promise(r => setTimeout(r, 4000));
+                } finally {
+                    if (client) client.release();
+                }
+            }
+            console.error('🛑 [CRITICAL] Memory banks offline. Lily running in Degraded Mode.');
+        })();
     },
 
     // Supergroup Migration Support
