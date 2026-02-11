@@ -45,8 +45,13 @@ export const MarketData = {
      */
     async getPublicGold(): Promise<string | null> {
         try {
-            // Target the homepage directly
-            const res = await axios.get('https://publicgold.com.my/', { timeout: 5000, headers: HEADERS });
+            // ZERO-LAG FETCH: Add timestamp to bypass server cache
+            // Rotated User-Agent to Desktop for full site fidelity
+            const freshHeaders = {
+                ...HEADERS,
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            };
+            const res = await axios.get(`https://publicgold.com.my/?t=${Date.now()}`, { timeout: 5000, headers: freshHeaders });
             const html = res.data;
 
             // WORLD-CLASS REGEX (Updated for 2026 Layout)
@@ -58,8 +63,9 @@ export const MarketData = {
                 const p999 = gapMatch[1];
                 // Estimate 916 (PG Jewel) as ~94% of 999 (Standard market practice if explicit 916 not found)
                 const p916 = Math.floor(parseInt(p999) * 0.943).toString();
+                const time = new Date().toLocaleTimeString('en-MY', { hour12: false, timeZone: 'Asia/Kuala_Lumpur' });
 
-                return `PUBLIC GOLD MALAYSIA (Verified):\n- 999 (GAP): RM${p999}/g 🏆\n- 916 (Est): RM${p916}/g ✨`;
+                return `PUBLIC GOLD MALAYSIA (Verified Live @ ${time}):\n- 999 (GAP): RM${p999}/g 🏆\n- 916 (Est): RM${p916}/g ✨`;
             }
 
             return null;
