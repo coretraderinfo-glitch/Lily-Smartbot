@@ -17,16 +17,21 @@ export const Auditor = {
     isFinancialReport(text: string): boolean {
         const lines = text.split('\n').filter(l => l.trim().length > 0);
 
-        // Pattern 1: Keywords
-        const keywords = ['MALAYSIA', 'GROUP', 'TOTAL', 'HUAT', 'ALL TOTAL', 'ONG', 'BALIK', 'IN', 'OUT', 'RM'];
+        // Pattern 1: Keywords (Expanded Financial Vocabulary)
+        const keywords = ['MALAYSIA', 'GROUP', 'TOTAL', 'HUAT', 'ALL TOTAL', 'ONG', 'BALIK', 'IN', 'OUT', 'RM', 'DEPO', 'DP', 'WITHDRAW', 'WD', 'TRX', 'CUCI', 'BANK', 'TNG', 'USDT'];
         const foundKeywords = keywords.filter(k => text.toUpperCase().includes(k));
 
         // Pattern 2: Financial Structure (Lines containing numbers)
         // Look for lines that have a number (with optional decimal/comma)
         const mathLines = lines.filter(l => /[\d,.]+/.test(l));
 
-        // Decision: Must have strong keyword presence OR keywords + some entry structure
-        return foundKeywords.length >= 3 || (foundKeywords.length >= 2 && mathLines.length >= 2);
+        // Decision: Relaxed Trigger Logic
+        // 1. If it has "TOTAL" or "RM" + any numbers -> CHECK IT.
+        // 2. If it has >2 keywords -> CHECK IT.
+        const strongIndicators = ['TOTAL', 'ALL TOTAL', 'RM', 'HUAT', 'ONG'].some(k => text.toUpperCase().includes(k));
+
+        if (strongIndicators && mathLines.length >= 1) return true;
+        return foundKeywords.length >= 2 || (foundKeywords.length >= 1 && mathLines.length >= 2);
     },
 
     /**
