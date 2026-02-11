@@ -857,8 +857,9 @@ bot.on('message:text', async (ctx) => {
 
     // EVOLVED HEARING: Detect "Lily", Mentions, OR Replies to Bot
     const isReplyToBot = ctx.message.reply_to_message?.from?.id === ctx.me.id;
-    const isNameMention = /lily/i.test(t) ||
-        (ctx.message.entities?.some(e => e.type === 'mention') && t.includes('@')) ||
+    const caption = ctx.message.caption || "";
+    const isNameMention = /lily/i.test(t) || /lily/i.test(caption) ||
+        (ctx.message.entities?.some(e => e.type === 'mention') && (t.includes('@') || caption.includes('@'))) ||
         isReplyToBot;
 
     if (isCommand || (aiEnabled && isNameMention)) {
