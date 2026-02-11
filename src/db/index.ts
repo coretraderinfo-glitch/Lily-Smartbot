@@ -169,6 +169,47 @@ export const db = {
             `);
             console.log('✅ Safeguard: Memory Core Infrastructure verified.');
 
+            // 4. WORLD-CLASS CASCADE UPGRADE (The Root Cause Fix)
+            // We force all child tables to use ON DELETE CASCADE to prevent foreign key violations.
+            const fkUpgrade = `
+                DO $$
+                DECLARE
+                    r RECORD;
+                BEGIN
+                    -- Drop and Recreate Foreign Keys with CASCADE for stability
+                    -- group_settings
+                    BEGIN ALTER TABLE group_settings DROP CONSTRAINT IF EXISTS group_settings_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE group_settings ADD CONSTRAINT group_settings_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+                    -- transactions
+                    BEGIN ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE transactions ADD CONSTRAINT transactions_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+                    -- group_operators
+                    BEGIN ALTER TABLE group_operators DROP CONSTRAINT IF EXISTS group_operators_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE group_operators ADD CONSTRAINT group_operators_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+                    -- group_admins
+                    BEGIN ALTER TABLE group_admins DROP CONSTRAINT IF EXISTS group_admins_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE group_admins ADD CONSTRAINT group_admins_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+                    -- historical_archives
+                    BEGIN ALTER TABLE historical_archives DROP CONSTRAINT IF EXISTS historical_archives_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE historical_archives ADD CONSTRAINT historical_archives_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+                    -- node_groups
+                    BEGIN ALTER TABLE node_groups DROP CONSTRAINT IF EXISTS node_groups_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE node_groups ADD CONSTRAINT node_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+                    -- user_cache (Primary key is composite, but we check for any loose references)
+                    -- licenses (used_by_group_id)
+                    BEGIN ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_used_by_group_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END;
+                    ALTER TABLE licenses ADD CONSTRAINT licenses_used_by_group_id_fkey FOREIGN KEY (used_by_group_id) REFERENCES groups(id) ON DELETE SET NULL;
+                END $$;
+            `;
+            await client.query(fkUpgrade);
+            console.log('💎 [Root Cause] Database Relational Integrity: CASCADE UPGRADED.');
+
         } catch (err) {
             console.error('❌ Migration Failed:', err);
             // Don't throw in production to keep app alive

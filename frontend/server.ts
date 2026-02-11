@@ -382,12 +382,12 @@ app.post('/api/master/group/toggle', masterAuth, async (req, res) => {
 app.post('/api/master/group/delete', masterAuth, async (req, res) => {
     const { chatId } = req.body;
     try {
+        // WORLD-CLASS RELIABILITY: Delete parent, let DB CASCADE handle children.
         await db.query('DELETE FROM groups WHERE id = $1', [chatId]);
-        await db.query('DELETE FROM group_settings WHERE group_id = $1', [chatId]);
-        await db.query('DELETE FROM node_groups WHERE group_id = $1', [chatId]);
         res.json({ success: true });
     } catch (e) {
-        res.status(500).json({ error: 'Cleanup Failed' });
+        console.error(`❌ Dashboard Cleanup Failed for ${chatId}:`, e);
+        res.status(500).json({ error: 'System Cleanup Failure: Relation Constraint violation' });
     }
 });
 

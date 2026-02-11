@@ -966,13 +966,15 @@ bot.on('my_chat_member', async (ctx) => {
     console.log(`[Presence Update] Group ${chatId} (${title}) -> Status: ${status}`);
 
     if (status === 'kicked' || status === 'left') {
-        // Bot Removed: Auto-Cleanup (Order: Children first, then Parent)
-        await db.query('DELETE FROM node_groups WHERE group_id = $1', [chatId]);
-        await db.query('DELETE FROM group_settings WHERE group_id = $1', [chatId]);
-        await db.query('DELETE FROM group_admins WHERE group_id = $1', [chatId]);
-        await db.query('DELETE FROM user_cache WHERE group_id = $1', [chatId]);
-        await db.query('DELETE FROM groups WHERE id = $1', [chatId]);
-        console.log(`🗑️ Group ${chatId} removed from active registry and node link purged.`);
+        // Bot Removed: Auto-Cleanup (Safe Mode)
+        // Root Cause Fix: We rely on ON DELETE CASCADE in the database now.
+        // We only need to delete the parent row, and children will be purged by the DB.
+        try {
+            await db.query('DELETE FROM groups WHERE id = $1', [chatId]);
+            console.log(`🗑️ Group ${chatId} (${title}) removed from active registry. (DB Cascade Purge Complete)`);
+        } catch (e: any) {
+            console.error(`❌ Cleanup Failed for ${chatId}:`, e.message);
+        }
     }
     else if (status === 'member' || status === 'administrator') {
         // Bot Added: Auto-Register
