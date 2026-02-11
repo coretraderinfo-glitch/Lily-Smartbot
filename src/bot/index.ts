@@ -148,27 +148,6 @@ worker.on('failed', async (job, err) => {
     }
 });
 
-// --- 1.5. WARMUP MIDDLEWARE (The "Not Offline" Fix) ---
-bot.use(async (ctx, next) => {
-    // If DB is not ready, we intercept to prevent crashes
-    if (!db.isReady) {
-        // Only reply to actual commands or private DMs (avoid spamming groups)
-        const isCommand = ctx.message?.text?.startsWith('/') || ctx.has('callback_query');
-        const isPrivate = ctx.chat?.type === 'private';
-
-        if (isCommand || isPrivate) {
-            try {
-                await ctx.reply("⏳ **All Systems Initializing...**\nLily is waking up from a cold sleep. Please wait 10 seconds and try again.", {
-                    parse_mode: 'Markdown',
-                    reply_to_message_id: ctx.message?.message_id
-                });
-            } catch (e) { /* Ignore if cannot reply */ }
-        }
-        return; // STOP execution here. Do not crash.
-    }
-    await next();
-});
-
 // --- CONSTANTS ---
 const DASHBOARD_TEXT = `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
     `欢迎使用专业级账本管理系统。请选择功能模块：\n` +

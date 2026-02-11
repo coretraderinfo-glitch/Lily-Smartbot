@@ -20,16 +20,14 @@ if (isDefaultUrl) {
 
     console.log(`🔌 [DB] Connecting to Client Node: ${dbHost} [DB: ${dbName}]`);
 
-    // ELITE RECOVERY: Extended timeouts for Cold Start Databases
-    const cleanUrl = dbUrl.split('?')[0];
-
+    // ELITE SYSTEM RESTORATION: Use full URL for handshake integrity
     dbClient = new Pool({
-        connectionString: cleanUrl,
+        connectionString: dbUrl, // Use the FULL URL (no stripping)
         ssl: { rejectUnauthorized: false },
-        max: 10,
-        idleTimeoutMillis: 2000,
-        connectionTimeoutMillis: 60000, // 60s Tolerance for "Sleeping" Databases
-        application_name: 'Lily_Production_Instance',
+        max: 15, // Higher capacity for scale
+        idleTimeoutMillis: 10000, // 10s Hold (Prevents over-aggressive recycling)
+        connectionTimeoutMillis: 30000, // 30s Buffer
+        application_name: 'Lily_Master_Final',
     });
 
     // TCP KeepAlive (Standard)
@@ -51,10 +49,12 @@ export const db = {
         try {
             return await dbClient.query(text, params);
         } catch (err: any) {
-            const isDead = /terminated|closed|connection/i.test(err.message);
+            // Self-Healing Logic: Detect lost or cold pipes
+            const isDead = /terminated|closed|connection|timeout/i.test(err.message);
             if (isDead) {
-                console.warn('🔄 [DB_RECOVERY] Connection dropped. Healing pipe and retrying...');
-                await new Promise(r => setTimeout(r, 500));
+                console.warn('🔄 [DB_RECOVERY] Cold pipe detected. Warming up and retrying...');
+                // Wait 1.5s for the pool to re-establish a handshake
+                await new Promise(r => setTimeout(r, 1500));
                 return await dbClient.query(text, params);
             }
             throw err;
