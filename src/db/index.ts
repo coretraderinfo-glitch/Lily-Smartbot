@@ -24,7 +24,7 @@ if (isDefaultUrl) {
         max: 5,         // Reasonable limit for standard plans
         min: 0,         // Don't force open connections if not needed
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000, // Fail fast if connectivity is gone
+        connectionTimeoutMillis: 60000, // 60s Buffer (Crucial for cold starts)
     });
 
     pool.on('error', (err: any) => {
