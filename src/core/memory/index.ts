@@ -64,12 +64,12 @@ export const MemoryCore = {
 
         if (critical.rows.length > 0) {
             memoryBlock += "--- CONFIRMED FACTS ---\n";
-            critical.rows.forEach(r => memoryBlock += `• ${r.content}\n`);
+            critical.rows.forEach((r: any) => memoryBlock += `• ${r.content}\n`);
         }
 
         if (observations.rows.length > 0) {
             memoryBlock += "--- OBSERVATIONS ---\n";
-            observations.rows.forEach(r => memoryBlock += `• ${r.content}\n`);
+            observations.rows.forEach((r: any) => memoryBlock += `• ${r.content}\n`);
         }
 
         return memoryBlock;
