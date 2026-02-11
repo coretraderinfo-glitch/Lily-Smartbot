@@ -21,11 +21,12 @@ export const Auditor = {
         const keywords = ['MALAYSIA', 'GROUP', 'TOTAL', 'HUAT', 'ALL TOTAL', 'ONG', 'BALIK', 'IN', 'OUT'];
         const foundKeywords = keywords.filter(k => text.toUpperCase().includes(k));
 
-        // Pattern 2: Financial Structure (Lines ending in numbers)
-        const mathLines = lines.filter(l => /[\d,.]+$/.test(l.trim()));
+        // Pattern 2: Financial Structure (Lines containing numbers)
+        // Look for lines that have a number (with optional decimal/comma)
+        const mathLines = lines.filter(l => /[\d,.]+/.test(l));
 
-        // Decision: Must have keywords AND at least 3 lines that look like entries
-        return foundKeywords.length >= 2 && mathLines.length >= 3;
+        // Decision: Must have strong keyword presence OR keywords + some entry structure
+        return foundKeywords.length >= 3 || (foundKeywords.length >= 2 && mathLines.length >= 2);
     },
 
     /**
@@ -71,9 +72,9 @@ export const Auditor = {
                 temperature: 0.85
             });
 
-            const verdict = response.choices[0]?.message?.content?.trim();
+            const verdict = response.choices[0]?.message?.content?.trim() || "";
 
-            if (verdict?.toUpperCase() === 'CORRECT' || verdict === 'CORRECT') {
+            if (verdict.toUpperCase().includes('CORRECT')) {
                 // PROFESSOR SIGNAL: If Sir sends it, give a brief 'verified' spark
                 if (isProfessor) {
                     try {

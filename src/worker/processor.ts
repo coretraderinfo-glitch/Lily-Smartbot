@@ -247,7 +247,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // --- 6. SILENT AUDITOR TRIGGER (The Stealth Accountant) ---
-        if (auditorEnabled && !isNameTrigger) {
+        if (auditorEnabled) {
             if (Auditor.isFinancialReport(text)) {
                 // Run audit in background (Don't wait to speed up reply)
                 // We fake a 'ctx' object for the auditor since we are in worker
