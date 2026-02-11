@@ -723,8 +723,8 @@ bot.on('message', async (ctx, next) => {
     await next();
 });
 
-bot.on('message:text', async (ctx) => {
-    const text = ctx.message.text.trim();
+bot.on('message', async (ctx) => {
+    const text = (ctx.message.text || ctx.message.caption || "").trim();
     const chatId = ctx.chat.id;
     const userId = ctx.from.id;
     const username = ctx.from.username || ctx.from.first_name;
