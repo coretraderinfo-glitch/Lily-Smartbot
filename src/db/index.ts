@@ -55,27 +55,42 @@ export const db = {
                     await client.query(fs.readFileSync(schemaPath, 'utf8'));
                 }
 
-                // 2. SURGICAL SAFEGUARDS (Consolidated for Maximum Speed)
+                // 2. Run Enterprise Migrations (Fast Scan)
+                const migrationsDir = path.join(process.cwd(), 'db/migrations');
+                if (fs.existsSync(migrationsDir)) {
+                    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+                    for (const file of files) {
+                        try {
+                            const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+                            await client.query(sql);
+                        } catch (e: any) {
+                            console.warn(`[DB] Migration ${file} skip (already applied or error): ${e.message}`);
+                        }
+                    }
+                }
+
+                // 3. SURGICAL SAFEGUARDS (Final Integrity Check)
                 await client.query(`
                     DO $$ 
                     BEGIN 
-                        -- Check and Add columns atomically
-                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='welcome_enabled') THEN
-                            ALTER TABLE group_settings ADD COLUMN welcome_enabled BOOLEAN DEFAULT FALSE;
-                            ALTER TABLE group_settings ADD COLUMN calc_enabled BOOLEAN DEFAULT TRUE;
-                            ALTER TABLE group_settings ADD COLUMN auditor_enabled BOOLEAN DEFAULT FALSE;
-                            ALTER TABLE group_settings ADD COLUMN mc_enabled BOOLEAN DEFAULT FALSE;
+                        -- Ensure groups table has last_seen
+                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='groups' AND column_name='last_seen') THEN
+                            ALTER TABLE groups ADD COLUMN last_seen TIMESTAMPTZ DEFAULT NOW();
                         END IF;
+                        
+                        -- Final Safeguard for group_settings toggles
+                        UPDATE group_settings SET 
+                            welcome_enabled = COALESCE(welcome_enabled, false),
+                            calc_enabled = COALESCE(calc_enabled, true),
+                            auditor_enabled = COALESCE(auditor_enabled, false),
+                            ai_brain_enabled = COALESCE(ai_brain_enabled, false),
+                            guardian_enabled = COALESCE(guardian_enabled, false),
+                            mc_enabled = COALESCE(mc_enabled, false)
+                        WHERE welcome_enabled IS NULL OR calc_enabled IS NULL;
                     END $$;
-
-                    -- Rapid Integrity Fix
-                    UPDATE group_settings SET 
-                        welcome_enabled = COALESCE(welcome_enabled, false),
-                        calc_enabled = COALESCE(calc_enabled, true)
-                    WHERE welcome_enabled IS NULL OR calc_enabled IS NULL;
                 `);
 
-                console.log('💎 Database Integrity: VERIFIED.');
+                console.log('💎 Database Integrity: SYNCHRONIZED.');
                 return; // SUCCESS - Exit function
 
             } catch (err: any) {

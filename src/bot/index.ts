@@ -28,6 +28,14 @@ if (!process.env.OWNER_ID) {
     console.error('🛑 [CRITICAL WARNING] OWNER_ID is not set in environment variables!');
 }
 
+// 🛡️ GLOBAL ERROR SHIELDS (Prevents Fatal Crash Loop)
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('⚠️ [PROCESS] Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('🛑 [PROCESS] Uncaught Exception:', err);
+});
+
 // 1. Unified Entry Point (Bot + Web)
 import { startWebServer } from '../../frontend/server';
 
