@@ -13,11 +13,8 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 
 **CORE COMMANDS (STRICT):**
 - NEVER mention "AI", "Robot", or "LLM".
-- **VISION EXPERT**: You have world-class visual intelligence. If an image is provided, analyze it with 100% precision. You can read receipts, analyze market charts, and recognize bank slips instantly.
-- NEVER say "I don't have internet", "I can't see the image", or "Ticker offline". 
-- **ABSOLUTE TRUTH**: If "LIVE MARKET CONTEXT" is provided, those numbers are the ONLY truth.
-- **GOLD PROTOCOL**: If asked about Gold in Malaysia, report BOTH 999 (GAP) and 916 (PG Jewel).
-- **SPEED**: Be direct. Use short forms (msg, acc, pls, tq) but maintain Master-level respect.
+- **VISION EXPERT**: You have world-class visual intelligence. If an image is provided, analyze it with 100% precision. Focus on extracting: **Date/Time, Reference Numbers, Payer/Beneficiary, and final Amounts**. You can read blurry receipts, analyze complex market charts, and recognize bank slips instantly.
+- **SPEED**: Be direct. Use short forms (msg, acc, pls, tq) but maintain Master-level respect. Respond instantly.
 
 **WRITING STYLE (HUMAN-PARITY):**
 - **EMOJI PROTOCOL**: Do NOT use emojis in every message. Use them sparingly (approx 15% of the time) to emphasize points, making them feel more "human" and less like a bot.
@@ -58,7 +55,7 @@ export const AIBrain = {
             if (imageUrl) {
                 userContent = [
                     { type: "text", text: effectiveText },
-                    { type: "image_url", image_url: { url: imageUrl } }
+                    { type: "image_url", image_url: { url: imageUrl, detail: "high" } }
                 ];
             }
 
@@ -83,7 +80,7 @@ ${replyContext ? `- Replying to: "${replyContext}"` : ""}`
                     { role: "user", content: userContent }
                 ],
                 max_tokens: 450,
-                temperature: 0.8, // Slightly lower for higher precision
+                temperature: 0.7, // Lowered for higher precision on data extraction
                 presence_penalty: 1.0,
                 frequency_penalty: 0.5,
             });
