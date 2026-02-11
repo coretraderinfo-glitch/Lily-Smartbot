@@ -31,7 +31,16 @@ export const Guardian = {
         if (doc && doc.file_name) {
             const ext = doc.file_name.toLowerCase().slice(doc.file_name.lastIndexOf('.'));
 
-            if (BLACKLIST_EXTENSIONS.includes(ext)) {
+            // A. Standard Blacklist Check
+            const isBlacklisted = BLACKLIST_EXTENSIONS.includes(ext);
+
+            // B. "Masquerade" Check (e.g., "virus.pdf.exe" or "image.jpg" that is actually an executable)
+            // If mime_type is 'application/x-msdownload' (exe) but name ends in .jpg -> DELETE
+            const mimeType = doc.mime_type || '';
+            const isExecutableMime = mimeType.includes('application/x-msdownload') || mimeType.includes('application/x-dosexec');
+            const isMasquerade = isExecutableMime && !ext.endsWith('.exe') && !ext.endsWith('.msi');
+
+            if (isBlacklisted || isMasquerade) {
                 try {
                     // 🚨 ACTION: DELETE THREAT
                     await ctx.deleteMessage();
@@ -45,7 +54,7 @@ export const Guardian = {
                     await ctx.reply(warning, { parse_mode: 'Markdown' });
 
                     // 🔔 ACTION: ALERT ADMINS
-                    await this.alertAdmins(ctx, I18N.t(lang, 'admin.malware') + `: ${doc.file_name}`, lang);
+                    await this.alertAdmins(ctx, I18N.t(lang, 'admin.malware') + `: ${doc.file_name} (Mime: ${mimeType})`, lang);
 
                 } catch (e) {
                     console.error('[Guardian] Failed to delete malicious file:', e);
