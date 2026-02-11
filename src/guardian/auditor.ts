@@ -46,27 +46,26 @@ export const Auditor = {
                         2. Verify if the group "TOTAL" is correct.
                         3. Verify if the "ALL TOTAL" is correct.
                         
-                        If 100% correct, return "CORRECT".
-                        If incorrect, return a short human scolding message in ${lang} pointing out the EXACT error. 
-                        Example error: "Your HUAT group total is RM300 wrong. It should be 128,050 but adds to 127,750."
-                        Do not be polite. Be sharp and professional.`
+                        OUTPUT RULES:
+                        - If 100% correct, return "CORRECT".
+                        - If incorrect, return a sharp, professional yet human-like scolding message in ${lang}.
+                        - MODE: Sometime be very sharp/strict, sometime be "kidding" but still point out the error clearly.
+                        - SLANG: Use FIGHTER squad slang (e.g., "mabuk ah?", "kasi jalan betul-betul", "Lily pening la").
+                        - REQUIREMENT: Tell them EXACTLY what is wrong and tell them to "Do it properly next time".
+                        
+                        Example (Kidding): "Adui FIGHTER, kira RM200 pun boleh salah ke? Mabuk ah? Total HUAT tu patut 128,050. Kasi jalan betul-betul k! Lily pening la."`
                     },
                     { role: "user", content: text }
                 ],
-                max_tokens: 150,
-                temperature: 0
+                max_tokens: 250,
+                temperature: 0.8 // Increased temperature slightly for variety in scolding
             });
 
             const verdict = response.choices[0]?.message?.content?.trim();
 
             if (verdict === 'CORRECT' || verdict?.includes('CORRECT')) {
-                // SILENT SUCCESS: Just add a reaction (✅)
-                try {
-                    // Telegram Reaction (Verified Emoji)
-                    await ctx.react('👍'); // Use thumb or checkmark if supported
-                } catch (e) {
-                    // Fallback to nothing, we want to be silent on success
-                }
+                // TOTAL SILENCE ON SUCCESS: Lily is the Invisible Accountant.
+                return;
             } else if (verdict && verdict !== 'NONE') {
                 // THE POUNCE: Scold the fighter
                 const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'Fighter');
