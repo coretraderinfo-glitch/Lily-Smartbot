@@ -303,7 +303,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (data === "menu_mc") {
         const settings = await db.query('SELECT mc_enabled FROM group_settings WHERE group_id = $1', [chatId]);
-        if (settings.rows[0]?.mc_enabled === false) {
+        if (settings.rows[0]?.mc_enabled === false && !isOwner) {
             return ctx.answerCallbackQuery({ text: "⚠️ Money Changer 未启用 (Feature Disabled: Enable in /admin)", show_alert: true });
         }
 
@@ -329,7 +329,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (data === "menu_calc") {
         const settings = await db.query('SELECT calc_enabled FROM group_settings WHERE group_id = $1', [chatId]);
-        if (settings.rows[0]?.calc_enabled === false) {
+        if (settings.rows[0]?.calc_enabled === false && !isOwner) {
             return ctx.answerCallbackQuery({ text: "⚠️ 财务功能未启用 (Feature Restricted: Calc Not Purchased)", show_alert: true });
         }
 
@@ -374,7 +374,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (data === "menu_guardian") {
         const settings = await db.query('SELECT guardian_enabled FROM group_settings WHERE group_id = $1', [chatId]);
-        if (settings.rows[0]?.guardian_enabled === false) {
+        if (settings.rows[0]?.guardian_enabled === false && !isOwner) {
             return ctx.answerCallbackQuery({ text: "⚠️ 安全功能未启用 (Feature Restricted: Guardian Not Purchased)", show_alert: true });
         }
 
