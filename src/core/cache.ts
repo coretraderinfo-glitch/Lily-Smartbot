@@ -30,6 +30,12 @@ const settingsCache = new LRUCache<string, any>({
         const data = res.rows[0];
         const title = data?.title || 'Lily Node';
 
+        // 2. SAFETY CHECK: If DB returned absolutely nothing and it's NOT a mock, 
+        // it might be a transient sync issue. Do NOT cache the fallback yet.
+        if (!data && !db.isReady) {
+            throw new Error('Database Synchronizing... Cache Skip.');
+        }
+
         if (data && data.group_id) {
             return {
                 ...data,
@@ -66,7 +72,12 @@ export const SettingsCache = {
      * Get settings with micro-latency (Memory -> DB)
      */
     async get(groupId: string | number): Promise<any> {
-        return await settingsCache.fetch(String(groupId));
+        try {
+            return await settingsCache.fetch(String(groupId));
+        } catch (e) {
+            // Fallback for extreme cases (Sync lock)
+            return { ai_brain_enabled: true, calc_enabled: true, language_mode: 'CN' };
+        }
     },
 
     /**
@@ -74,6 +85,13 @@ export const SettingsCache = {
      */
     async invalidate(groupId: string | number) {
         settingsCache.delete(String(groupId));
+    },
+
+    /**
+     * Recovery: Wipe all to sync with reality
+     */
+    clearAll() {
+        settingsCache.clear();
     },
 
     /**

@@ -20,15 +20,17 @@ if (isDefaultUrl) {
     pool = new Pool({
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
-        max: 10,
-        min: 0,
-        idleTimeoutMillis: 20000, // 20s (Recycle faster to avoid Server Kill)
-        connectionTimeoutMillis: 120000, // 120s (Extreme Patience)
+        max: 25,        // Increased to 25 for High-Throughput (Bot + Worker + Web + Scheduler)
+        min: 2,         // Keep 2 warm connections
+        idleTimeoutMillis: 15000,
+        connectionTimeoutMillis: 10000,
         keepAlive: true,
-        keepAliveInitialDelayMillis: 0 // Start Keep-Alive immediately
+        keepAliveInitialDelayMillis: 0
     });
 
     pool.on('error', (err: any) => {
+        // Log but don't crash. The query wrapper will handle retries.
+        if (err.message.includes('terminated')) return;
         console.error('⚠️ [DB_POOL_ERROR]', err.message);
     });
 }
@@ -49,15 +51,16 @@ export const db = {
                 const isNetworkError = err.message.includes('terminated') ||
                     err.message.includes('closed') ||
                     err.message.includes('ended') ||
-                    err.message.includes('timeout');
+                    err.message.includes('timeout') ||
+                    err.message.includes('reset');
 
                 if (isNetworkError && attempts < maxAttempts) {
-                    const delay = attempts * 1000; // 1s, 2s...
-                    console.warn(`🔄 [DB_RETRY_${attempts}] Connection blip detected (${err.message}). Sleeping ${delay}ms...`);
+                    const delay = attempts * 1000;
+                    console.warn(`🔄 [DB_RETRY_${attempts}] Blip detected (${err.message}). Retrying in ${delay}ms...`);
                     await new Promise(r => setTimeout(r, delay));
-                    continue; // Retry loop
+                    continue;
                 }
-                throw err; // Final failure
+                throw err;
             }
         }
     },
@@ -86,7 +89,7 @@ export const db = {
 
     /**
      * CLASSIC MIGRATION
-     * Runs once on startup. Fails loudly if it can't connect.
+     * Runs once on startup. RETRIES until success or hard failure.
      */
     migrate: async () => {
         if (isDefaultUrl) {
@@ -94,73 +97,69 @@ export const db = {
             return;
         }
 
-        console.log('🔄 Synchronizing Database Schema...');
-        let client;
-        try {
-            client = await pool.connect();
+        let attempts = 0;
+        const maxAttempts = 10;
 
-            // 1. Base Schema Check
-            const checkRes = await client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'groups'");
-            const needsBase = checkRes.rows.length === 0;
+        while (attempts < maxAttempts) {
+            console.log(`🔄 [DB_SYNC] Synchronizing Database Schema (Attempt ${attempts + 1}/${maxAttempts})...`);
+            let client;
+            try {
+                client = await pool.connect();
 
-            if (needsBase) {
-                const schemaPath = [
-                    path.join(__dirname, 'schema.sql'),
-                    path.join(process.cwd(), 'src/db/schema.sql'),
-                    path.join(process.cwd(), 'dist/src/db/schema.sql')
+                // 1. Base Schema Check
+                const checkRes = await client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'groups'");
+                const needsBase = checkRes.rows.length === 0;
+
+                if (needsBase) {
+                    const schemaPath = [
+                        path.join(__dirname, 'schema.sql'),
+                        path.join(process.cwd(), 'src/db/schema.sql'),
+                        path.join(process.cwd(), 'dist/src/db/schema.sql')
+                    ].find(p => fs.existsSync(p));
+
+                    if (schemaPath) {
+                        console.log('📦 [DB_INIT] Applying Base Schema...');
+                        await client.query(fs.readFileSync(schemaPath, 'utf8'));
+                    }
+                }
+
+                // 2. Migrations
+                let migrationsDir = [
+                    path.join(process.cwd(), 'db/migrations'),
+                    path.join(process.cwd(), 'dist/db/migrations')
                 ].find(p => fs.existsSync(p));
 
-                if (schemaPath) {
-                    console.log('📦 Applying Base Schema...');
-                    await client.query(fs.readFileSync(schemaPath, 'utf8'));
-                }
-            }
-
-            // 2. Migrations
-            let migrationsDir = [
-                path.join(process.cwd(), 'db/migrations'),
-                path.join(process.cwd(), 'dist/db/migrations')
-            ].find(p => fs.existsSync(p));
-
-            if (migrationsDir) {
-                const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-                for (const file of files) {
-                    try {
-                        const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-                        await client.query(sql);
-                    } catch (e: any) {
-                        // Ignore harmless errors
-                        if (!e.message.includes('already exists') && !e.message.includes('duplicate')) {
-                            console.warn(`[DB] Migration note (${file}): ${e.message}`);
+                if (migrationsDir) {
+                    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+                    for (const file of files) {
+                        try {
+                            const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+                            await client.query(sql);
+                        } catch (e: any) {
+                            if (!e.message.includes('already exists') && !e.message.includes('duplicate')) {
+                                console.warn(`[DB_MIGRATE] Note (${file}): ${e.message}`);
+                            }
                         }
                     }
                 }
-            }
 
-            db.isReady = true;
-            console.log('✅ Database Synchronized (Classic Mode).');
-
-        } catch (err: any) {
-            console.error('🛑 [FATAL] Database Connection Failed:', err.message);
-            // In classic mode, we don't pretend it worked. We let the admin see the error.
-            // But to prevent crash loops, we might flag ready=true but allow queries to fail naturally.
-            // For now, let's keep isReady=false to show the error clearly in logs.
-            // Actually, if we leave isReady=false, the bot simply won't process messages (Guard logic).
-            // Let's retry ONCE after 5 seconds then give up.
-            console.log('⏳ Retrying connection in 5s...');
-            await new Promise(r => setTimeout(r, 5000));
-            try {
-                // Simple retry logic inline
-                if (client) client.release();
-                client = await pool.connect();
                 db.isReady = true;
-                console.log('✅ Connected on retry.');
-            } catch (retryErr) {
-                console.error('🛑 Retry failed. Bot will start in Offline Mode.', retryErr);
-                db.isReady = true; // Force ready so at least /ping might work if it doesn't touch DB
+                console.log('✅ [DB_READY] Database Synchronized & Stable.');
+                return; // SUCCESS
+
+            } catch (err: any) {
+                attempts++;
+                console.error(`🛑 [DB_SYNC_FAIL] Attempt ${attempts} failed:`, err.message);
+                if (attempts < maxAttempts) {
+                    const wait = Math.min(attempts * 2000, 10000); // Wait 2s, 4s, 6s... up to 10s
+                    console.log(`⏳ Waiting ${wait}ms before next sync attempt...`);
+                    await new Promise(r => setTimeout(r, wait));
+                } else {
+                    console.error('💀 [DB_FATAL] All sync attempts failed. Bot will stay in sync loop.');
+                }
+            } finally {
+                if (client) client.release();
             }
-        } finally {
-            if (client) client.release();
         }
     },
 

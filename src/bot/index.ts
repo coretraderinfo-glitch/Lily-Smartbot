@@ -1197,33 +1197,44 @@ async function start() {
         } else {
             console.log('🔄 Initializing Lily Foundation (Async Mode)...');
 
-            // Security: Reset Webhook & Commands (Safeguarded against Network Timeout)
-            try {
-                await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
-                await bot.api.deleteWebhook({ drop_pending_updates: true });
-            } catch (setupErr: any) {
-                console.warn('⚠️ [NETWORK_WARN] Failed to sync commands/webhook (Non-Critical):', setupErr.message);
-                // We proceed anyway because the bot can still function
-            }
+            // 1. SETUP TELEGRAM (Background - Don't block polling)
+            (async () => {
+                try {
+                    console.log('📡 [TELEGRAM] Syncing Commands & Webhook...');
+                    await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
+                    await bot.api.deleteWebhook({ drop_pending_updates: true });
+                    const info = await bot.api.getMe();
+                    console.log(`✅ [TELEGRAM] System Identity Verified: @${info.username}`);
+                } catch (e: any) {
+                    console.warn('⚠️ [TELEGRAM_DELAY] Setup deferred:', e.message);
+                }
+            })();
 
             isInitialized = true;
         }
 
-        // NON-BLOCKING STARTUP: Launch bot immediately, connect DB in background
-        if (!db.isReady) {
-            (async () => {
-                try {
-                    await db.migrate();
-                    // FOUNDATION READY: Now start sub-modules safely
-                    await Chronos.init(bot);
-                    await MoneyChanger.init();
+        // 2. SEQUENTIAL FOUNDATION BOOT (Background)
+        (async () => {
+            try {
+                // Must finish migration before starting modules
+                await db.migrate();
 
-                    console.log('✅ Lily Modules: SECURED & INITIALIZED.');
-                } catch (err) {
-                    console.error('⚠️ [FOUNDATION_CRITICAL] Module initialization failed:', err);
-                }
-            })();
-        }
+                // FOUNDATION READY: Launch sub-engines
+                await Promise.all([
+                    Chronos.init(bot),
+                    MoneyChanger.init()
+                ]);
+
+                // ✨ RECOVERY: Invalidate all cache to force Lily to "Remember" everything from DB
+                const { SettingsCache } = require('../core/cache');
+                SettingsCache.clearAll();
+                console.log('✨ [RECOVERY] Database Online. Memories synchronized.');
+
+                console.log('✅ Lily Modules: SECURED & INITIALIZED.');
+            } catch (err) {
+                console.error('⚠️ [FOUNDATION_CRITICAL] Core initialization failed:', err);
+            }
+        })();
 
         console.log('🚀 Lily Bot Starting (Fighter Mode)...');
         // We use Long Polling (Safe for Railway)
