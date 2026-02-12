@@ -1,12 +1,17 @@
 import { Context } from 'grammy';
 import OpenAI from 'openai';
 import { db } from '../db';
-import { I18N } from '../utils/i18n';
+import { connection as redis } from '../bot/instance';
 
 /**
- * LILY SILENT AUDITOR ENGINE
- * "The Invisible Accountant"
- * Scans financial lists for math errors without being asked.
+ * LILY SILENT AUDITOR ENGINE V2
+ * "The Human Accountant with Patience Limits"
+ * 
+ * Features:
+ * - Math error detection
+ * - Decimal typo detection (16.000)
+ * - Progressive scolding based on error count
+ * - Group-type awareness (Fighter vs Client)
  */
 
 /**
@@ -29,12 +34,9 @@ export const Auditor = {
         const foundKeywords = keywords.filter(k => text.toUpperCase().includes(k));
 
         // Pattern 2: Financial Structure (Lines containing numbers)
-        // Look for lines that have a number (with optional decimal/comma)
         const mathLines = lines.filter(l => /[\d,.]+/.test(l));
 
         // Decision: Relaxed Trigger Logic
-        // 1. If it has "TOTAL" or "RM" + any numbers -> CHECK IT.
-        // 2. If it has >2 keywords -> CHECK IT.
         const strongIndicators = ['TOTAL', 'ALL TOTAL', 'RM', 'HUAT', 'ONG'].some(k => text.toUpperCase().includes(k));
 
         if (strongIndicators && mathLines.length >= 1) return true;
@@ -42,47 +44,118 @@ export const Auditor = {
     },
 
     /**
-     * Stealth Audit: Checks the math and "pounces" only if wrong.
-     * WORLD-CLASS HUMAN PERSONALITY: Sharp, cheeky, and 100% non-robotic.
+     * Get error count for a user in a chat (24h window)
+     */
+    async getErrorCount(chatId: number, userId: number): Promise<number> {
+        try {
+            const key = `audit_errors:${chatId}:${userId}`;
+            const count = await redis.get(key);
+            return count ? parseInt(count) : 0;
+        } catch (e) {
+            console.error('[Auditor] Redis error:', e);
+            return 0;
+        }
+    },
+
+    /**
+     * Increment error count for a user (resets after 24h)
+     */
+    async incrementErrorCount(chatId: number, userId: number): Promise<number> {
+        try {
+            const key = `audit_errors:${chatId}:${userId}`;
+            const newCount = await redis.incr(key);
+            await redis.expire(key, 86400); // 24 hours TTL
+            return newCount;
+        } catch (e) {
+            console.error('[Auditor] Redis error:', e);
+            return 1;
+        }
+    },
+
+    /**
+     * Stealth Audit: Checks the math and "pounces" with progressive intensity.
+     * WORLD-CLASS HUMAN PERSONALITY: Patience wears thin after repeated mistakes.
      */
     async audit(ctx: Context, text: string, lang: string = 'CN') {
         if (!process.env.OPENAI_API_KEY) return;
         const userId = ctx.from?.id;
+        if (!userId) return;
+
         const isProfessor = require('../utils/security').Security.isSystemOwner(userId);
+        const chatId = ctx.chat?.id;
+        if (!chatId) return;
 
         try {
+            // Fetch group type (Fighter vs Client)
+            const SettingsCache = require('../core/cache').SettingsCache;
+            const config = await SettingsCache.get(chatId);
+            const isFighterGroup = config?.welcome_enabled || false;
+
+            // Get current error count
+            const currentErrors = await this.getErrorCount(chatId, userId);
+
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+            // Build context-aware prompt
+            const groupContext = isFighterGroup
+                ? `This is a FIGHTER squad group. You can be direct, casual, and use Manglish freely. Use the term "FIGHTER" when addressing them.`
+                : `This is a CLIENT/VIP group. Maintain professional courtesy. Never use the term "FIGHTER". Be respectful but firm if needed.`;
+
+            const patienceContext = currentErrors === 0
+                ? `This is the user's first mistake today. Be helpful but point it out clearly.`
+                : currentErrors === 1
+                    ? `This is the user's SECOND mistake today. Show slight frustration but stay composed.`
+                    : `This is the user's ${currentErrors + 1}TH mistake today! Your patience is RUNNING OUT. Scold them ${isFighterGroup ? 'directly' : 'professionally but firmly'}.`;
 
             const response = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
                 messages: [
                     {
                         role: "system",
-                        content: `You are Lily, a high-level human accountant for a "FIGHTER" squad. 
+                        content: `You are Lily, a high-level human accountant. You have emotions and patience limits like a real person.
                         
+                        ${groupContext}
+                        ${patienceContext}
+
                         CRITICAL: Do NOT sound like an AI. No "detected", "error", or "mismatch". 
                         ACT like a real person in the group who just noticed a mistake.
 
                         TASK:
                         1. Deep-scan the math. Sum individual entries to verify "TOTAL" and "ALL TOTAL".
                         2. Check for TYPO PATTERNS:
-                           - "16.000" (3 decimals) = WRONG! Should be "16.00" (2 decimals for money) OR "16,000" (comma for thousands).
-                           - If you see ".000" at the end, it's likely they pressed period instead of comma for thousands separator.
-                           - Money calculations should ONLY have 2 decimal places, NOT 3.
+                           - "16.000" (3 decimals) = WRONG! Should be "16.00" (2 decimals) OR "16,000" (comma for thousands).
+                           - Money should only have 2 decimal places.
                         
                         IF MATH IS 100% CORRECT AND NO TYPOS:
                         - Return JUST the word "CORRECT".
 
                         IF MATH IS WRONG OR TYPOS FOUND:
-                        - Scold them in ${lang}.
-                        - STYLE: Sharp, sometimes cheeky/kidding, sometimes strictly professional. 
-                        - SLANG (MY/EN): "Mabuk ah?", "Adui, kira betul-betul la", "Math lari ni bro", "Check balik entry tu", "Lily pening tengok numbers ni".
-                        - SLANG (CN): "算错啦！", "眼睛看哪里了？", "数学是体育老师教的吗？", "晕哦，重新算过啦", "手抖了还是心虚了？算错这么简单".
-                        - FOR DECIMAL TYPOS: "Eh boss, money no have 3 decimal places one lah! 16.000 tu typo kah? Should be 16.00 (2 decimals) or use comma 16,000 (thousands). Hand slip ah?"
-                        - REQUIREMENT: Tell them EXACTLY what is wrong and tell them to "Do it properly now" or "Check again la".
                         
-                        Example 1 (Math Error): "Adui FIGHTER, math lari RM500 ni. HUAT total tu patut 12,500 bukan 12,000. Kasi check balik betul-betul, jangan main-main k! Do it properly now."
-                        Example 2 (Decimal Typo): "Mari kita semak! 16.000 tu wrong format la. Money decimal pakai 2 digits je (16.00), bukan 3. Or maybe you mean 16,000 (pakai comma)? Tangan tergelincir pressing period ah? Check balik."`
+                        RESPONSE STYLES (Based on Error Count):
+                        
+                        **FIRST MISTAKE (Fighter Group)**:
+                        - Casual scold: "Adui FIGHTER, math lari RM{amount}. Should be {correct}. Check balik la!"
+                        - "Eh boss, 16.000 tu wrong format. Money 2 decimal je, bukan 3. Typo kah?"
+                        
+                        **FIRST MISTAKE (Client Group)**:
+                        - Professional: "Good afternoon Sir, I've noticed a discrepancy of RM{amount}. The correct total should be {correct}."
+                        
+                        **SECOND MISTAKE (Fighter Group)**:
+                        - Frustrated: "Walao... again ah?! 2nd time today boss. Math ni concentrate sikit la!"
+                        - "Boss, tangan shaky kah? This is 2nd error. Focus please!"
+                        
+                        **SECOND MISTAKE (Client Group)**:
+                        - Gentle but firm: "Sir, this is the second calculation error today. I recommend reviewing entries more carefully."
+                        
+                        **THIRD+ MISTAKE (Fighter Group)**:
+                        - Maximum annoyance: "AIYOH! 3rd time already! Are you even checking?! Math so simple also cannot?!"
+                        - "Mari kita semak! This is getting ridiculous. 3rd error. Need calculator kah?!"
+                        
+                        **THIRD+ MISTAKE (Client Group)**:
+                        - Professional scold: "Sir, I must respectfully point out this is the THIRD error today. I strongly recommend implementing a verification process. Accuracy is critical."
+                        
+                        Current language: ${lang}
+                        Use appropriate slang for the language and group type.`
                     },
                     { role: "user", content: text }
                 ],
@@ -104,13 +177,22 @@ export const Auditor = {
                 }
                 return;
             } else if (verdict && verdict !== 'NONE') {
-                const userName = ctx.from?.username ? `@${ctx.from.username}` : `Fighter`;
+                // ERROR FOUND - Increment counter and send alert
+                const newErrorCount = await this.incrementErrorCount(chatId, userId);
 
-                // SAFE MARKDOWN: Escape special characters to prevent Telegram "Bad Request" errors
+                const userName = ctx.from?.username ? `@${ctx.from.username}` : `User`;
+
+                // SAFE MARKDOWN: Escape special characters
                 const safeVerdict = escapeMarkdown(verdict);
                 const safeName = escapeMarkdown(userName);
 
-                await ctx.reply(`⚠️ *\\[FINANCE AUDIT ALERT\\]*\n\n${safeVerdict}\n\ncc: ${safeName}`, { parse_mode: 'MarkdownV2' });
+                // Add error count indicator for transparency
+                const errorBadge = newErrorCount === 1 ? '🟡' : newErrorCount === 2 ? '🟠' : '🔴';
+
+                await ctx.reply(
+                    `${errorBadge} *\\[FINANCE AUDIT ALERT\\]* ${errorBadge}\n\n${safeVerdict}\n\ncc: ${safeName}`,
+                    { parse_mode: 'MarkdownV2' }
+                );
             }
 
         } catch (error) {
