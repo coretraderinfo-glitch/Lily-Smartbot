@@ -679,13 +679,13 @@ bot.on('message', async (ctx, next) => {
         const currentCount = await connection.incr(spamKey);
 
         if (currentCount === 1) {
-            await connection.expire(spamKey, 2); // 2 Second Window
+            await connection.expire(spamKey, 3); // 3 Second Window
         }
 
         // Check if Admin/Operator (Higher limit)
         const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
         const isOperator = await RBAC.isAuthorized(ctx.chat.id, userId);
-        const limit = (isAdmin.rows.length > 0 || isOperator) ? 5 : 1;
+        const limit = (isAdmin.rows.length > 0 || isOperator) ? 10 : 4;
 
         if (currentCount > limit) {
             if (currentCount === limit + 1) {
