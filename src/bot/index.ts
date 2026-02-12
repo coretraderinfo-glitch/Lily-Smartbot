@@ -1082,6 +1082,18 @@ async function start() {
         console.log('🔄 Initializing Lily Foundation...');
         await db.migrate();
 
+        // 🛡️ CRITICAL PATCH: Force create Global Registry table (if migration missed it)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS username_global_registry (
+                username VARCHAR(100) PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                first_seen TIMESTAMPTZ DEFAULT NOW(),
+                last_seen TIMESTAMPTZ DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_global_registry_user_id ON username_global_registry(user_id);
+        `);
+        console.log('✅ Global Username Registry Verified.');
+
         // 🧠 FORGE VIP MEMORIES (Auto-load Professor & Lady Boss)
         console.log('🧠 Forging VIP memories...');
         await MemoryCore.forgeVIPMemories();
