@@ -99,9 +99,19 @@ export const db = {
         try {
             console.log('🔄 [Migration] Handshaking with Database...');
 
-            // Attempt Connection
-            client = await dbClient.connect();
+            // HEALTH CHECK (Force a clean connection)
+            try {
+                client = await dbClient.connect();
+                await client.query('SELECT 1'); // Simple Heartbeat
+                client.release(); // Release immediately to prove it works
+            } catch (initErr) {
+                console.warn('⚠️ [Migration] Initial handshake failed. Triggering Emergency Pool Rebuild...');
+                try { dbClient = createPool(); } catch (e) { }
+                await new Promise(r => setTimeout(r, 2000)); // Wait for rebuild
+            }
 
+            // Real Connection for Migration
+            client = await dbClient.connect();
             console.log('🔄 [Migration] Running Security & Feature Safeguards...');
 
             // Extended timeout for migrations
