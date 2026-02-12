@@ -22,10 +22,12 @@ if (isDefaultUrl) {
     dbClient = new Pool({
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
-        max: 20, // Lower max to avoid Railway connection limits
-        idleTimeoutMillis: 60000, // 60s idle
-        connectionTimeoutMillis: 30000, // 30s timeout (Increased for Cold Starts)
-        maxUses: 7500, // Recycle connections to prevent leaks
+        max: 10, // SURGICAL LIMIT: Prevent Resource Exhaustion
+        min: 0, // COLD START OPTIMIZATION: Don't force connections on boot
+        idleTimeoutMillis: 30000, // Release idle connections faster
+        connectionTimeoutMillis: 60000, // 60s TIMEOUT: Maximum tolerance for Railway "Wake Up"
+        maxUses: 5000, // Recycle frequently to keep connections fresh
+        allowExitOnIdle: true, // Allow Node process to sleep if needed
     });
 
     // Pool Level Error Handling (Prevents Crashes)
@@ -36,7 +38,7 @@ if (isDefaultUrl) {
 
 /**
  * World-Class Reliable Query Wrapper
- * Retries on temporary connection blips
+ * Retries on temporary connection blips (Up to 5 times)
  */
 async function reliableQuery(text: string, params?: any[], retryCount = 0): Promise<any> {
     try {
@@ -47,9 +49,10 @@ async function reliableQuery(text: string, params?: any[], retryCount = 0): Prom
             err.message.includes('closed') ||
             err.message.includes('ECONNRESET');
 
-        if (isTransient && retryCount < 3) {
+        // Extended Retry Strategy (1s, 2s, 4s, 8s, 16s)
+        if (isTransient && retryCount < 5) {
             const delay = Math.pow(2, retryCount) * 1000;
-            console.warn(`⏳ [DB_RECOVERY] Connection blip detected. Retrying in ${delay}ms... (Attempt ${retryCount + 1})`);
+            console.warn(`⏳ [DB_RECOVERY] Connection blip detected. Retrying in ${delay}ms... (Attempt ${retryCount + 1}/5)`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return reliableQuery(text, params, retryCount + 1);
         }
