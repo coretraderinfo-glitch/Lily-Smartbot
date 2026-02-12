@@ -82,8 +82,22 @@ export const AIBrain = {
             // 🧠 MEMORY INJECTION (Long Term)
             const memoryContext = await MemoryCore.recall(userId);
 
-            // ⚡ SESSION RECALL (Short Term)
+            // ⚡ SESSION RECALL (Short Term - Last 10 Turns)
             const sessionHistory = await require('../core/memory/session').SessionMemory.recall(chatId, userId);
+
+            // 🌐 LANGUAGE AUTO-DETECTION (Individual User, NOT Group Setting)
+            // Detect the user's ACTUAL language from their current message
+            const detectLanguage = (text: string): string => {
+                const chineseChar = /[\u4e00-\u9fa5]/;
+                const hasChinese = chineseChar.test(text);
+                const hasManglish = /(lah|lor|mah|meh|bossku|walao|aiyoh|cincai|kautim|boleh)/i.test(text);
+
+                if (hasChinese) return 'Chinese (Mandarin/Cantonese)';
+                if (hasManglish) return 'Manglish (Malaysian English)';
+                return 'English (Professional)';
+            };
+
+            const detectedLanguage = detectLanguage(effectiveText);
 
             const messages: any[] = [
                 { role: "system", content: SYSTEM_PROMPT },
@@ -95,7 +109,15 @@ export const AIBrain = {
 - Internal Sales: ${ledgerContext || "None"}.
 - Real-Time Market Feed: ${marketContext || "TICKER ACTIVE"}.
 ${memoryContext ? memoryContext : ""}
-${replyContext ? `- Replying to: "${replyContext}"` : ""}`
+${replyContext ? `- [CONVERSATION THREAD] User is replying to: "${replyContext}"` : ""}
+
+🌐 **LANGUAGE DIRECTIVE (CRITICAL)**:
+The user is currently speaking: ${detectedLanguage}
+YOU MUST reply in the EXACT SAME language they are using RIGHT NOW.
+- If they speak Chinese, YOU reply 100% Chinese.
+- If they speak English, YOU reply professional English.
+- If they speak Manglish, YOU reply Manglish.
+IGNORE the group's default language setting (${lang}). That is ONLY for system announcements, NOT conversations.`
                 }
             ];
 
