@@ -14,59 +14,43 @@ const settingsCache = new LRUCache<string, any>({
     ttl: 30 * 1000, // 30s TTL for extreme freshness
     fetchMethod: async (key) => {
         const groupId = key;
+        try {
+            // Fetch Settings + Group Meta in ONE surgical hit
+            const res = await db.query(`
+                SELECT s.*, g.title, g.timezone
+                FROM group_settings s 
+                JOIN groups g ON s.group_id = g.id 
+                WHERE s.group_id = $1
+            `, [groupId]);
 
-        // 1. Fetch Actual Settings First (Priority: Feature Accuracy)
-        const sRes = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [groupId]);
-        const s = sRes.rows[0];
+            if (res.rows.length > 0) return res.rows[0];
 
-        // 2. Fetch Title Second (Non-Breaking)
-        const gRes = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
-        const title = gRes.rows[0]?.title || 'Lily Node';
-
-        if (s) {
+            // Fallback for new groups skipping the JOIN
+            const fallback = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
             return {
-                ...s,
-                title,
-                // Hard-coded defaults for the engine to ensure NO NULLs
-                guardian_enabled: !!s.guardian_enabled,
-                ai_brain_enabled: !!s.ai_brain_enabled,
-                welcome_enabled: !!s.welcome_enabled,
-                calc_enabled: !!(s.calc_enabled ?? true),
-                auditor_enabled: !!s.auditor_enabled,
-                mc_enabled: !!s.mc_enabled
+                title: fallback.rows[0]?.title || 'Lily Node',
+                guardian_enabled: false,
+                ai_brain_enabled: false,
+                welcome_enabled: false,
+                calc_enabled: true,
+                auditor_enabled: false,
+                mc_enabled: false,
+                language_mode: 'CN'
+            };
+        } catch (e) {
+            console.error(`🛑 [Cache_Fail] Deep link to DB broken for ${groupId}:`, e);
+            // Return safe defaults so the bot doesn't crash
+            return {
+                title: 'Lily System (Offline Mode)',
+                guardian_enabled: false,
+                ai_brain_enabled: false,
+                welcome_enabled: false,
+                calc_enabled: true,
+                auditor_enabled: false,
+                mc_enabled: false,
+                language_mode: 'CN'
             };
         }
-
-        // 3. Absolute Fallback (New Groups)
-        return {
-            title,
-            guardian_enabled: false,
-            ai_brain_enabled: false,
-            welcome_enabled: false,
-            calc_enabled: true,
-            auditor_enabled: false,
-            mc_enabled: false,
-            language_mode: 'CN'
-        };
-    }
-});
-
-// 💎 AUTH CACHE: Permission hits are the #1 source of DB lag.
-// We cache isAdmin/isOperator status for 5 minutes.
-const authCache = new LRUCache<string, boolean>({
-    max: 10000,
-    ttl: 300 * 1000, // 5 minutes
-    fetchMethod: async (key) => {
-        const [chatId, userId, role] = key.split(':');
-
-        if (role === 'ADMIN') {
-            const res = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [chatId, userId]);
-            return res.rows.length > 0;
-        } else if (role === 'OPERATOR') {
-            const res = await db.query('SELECT 1 FROM group_operators WHERE group_id = $1 AND user_id = $2', [chatId, userId]);
-            return res.rows.length > 0;
-        }
-        return false;
     }
 });
 
@@ -90,18 +74,5 @@ export const SettingsCache = {
      */
     set(groupId: string | number, data: any) {
         settingsCache.set(String(groupId), data);
-    }
-};
-
-export const AuthCache = {
-    async isAdmin(chatId: string | number, userId: string | number): Promise<boolean> {
-        return await authCache.fetch(`${chatId}:${userId}:ADMIN`) || false;
-    },
-    async isOperator(chatId: string | number, userId: string | number): Promise<boolean> {
-        return await authCache.fetch(`${chatId}:${userId}:OPERATOR`) || false;
-    },
-    invalidate(chatId: string | number, userId: string | number) {
-        authCache.delete(`${chatId}:${userId}:ADMIN`);
-        authCache.delete(`${chatId}:${userId}:OPERATOR`);
     }
 };

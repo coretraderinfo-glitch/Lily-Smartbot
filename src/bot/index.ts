@@ -2,7 +2,7 @@ import { Context, InputFile, InlineKeyboard, GrammyError, HttpError } from 'gram
 import { Worker, Queue } from 'bullmq';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
-import { SettingsCache, AuthCache } from '../core/cache';
+import { SettingsCache } from '../core/cache';
 
 // Internal Logic
 import { processCommand } from '../worker/processor';
@@ -27,14 +27,6 @@ checkEnv(['BOT_TOKEN', 'DATABASE_URL', 'REDIS_URL', 'OPENAI_API_KEY']);
 if (!process.env.OWNER_ID) {
     console.error('🛑 [CRITICAL WARNING] OWNER_ID is not set in environment variables!');
 }
-
-// 🛡️ GLOBAL ERROR SHIELDS (Prevents Fatal Crash Loop)
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('⚠️ [PROCESS] Unhandled Rejection:', reason);
-});
-process.on('uncaughtException', (err) => {
-    console.error('🛑 [PROCESS] Uncaught Exception:', err);
-});
 
 // 1. Unified Entry Point (Bot + Web)
 import { startWebServer } from '../../frontend/server';
@@ -230,17 +222,17 @@ async function renderManagementConsole(ctx: Context, id: string) {
     `, [id]);
 
     const settings = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [id]);
-    const s = settings.rows[0] || {};
-
-    // NORMALIZE: Ensure UI logic matches DB schema defaults perfectly
-    const state = {
-        calc: !!(s.calc_enabled ?? true),  // Default Calc to ON
-        guardian: !!s.guardian_enabled,
-        ai: !!s.ai_brain_enabled,
-        auditor: !!s.auditor_enabled,
-        welcome: !!s.welcome_enabled,
-        mc: !!s.mc_enabled
-    };
+    // WORLD-CLASS DEFAULTS: Welcome & Auditor start OFF (Sir's request), Calc & AI start ON if licensed.
+    const s = settings.rows[0];
+    if (s) {
+        // Normalize NULLs to match DB defaults
+        if (s.welcome_enabled === null) s.welcome_enabled = false;
+        if (s.auditor_enabled === null) s.auditor_enabled = false;
+        if (s.calc_enabled === null) s.calc_enabled = true;
+    } else {
+        // Fallback object if row is missing entirely
+        settings.rows[0] = { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: false, calc_enabled: true, auditor_enabled: false, language_mode: 'CN' };
+    }
 
     const title = group.rows[0]?.title || 'Group';
     const lang = s.language_mode || 'CN';
@@ -261,26 +253,26 @@ async function renderManagementConsole(ctx: Context, id: string) {
     };
 
     let msg = `🛠️ **${labels.title}: ${title}**\nGroup ID: \`${id}\`\n\n`;
-    msg += `ℹ️ ${labels.calc}: ${state.calc ? '✅ ON' : '❌ OFF'}\n`;
-    msg += `🛡️ ${labels.guardian}: ${state.guardian ? '✅ ON' : '❌ OFF'}\n`;
-    msg += `🧠 ${labels.ai}: ${state.ai ? '✅ ON' : '❌ OFF'}\n`;
-    msg += `💎 ${labels.auditor}: ${state.auditor ? '✅ ON' : '❌ OFF'}\n`;
-    msg += `🥊 ${labels.welcome}: ${state.welcome ? '✅ ON' : '❌ OFF'}\n`;
-    msg += `💰 ${labels.mc}: ${state.mc ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `ℹ️ ${labels.calc}: ${s.calc_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `🛡️ ${labels.guardian}: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `🧠 ${labels.ai}: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `💎 ${labels.auditor}: ${s.auditor_enabled ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `🥊 ${labels.welcome}: ${s.welcome_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `💰 ${labels.mc}: ${s.mc_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🌐 ${labels.langLabel}: **${lang}**\n`;
 
     const keyboard = new InlineKeyboard()
         // Row 1: Core Ledger & Security
-        .text(state.calc ? `${labels.disable} Calc` : `${labels.enable} Calc`, `toggle:calc:${id}`)
-        .text(state.guardian ? `${labels.disable} Guardian` : `${labels.enable} Guardian`, `toggle:guardian:${id}`).row()
+        .text(s.calc_enabled !== false ? `${labels.disable} Calc` : `${labels.enable} Calc`, `toggle:calc:${id}`)
+        .text(s.guardian_enabled ? `${labels.disable} Guardian` : `${labels.enable} Guardian`, `toggle:guardian:${id}`).row()
 
         // Row 2: Intelligence & Audit
-        .text(state.ai ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`)
-        .text(state.auditor ? `${labels.disable} Auditor` : `${labels.enable} Auditor`, `toggle:auditor:${id}`).row()
+        .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`)
+        .text(s.auditor_enabled ? `${labels.disable} Auditor` : `${labels.enable} Auditor`, `toggle:auditor:${id}`).row()
 
         // Row 3: Hospitality & OTC
-        .text(state.welcome ? `${labels.disable} Welcome` : `${labels.enable} Welcome`, `toggle:welcome:${id}`)
-        .text(state.mc ? `${labels.disable} MC` : `${labels.enable} MC`, `toggle:mc:${id}`).row()
+        .text(s.welcome_enabled !== false ? `${labels.disable} Welcome` : `${labels.enable} Welcome`, `toggle:welcome:${id}`)
+        .text(s.mc_enabled ? `${labels.disable} MC` : `${labels.enable} MC`, `toggle:mc:${id}`).row()
 
         // Row 4: Settings & Dangerous Actions
         .text(labels.cycle, `cycle_lang:${id}`).row()
@@ -549,13 +541,11 @@ bot.on('callback_query:data', async (ctx) => {
 
         // Use UPSERT for Toggles with NULL-Safety (COALESCE)
         // If row is missing, we create it. If it exists, we flip it.
-        const defaultValue = column === 'calc_enabled' ? 'true' : 'false';
-
         await db.query(`
             INSERT INTO group_settings (group_id, ${column}) 
-            VALUES ($1, ${defaultValue})
+            VALUES ($1, true)
             ON CONFLICT (group_id) DO UPDATE 
-            SET ${column} = NOT COALESCE(group_settings.${column}, ${defaultValue}), 
+            SET ${column} = NOT COALESCE(group_settings.${column}, false), 
                 updated_at = NOW()
         `, [id]);
 
@@ -580,9 +570,6 @@ bot.on('callback_query:data', async (ctx) => {
             isEnabled = true;
         } else if (type === 'ai' && s.ai_brain_enabled) {
             announcementKey = 'ai';
-            isEnabled = true;
-        } else if (type === 'welcome' && s.welcome_enabled) {
-            announcementKey = 'welcome';
             isEnabled = true;
         }
 
@@ -645,23 +632,6 @@ bot.on('callback_query:data', async (ctx) => {
                         `🤖 **Pembantu Pintar**: @Lily bila-bila masa. Saya sedia 24/7.\n` +
                         `📊 **Analisis Data**: Saya boleh baca lejar dan jawab soalan kewangan.\n\n` +
                         `💡 **Connection**: \`STABLE 🟢\``
-                },
-                welcome: {
-                    CN: `🥊 **Lily Welcome: 已启用**\n\n` +
-                        `主人交代，从现在起我会亲自迎接每一位新加入的成员。\n\n` +
-                        `✅ **身份核对**: 协助管理群组秩序。\n` +
-                        `✨ **热情欢迎**: 让本群更有温度。\n\n` +
-                        `💡 **Status**: \`GREETING SERVICE ACTIVE 🟢\``,
-                    EN: `🥊 **Lily Welcome: ENABLED**\n\n` +
-                        `My Master has instructed me to personally greet every new member.\n\n` +
-                        `✅ **Verification Help**: Maintaining group order.\n` +
-                        `✨ **Warm Hospitality**: Making the group feel alive.\n\n` +
-                        `💡 **Status**: \`GREETING SERVICE ACTIVE 🟢\``,
-                    MY: `🥊 **Lily Welcome: DIAKTIFKAN**\n\n` +
-                        `Tuan saya telah mengarahkan saya untuk menyambut setiap ahli baru secara peribadi.\n\n` +
-                        `✅ **Bantuan Verifikasi**: Mengekalkan ketertiban kumpulan.\n` +
-                        `✨ **Sambutan Mesra**: Menjadikan kumpulan lebih ceria.\n\n` +
-                        `💡 **Status**: \`GREETING SERVICE ACTIVE 🟢\``
                 }
             };
 
@@ -712,18 +682,16 @@ bot.on('message', async (ctx, next) => {
             await connection.expire(spamKey, 2); // 2 Second Window
         }
 
-        // 💎 AUTH CACHE: Zero-Latency Permission Check
-        const isAdmin = await AuthCache.isAdmin(ctx.chat.id, userId);
-        const isOperator = await AuthCache.isOperator(ctx.chat.id, userId);
-
-        // Relaxed Limits: 10 for Staff, 2 for Users (per 2s)
-        const limit = (isAdmin || isOperator) ? 10 : 2;
+        // Check if Admin/Operator (Higher limit)
+        const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
+        const isOperator = await RBAC.isAuthorized(ctx.chat.id, userId);
+        const limit = (isAdmin.rows.length > 0 || isOperator) ? 5 : 1;
 
         if (currentCount > limit) {
             if (currentCount === limit + 1) {
                 // Determine Language
-                const config = await SettingsCache.get(ctx.chat.id);
-                const lang = config?.language_mode || 'CN';
+                const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
+                const lang = settingsRes.rows[0]?.language_mode || 'CN';
                 const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'FIGHTER');
 
                 await ctx.reply(Personality.getSpamWarning(lang, name), { parse_mode: 'Markdown' });
@@ -1091,23 +1059,17 @@ bot.on('my_chat_member', async (ctx) => {
 // --- 5. EXECUTION ENGINE (THE HEART) ---
 async function start() {
     try {
-        console.log('🔄 Lily Soul: Waking up...');
-
-        // Background Persistence: Start the memory layer without blocking the bot's heart
-        db.migrate().catch(err => console.error('⚠️ [DB_MIGRATE_ERROR]:', err.message));
-
+        console.log('🔄 Initializing Lily Foundation...');
+        await db.migrate();
         await Chronos.init(bot);
 
         // Security: Reset Webhook & Commands
         await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
+        await bot.api.deleteWebhook({ drop_pending_updates: true });
 
-        // WORLD-CLASS RELIABILITY: Never drop updates. Lily catches up on what she missed.
-        await bot.api.deleteWebhook({ drop_pending_updates: false });
-
-        console.log('🚀 Lily Engine: Online & Responsive (Fighter Mode)');
-        // We use Long Polling (Safe for Railway)
+        console.log('🚀 Lily Bot Starting (Fighter Mode)...');
         await bot.start({
-            drop_pending_updates: false, // ZERO-LOSS UPGRADE
+            drop_pending_updates: true,
             onStart: (botInfo) => {
                 console.log(`✅ SUCCESS: Connected to Telegram as @${botInfo.username}`);
             },
@@ -1122,6 +1084,24 @@ async function start() {
         }
     }
 }
+
+// GRACEFUL SHUTDOWN (Zero-Loss Reliability)
+const handleShutdown = async (signal: string) => {
+    console.log(`\n🛑 [SHUTDOWN] Received ${signal}. Closing pipes...`);
+    try {
+        await bot.stop();
+        await worker.close();
+        // Wait for pool cleanup
+        console.log('💎 All core systems synchronized. Farewell.');
+        process.exit(0);
+    } catch (e) {
+        console.error('Cleanup failed:', e);
+        process.exit(1);
+    }
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 // PROTECTIVE BOOT: Only start if this is the main process
 if (require.main === module) {

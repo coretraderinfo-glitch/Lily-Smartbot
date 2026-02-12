@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rm -rf dist && tsc && mkdir -p dist/src/db && cp src/db/schema.sql dist/src/db/ && cp -r db dist/ && cp -r assets dist/ && mkdir -p dist/frontend/public && cp -r frontend/public/* dist/frontend/public/",
+    "build": "tsc && mkdir -p dist/db && cp src/db/schema.sql dist/db/ && cp -r assets dist/ && mkdir -p dist/frontend/public && cp -r frontend/public/* dist/frontend/public/",
     "start": "node dist/src/bot/index.js",
     "start:frontend": "node dist/frontend/server.js",
     "dev": "nodemon src/bot/index.ts",
