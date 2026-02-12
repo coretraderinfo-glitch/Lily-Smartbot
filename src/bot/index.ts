@@ -1260,14 +1260,16 @@ async function start() {
 }
 
 // --- 6. GRACEFUL SHUTDOWN (The Railway Protocol) ---
-process.once('SIGINT', () => {
+process.once('SIGINT', async () => {
     console.log('🛑 [SHUTDOWN] Received SIGINT. Closing Lily...');
     bot.stop();
+    await db.close();
     process.exit(0);
 });
-process.once('SIGTERM', () => {
+process.once('SIGTERM', async () => {
     console.log('🛑 [SHUTDOWN] Received SIGTERM (Railway). Yielding to new instance...');
     bot.stop(); // Stop polling immediately
+    await db.close();
     process.exit(0);
 });
 

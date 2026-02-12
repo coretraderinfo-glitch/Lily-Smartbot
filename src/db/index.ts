@@ -65,15 +65,40 @@ export const db = {
         }
     },
 
-    // STANDARD CLIENT GETTER
+    // STANDARD CLIENT GETTER - Retries 3 TIMES
     getClient: async () => {
-        // Retry Wrapper for direct client acquisition too
-        try {
-            return await pool.connect();
-        } catch (e) {
-            console.warn('🔄 [DB_CONNECT_RETRY] Initial connect failed. Retrying once...');
-            await new Promise(r => setTimeout(r, 1000));
-            return await pool.connect();
+        let attempts = 0;
+        const maxAttempts = 3;
+
+        while (attempts < maxAttempts) {
+            try {
+                return await pool.connect();
+            } catch (err: any) {
+                attempts++;
+                const isNetworkError = err.message.includes('terminated') ||
+                    err.message.includes('closed') ||
+                    err.message.includes('ended') ||
+                    err.message.includes('timeout') ||
+                    err.message.includes('reset') ||
+                    err.message.includes('SSL');
+
+                if (isNetworkError && attempts < maxAttempts) {
+                    const delay = attempts * 1000;
+                    console.warn(`🔄 [DB_CONNECT_RETRY_${attempts}] Blip detected (${err.message}). Retrying in ${delay}ms...`);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue;
+                }
+                throw err;
+            }
+        }
+    },
+
+    // GRACEFUL RELEASE
+    close: async () => {
+        if (pool) {
+            console.log('🔌 [DB] Closing Connection Pool...');
+            await pool.end();
+            console.log('✅ [DB] Pool Terminated.');
         }
     },
 
