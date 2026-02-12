@@ -24,7 +24,7 @@ if (isDefaultUrl) {
         ssl: { rejectUnauthorized: false },
         max: 20, // Lower max to avoid Railway connection limits
         idleTimeoutMillis: 60000, // 60s idle
-        connectionTimeoutMillis: 10000, // 10s timeout
+        connectionTimeoutMillis: 30000, // 30s timeout (Increased for Cold Starts)
         maxUses: 7500, // Recycle connections to prevent leaks
     });
 
@@ -72,9 +72,30 @@ export const db = {
         }
 
         let client;
+        let attempts = 0;
+        const maxAttempts = 5;
+
+        // RETRY LOOP FOR INITIAL HANDSHAKE
+        while (attempts < maxAttempts) {
+            try {
+                if (attempts > 0) console.log(`🔄 [Migration] Handshake Attempt ${attempts + 1}/${maxAttempts}...`);
+                else console.log('🔄 [Migration] Handshaking with Database...');
+
+                client = await dbClient.connect();
+                break; // Connection successful
+            } catch (connErr: any) {
+                attempts++;
+                console.warn(`⚠️ [Migration] DB Connection Failed: ${connErr.message}`);
+                if (attempts >= maxAttempts) {
+                    console.error('❌ [Migration_Fatal] Could not establish initial connection after 5 attempts.');
+                    throw connErr;
+                }
+                // Wait 2 seconds before retry
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+
         try {
-            console.log('🔄 [Migration] Handshaking with Database...');
-            client = await dbClient.connect();
             console.log('🔄 [Migration] Running Security & Feature Safeguards...');
 
             // Extended timeout for migrations
