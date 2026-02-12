@@ -14,34 +14,48 @@ const settingsCache = new LRUCache<string, any>({
     ttl: 30 * 1000, // 30s TTL for extreme freshness
     fetchMethod: async (key) => {
         const groupId = key;
+
+        // WORLD-CLASS CIRCUIT BREAKER: Never let DB hang the bot
+        const fetchPromise = (async () => {
+            try {
+                // Fetch Settings + Group Meta in ONE surgical hit
+                const res = await db.query(`
+                    SELECT s.*, g.title, g.timezone
+                    FROM group_settings s 
+                    JOIN groups g ON s.group_id = g.id 
+                    WHERE s.group_id = $1
+                `, [groupId]);
+
+                if (res.rows.length > 0) return res.rows[0];
+
+                // Fallback for new groups skipping the JOIN
+                const fallback = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
+                return {
+                    title: fallback.rows[0]?.title || 'Lily Node',
+                    guardian_enabled: false,
+                    ai_brain_enabled: false,
+                    welcome_enabled: false,
+                    calc_enabled: true,
+                    auditor_enabled: false,
+                    mc_enabled: false,
+                    language_mode: 'CN'
+                };
+            } catch (e) {
+                throw e;
+            }
+        })();
+
+        // Race against a 3s timeout
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('DB_TIMEOUT')), 3000)
+        );
+
         try {
-            // Fetch Settings + Group Meta in ONE surgical hit
-            const res = await db.query(`
-                SELECT s.*, g.title, g.timezone
-                FROM group_settings s 
-                JOIN groups g ON s.group_id = g.id 
-                WHERE s.group_id = $1
-            `, [groupId]);
-
-            if (res.rows.length > 0) return res.rows[0];
-
-            // Fallback for new groups skipping the JOIN
-            const fallback = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
-            return {
-                title: fallback.rows[0]?.title || 'Lily Node',
-                guardian_enabled: false,
-                ai_brain_enabled: false,
-                welcome_enabled: false,
-                calc_enabled: true,
-                auditor_enabled: false,
-                mc_enabled: false,
-                language_mode: 'CN'
-            };
+            return await Promise.race([fetchPromise, timeoutPromise]);
         } catch (e) {
-            console.error(`🛑 [Cache_Fail] Deep link to DB broken for ${groupId}:`, e);
-            // Return safe defaults so the bot doesn't crash
+            console.error(`🛑 [Cache_Safeguard] DB too slow/broken for ${groupId}. Using Safe Defaults.`);
             return {
-                title: 'Lily System (Offline Mode)',
+                title: 'Lily System (Recovery Mode)',
                 guardian_enabled: false,
                 ai_brain_enabled: false,
                 welcome_enabled: false,

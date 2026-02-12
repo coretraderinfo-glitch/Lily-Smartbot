@@ -18,30 +18,23 @@ const createPool = (forceSsl: boolean | null = null) => {
         return new MockDB();
     }
 
-    // Determine SSL state (Force -> Internal Detection -> Default External)
+    // Surgical URL Purification: Strip everything after the path
+    const cleanBaseUrl = dbUrl.split('?')[0];
     const isInternal = dbUrl.includes('railway.internal');
-    const useSsl = forceSsl !== null ? forceSsl : (isInternal ? false : true);
+    const useSsl = forceSsl !== null ? forceSsl : !isInternal;
+
+    console.log(`🔌 [DB_HEART] Target: ${isInternal ? 'Internal' : 'External'} | SSL: ${useSsl}`);
 
     const config: any = {
-        connectionString: dbUrl,
-        max: 8,
+        connectionString: cleanBaseUrl,
+        max: 10,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 20000, // 20s Fail-Fast to trigger retries
-        maxUses: 5000,
-        keepAlive: true
+        connectionTimeoutMillis: 10000, // 10s is plenty for a healthy connection
+        maxUses: 7500,
+        keepAlive: true,
+        ssl: useSsl ? { rejectUnauthorized: false } : false
     };
 
-    if (useSsl) {
-        config.ssl = { rejectUnauthorized: false };
-    } else {
-        config.ssl = false;
-        // Strip ?sslmode=... from URL to prevent driver conflicts
-        if (config.connectionString.includes('sslmode=')) {
-            config.connectionString = config.connectionString.replace(/([?&])sslmode=[^&]+/, '');
-        }
-    }
-
-    console.log(`🔌 [DB_HEART] Mode: ${useSsl ? 'SSL (Hardened)' : 'PLAIN (Internal)'} | Host: ${isInternal ? 'Internal' : 'External'}`);
     const pool = new Pool(config);
 
     pool.on('error', (err: any) => {
@@ -64,6 +57,7 @@ async function reliableQuery(text: string, params?: any[], retryCount = 0): Prom
         const isTransient = msg.includes('terminated') ||
             msg.includes('timeout') ||
             msg.includes('closed') ||
+            msg.includes('connection') ||
             msg.includes('econnreset') ||
             msg.includes('53300');
 
@@ -71,12 +65,13 @@ async function reliableQuery(text: string, params?: any[], retryCount = 0): Prom
             const delay = 1000 * (retryCount + 1);
             console.warn(`⏳ [DB_LILY] Healing... Attempt ${retryCount + 1}/5 (${err.message})`);
 
-            // EMERGENCY REFRESH: If we keep failing, try toggling SSL mode
+            // EMERGENCY REFRESH: If we keep failing, rebuild the entire pool
             if (retryCount === 2 && !isDefaultUrl) {
-                console.log('🔄 [DB_LILY] Exhausted strategy. Toggling SSL mode...');
+                console.log('🔄 [DB_LILY] Triggering Cold Refresh of Pool...');
                 try {
-                    const currentSsl = dbClient.options?.ssl !== false;
-                    dbClient = createPool(!currentSsl);
+                    const oldPool = dbClient;
+                    dbClient = createPool();
+                    setTimeout(() => oldPool.end().catch(() => { }), 5000);
                 } catch (e) { }
             }
 
