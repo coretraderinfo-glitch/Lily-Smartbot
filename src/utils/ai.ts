@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { MemoryCore } from '../core/memory';
+import { db } from '../db';
 
 /**
  * LILY AI BRAIN ENGINE - ELITE MASTER EDITION
@@ -63,7 +64,7 @@ Audit this image with 100% accuracy.
 `;
 
 export const AIBrain = {
-    async generateResponse(text: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string, replyContext?: string, chatId: number = 0): Promise<string> {
+    async generateResponse(text: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string, replyContext?: string, chatId: number = 0, isFighterGroup: boolean = false): Promise<string> {
         if (!process.env.OPENAI_API_KEY) return "";
 
         let effectiveText = text?.trim() || "";
@@ -82,8 +83,27 @@ export const AIBrain = {
                 ];
             }
 
-            // 🧠 MEMORY INJECTION (Long Term)
+            // 🧠 MEMORY INJECTION 1: The Speaker (You)
             const memoryContext = await MemoryCore.recall(userId);
+
+            // 🧠 MEMORY INJECTION 2: Mentioned Users (Cross-Reference)
+            // If user asks "Who is @Lunana034?", find HER memory too.
+            let mentionedContext = "";
+            const mentions = effectiveText.match(/@[\w\d_]+/g);
+            if (mentions) {
+                for (const mention of mentions) {
+                    const cleanUsername = mention.replace('@', '');
+                    // Resolving ID from Cache
+                    const userRes = await db.query(`SELECT user_id FROM user_cache WHERE username = $1 LIMIT 1`, [cleanUsername]);
+                    if (userRes.rows.length > 0) {
+                        const targetId = userRes.rows[0].user_id;
+                        const targetMem = await MemoryCore.recall(parseInt(targetId));
+                        if (targetMem) {
+                            mentionedContext += `\n🧠 [MEMORY ABOUT ${mention}]:\n${targetMem}\n`;
+                        }
+                    }
+                }
+            }
 
             // ⚡ SESSION RECALL (Short Term - Last 10 Turns)
             const sessionHistory = await require('../core/memory/session').SessionMemory.recall(chatId, userId);
@@ -112,6 +132,7 @@ export const AIBrain = {
 - Internal Sales: ${ledgerContext || "None"}.
 - Real-Time Market Feed: ${marketContext || "TICKER ACTIVE"}.
 ${memoryContext ? memoryContext : ""}
+${mentionedContext ? mentionedContext : ""}
 ${replyContext ? `- [CONVERSATION THREAD] User is replying to: "${replyContext}"` : ""}
 
 🌐 **LANGUAGE DIRECTIVE (CRITICAL)**:
