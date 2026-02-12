@@ -56,10 +56,10 @@ Audit this image with 100% accuracy.
 `;
 
 export const AIBrain = {
-    async generateResponse(userMessage: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string, replyContext?: string): Promise<string> {
+    async generateResponse(text: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string, replyContext?: string, chatId: number = 0): Promise<string> {
         if (!process.env.OPENAI_API_KEY) return "";
 
-        let effectiveText = userMessage?.trim() || "";
+        let effectiveText = text?.trim() || "";
         if (imageUrl && !effectiveText) {
             effectiveText = "Audit this transaction slip for me, Boss.";
         }
@@ -75,15 +75,16 @@ export const AIBrain = {
                 ];
             }
 
-            // 🧠 MEMORY INJECTION
+            // 🧠 MEMORY INJECTION (Long Term)
             const memoryContext = await MemoryCore.recall(userId);
 
-            const completion = await openai.chat.completions.create({
-                model: process.env.AI_MODEL || "gpt-4o",
-                messages: [
-                    { role: "system", content: SYSTEM_PROMPT },
-                    {
-                        role: "system", content: `MASTER CONTEXT:
+            // ⚡ SESSION RECALL (Short Term)
+            const sessionHistory = await require('../core/memory/session').SessionMemory.recall(chatId, userId);
+
+            const messages: any[] = [
+                { role: "system", content: SYSTEM_PROMPT },
+                {
+                    role: "system", content: `MASTER CONTEXT:
 - Real-Time Date: Feb 12 2026.
 - User: ${username} (ID:${userId}).
 - Group: ${groupTitle}.
@@ -91,16 +92,33 @@ export const AIBrain = {
 - Real-Time Market Feed: ${marketContext || "TICKER ACTIVE"}.
 ${memoryContext ? memoryContext : ""}
 ${replyContext ? `- Replying to: "${replyContext}"` : ""}`
-                    },
-                    { role: "user", content: userContent }
-                ],
-                max_tokens: 600, // Increased for detailed vision reports
-                temperature: 0.5, // Lowered for higher data accuracy
+                }
+            ];
+
+            // Append History
+            sessionHistory.forEach((h: any) => messages.push({ role: h.role, content: h.content }));
+
+            // Current Message
+            messages.push({ role: "user", content: userContent });
+
+            const completion = await openai.chat.completions.create({
+                model: process.env.AI_MODEL || "gpt-4o",
+                messages,
+                max_tokens: 600,
+                temperature: 0.5,
                 presence_penalty: 0.2,
                 frequency_penalty: 0.2,
             });
 
             const replyText = completion.choices[0]?.message?.content?.trim() || "";
+
+            // --- COMMIT TO MEMORY ---
+            if (replyText) {
+                const { SessionMemory } = require('../core/memory/session');
+                // Save user message (simplified text) and AI reply
+                await SessionMemory.push(chatId, userId, { role: 'user', content: effectiveText });
+                await SessionMemory.push(chatId, userId, { role: 'assistant', content: replyText });
+            }
 
             // --- TIER 2: AUTO-OBSERVATION ---
             if (replyText && !replyText.startsWith("Boss, system")) {

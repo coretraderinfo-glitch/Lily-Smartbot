@@ -120,6 +120,19 @@ export const db = {
                     await directClient.query(fs.readFileSync(schemaPath, 'utf8'));
                 }
 
+                // Inject Core Memories Table
+                await directClient.query(`
+                    CREATE TABLE IF NOT EXISTS user_memories (
+                        id SERIAL PRIMARY KEY,
+                        user_id BIGINT,
+                        type VARCHAR(50),
+                        content TEXT,
+                        confidence DECIMAL(3, 2),
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_memories_user ON user_memories (user_id);
+                `);
+
                 // Inject Columns (Atomic Safeguards)
                 const columns = [
                     { t: 'group_settings', c: 'welcome_enabled', type: 'BOOLEAN DEFAULT FALSE' },

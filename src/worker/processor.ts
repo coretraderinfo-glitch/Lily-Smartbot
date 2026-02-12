@@ -312,7 +312,7 @@ Current Group Sales (Internal Ledger):
             `.trim() : "Internal Ledger: Access Restricted (Not Purchased).";
 
             const replyContext = job.data.replyToMessage?.text || job.data.replyToMessage?.caption || "";
-            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext, marketContext, replyContext);
+            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext, marketContext, replyContext, chatId);
         }
 
         return null;
