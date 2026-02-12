@@ -9,36 +9,36 @@ const isDefaultUrl = !dbUrl || dbUrl.includes('host:5432') || dbUrl.includes('pl
 let dbClient: any;
 
 /**
- * 💎 ELITE DUAL-MODE POOL ENGINE
- * Automatically handles Railway internal vs external SSL handshakes.
+ * �️ HYPER-RESILIENT INFRASTRUCTURE ENGINE
+ * Engineered for Railway's Shared Environments.
  */
-const createPool = (forceSsl: boolean | null = null) => {
+const createPool = () => {
     if (isDefaultUrl) {
         console.warn('⚠️  DATABASE_URL is placeholder or missing. Using Safe Mode (MockDB).');
         return new MockDB();
     }
 
-    // Surgical URL Purification: Strip everything after the path
+    // 1. URL PURIFICATION (REMOVING NOISE)
     const cleanBaseUrl = dbUrl.split('?')[0];
     const isInternal = dbUrl.includes('railway.internal');
-    const useSsl = forceSsl !== null ? forceSsl : !isInternal;
 
-    console.log(`🔌 [DB_HEART] Target: ${isInternal ? 'Internal' : 'External'} | SSL: ${useSsl}`);
-
+    // 2. CONSERVATIVE RESOURCE ALLOCATION (Avoiding "Too many connections")
     const config: any = {
         connectionString: cleanBaseUrl,
-        max: 10,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000, // 10s is plenty for a healthy connection
-        maxUses: 7500,
+        max: 5, // SURGICAL LIMIT: Ensure management UI still has slots
+        min: 1, // Keep 1 alive for speed
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 5000, // FAST FAIL: Detect dead/hung DB instantly
+        maxUses: 1000, // Lifecycle management
         keepAlive: true,
-        ssl: useSsl ? { rejectUnauthorized: false } : false
+        ssl: !isInternal ? { rejectUnauthorized: false } : false
     };
 
+    console.log(`🔌 [AUDIT] Mode: ${isInternal ? 'INTERNAL' : 'EXTERNAL'} | Cap: 5 | SSL: ${!isInternal}`);
     const pool = new Pool(config);
 
     pool.on('error', (err: any) => {
-        console.error('🛑 [DB_POOL] Unexpected error:', err.message);
+        console.error('🛑 [AUDIT_DB] Pool Heartbeat Failure:', err.message);
     });
 
     return pool;
@@ -47,7 +47,7 @@ const createPool = (forceSsl: boolean | null = null) => {
 dbClient = createPool();
 
 /**
- * 🧠 ADVANCED RECOVERY WRAPPER
+ * 🧠 INTELLIGENT RECOVERY UNIT
  */
 async function reliableQuery(text: string, params?: any[], retryCount = 0): Promise<any> {
     try {
@@ -59,25 +59,28 @@ async function reliableQuery(text: string, params?: any[], retryCount = 0): Prom
             msg.includes('closed') ||
             msg.includes('connection') ||
             msg.includes('econnreset') ||
-            msg.includes('53300');
+            msg.includes('53300') ||
+            msg.includes('handshake');
 
-        if (isTransient && retryCount < 5) {
+        if (isTransient && retryCount < 4) {
             const delay = 1000 * (retryCount + 1);
-            console.warn(`⏳ [DB_LILY] Healing... Attempt ${retryCount + 1}/5 (${err.message})`);
+            console.warn(`⏳ [HEAL] Attempt ${retryCount + 1}/4: ${err.message}`);
 
-            // EMERGENCY REFRESH: If we keep failing, rebuild the entire pool
-            if (retryCount === 2 && !isDefaultUrl) {
-                console.log('🔄 [DB_LILY] Triggering Cold Refresh of Pool...');
+            // EMERGENCY REFRESH (COLD START)
+            if (retryCount === 2) {
+                console.log('🔄 [HEAL] Cold Refreshing Pool to purge zombie connections...');
                 try {
                     const oldPool = dbClient;
                     dbClient = createPool();
-                    setTimeout(() => oldPool.end().catch(() => { }), 5000);
+                    setTimeout(() => oldPool.end().catch(() => { }), 2000);
                 } catch (e) { }
             }
 
             await new Promise(resolve => setTimeout(resolve, delay));
             return reliableQuery(text, params, retryCount + 1);
         }
+
+        console.error(`❌ [AUDIT_FATAL] Query definitively failed: ${err.message}`);
         throw err;
     }
 }
@@ -91,8 +94,8 @@ export const db = {
     },
 
     /**
-     * �️ AUTONOMOUS MIGRATION ENGINE
-     * Uses an independent, direct connection for schema updates to avoid pool congestion.
+     * 🛡️ WORLD CLASS SURVIVAL SYNCHRONIZATION
+     * Independent of the main pool to ensure feature activation.
      */
     migrate: async () => {
         if (isDefaultUrl) return dbClient.migrate();
@@ -100,26 +103,25 @@ export const db = {
         const sync = async () => {
             let directClient;
             try {
-                console.log('🔄 [Lily_Sync] Establishing direct line to DB...');
+                console.log('🔄 [Lily_Core] Core synchronization pulse starting...');
 
-                // Use a dedicated client for migration to bypass pool limits
                 directClient = new Client({
-                    connectionString: dbUrl,
+                    connectionString: dbUrl.split('?')[0],
                     ssl: dbUrl.includes('railway.internal') ? false : { rejectUnauthorized: false },
-                    connectionTimeoutMillis: 15000
+                    connectionTimeoutMillis: 10000
                 });
 
                 await directClient.connect();
-                await directClient.query('SET statement_timeout = 60000');
-                await directClient.query('SELECT 1');
+                await directClient.query('SET statement_timeout = 30000');
 
+                // Schema injection
                 const schemaPath = path.join(__dirname, 'schema.sql');
                 if (fs.existsSync(schemaPath)) {
                     await directClient.query(fs.readFileSync(schemaPath, 'utf8'));
                 }
 
-                // Inject Columns
-                const safeguards = [
+                // Inject Columns (Atomic Safeguards)
+                const columns = [
                     { t: 'group_settings', c: 'welcome_enabled', type: 'BOOLEAN DEFAULT FALSE' },
                     { t: 'group_settings', c: 'calc_enabled', type: 'BOOLEAN DEFAULT TRUE' },
                     { t: 'group_settings', c: 'auditor_enabled', type: 'BOOLEAN DEFAULT FALSE' },
@@ -127,30 +129,37 @@ export const db = {
                     { t: 'group_settings', c: 'guardian_enabled', type: 'BOOLEAN DEFAULT FALSE' },
                     { t: 'group_settings', c: 'mc_enabled', type: 'BOOLEAN DEFAULT FALSE' },
                     { t: 'group_settings', c: 'show_decimals', type: 'BOOLEAN DEFAULT TRUE' },
-                    { t: 'groups', c: 'last_seen', type: 'TIMESTAMPTZ DEFAULT NOW()' },
-                    { t: 'groups', c: 'system_url', type: 'TEXT DEFAULT NULL' }
+                    { t: 'groups', c: 'last_seen', type: 'TIMESTAMPTZ DEFAULT NOW()' }
                 ];
 
-                for (const s of safeguards) {
-                    await directClient.query(`ALTER TABLE ${s.t} ADD COLUMN IF NOT EXISTS ${s.c.split(' ')[0]} ${s.type.replace('DEFAULT ', '')}`);
-                    await directClient.query(`UPDATE ${s.t} SET ${s.c.split(' ')[0]} = ${s.type.split('DEFAULT ')[1]} WHERE ${s.c.split(' ')[0]} IS NULL`);
+                for (const col of columns) {
+                    await directClient.query(`
+                        DO $$ 
+                        BEGIN 
+                            BEGIN
+                                ALTER TABLE ${col.t} ADD COLUMN ${col.c} ${col.type};
+                            EXCEPTION WHEN duplicate_column THEN NULL; END;
+                        END $$;
+                    `);
+                    // Force default for existing data
+                    await directClient.query(`UPDATE ${col.t} SET ${col.c} = ${col.type.split('DEFAULT ')[1]} WHERE ${col.c} IS NULL`);
                 }
 
-                console.log('✅ [Lily_Sync] System synchronized. All features active.');
+                console.log('✅ [Lily_Core] PULSE SUCCESS: All metadata synchronized.');
                 return true;
             } catch (err: any) {
-                console.error(`⚠️ [Lily_Sync] Connection failed: ${err.message}`);
+                console.warn(`⚠️ [Lily_Core] Pulse failed: ${err.message}. Lily is in survival mode.`);
                 return false;
             } finally {
                 if (directClient) await directClient.end();
             }
         };
 
-        const success = await sync();
-        if (!success) {
-            const runner = setInterval(async () => {
-                if (await sync()) clearInterval(runner);
-            }, 30000);
+        const ok = await sync();
+        if (!ok) {
+            const watcher = setInterval(async () => {
+                if (await sync()) clearInterval(watcher);
+            }, 60000); // Check once a minute
         }
     },
 
@@ -162,8 +171,8 @@ export const db = {
             for (const t of tables) { try { await client.query(`DELETE FROM ${t} WHERE group_id = $1`, [newId]); } catch (e) { } }
             try { await client.query('DELETE FROM groups WHERE id = $1', [newId]); } catch (e) { }
             await client.query(`
-                INSERT INTO groups (id, title, status, current_state, timezone, currency_symbol, license_key, license_expiry, created_at, last_seen, system_url)
-                SELECT $2, title, status, current_state, timezone, currency_symbol, license_key, license_expiry, created_at, last_seen, system_url
+                INSERT INTO groups (id, title, status, current_state, timezone, currency_symbol, license_key, license_expiry, created_at, last_seen)
+                SELECT $2, title, status, current_state, timezone, currency_symbol, license_key, license_expiry, created_at, last_seen
                 FROM groups WHERE id = $1
             `, [oldId, newId]);
             for (const t of tables) { try { await client.query(`UPDATE ${t} SET group_id = $2 WHERE group_id = $1`, [oldId, newId]); } catch (e) { } }
