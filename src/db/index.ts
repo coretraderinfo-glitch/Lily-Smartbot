@@ -20,18 +20,22 @@ if (isDefaultUrl) {
     console.log(`🔌 [DB] Initializing Resilient Pool for: ${dbHost}`);
 
     // STANDARD PRODUCTION CONFIGURATION (Stable)
-    dbClient = new Pool({
+    // STANDARD PRODUCTION CONFIGURATION (Stable)
+    const createPool = () => new Pool({
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
-        max: 10,
-        idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 10000,
-        keepAlive: true // CRITICAL: Keeps TCP stream active
+        max: 5, // CONSERVATIVE LIMIT
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000, // FAST FAIL: Don't hang for 60s
+        keepAlive: true
     });
+
+    dbClient = createPool();
 
     // Pool Level Error Handling (Prevents Crashes)
     dbClient.on('error', (err: any) => {
         console.error('🛑 [DB_FATAL] Unexpected pool error:', err.message);
+        try { dbClient = createPool(); } catch (e) { } // Auto-Recreate
     });
 }
 
@@ -46,13 +50,32 @@ async function reliableQuery(text: string, params?: any[], retryCount = 0): Prom
         const isTransient = err.message.includes('terminated') ||
             err.message.includes('timeout') ||
             err.message.includes('closed') ||
-            err.message.includes('ECONNRESET');
+            err.message.includes('ECONNRESET') ||
+            err.message.includes('53300'); // Too many connections
 
-        if (isTransient && retryCount < 3) {
-            const delay = Math.pow(2, retryCount) * 1000;
-            console.warn(`⏳ [DB_RECOVERY] Connection blip detected. Retrying in ${delay}ms... (Attempt ${retryCount + 1}/3)`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return reliableQuery(text, params, retryCount + 1);
+        console.warn(`⚠️ [DB_WARN] Query Failed: ${err.message}. Transient: ${isTransient}`);
+
+        if (isTransient) {
+            if (retryCount < 3) {
+                const delay = 1000 * (retryCount + 1); // Linear backoff: 1s, 2s, 3s
+                console.warn(`⏳ [DB_RECOVERY] Connection blip detected. Retrying in ${delay}ms... (Attempt ${retryCount + 1}/3)`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return reliableQuery(text, params, retryCount + 1);
+            } else {
+                // FATAL: Connection is dead. Reset Pool.
+                console.error('🔥 [DB_RESET] Pool is broken. Triggering Emergency Reset.');
+                if (!isDefaultUrl) {
+                    try { await dbClient.end(); } catch (e) { }
+                    dbClient = new Pool({
+                        connectionString: dbUrl,
+                        ssl: { rejectUnauthorized: false },
+                        max: 5,
+                        idleTimeoutMillis: 30000,
+                        connectionTimeoutMillis: 5000,
+                        keepAlive: true
+                    });
+                }
+            }
         }
         throw err;
     }
