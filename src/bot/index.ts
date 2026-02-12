@@ -923,9 +923,25 @@ bot.on('message', async (ctx) => {
     // EVOLVED HEARING: Detect "Lily", Mentions, OR Replies to Bot
     const isReplyToBot = ctx.message.reply_to_message?.from?.id === ctx.me.id;
     const caption = ctx.message.caption || "";
-    const isNameMention = /lily/i.test(t) || /lily/i.test(caption) ||
-        (ctx.message.entities?.some(e => e.type === 'mention' || e.type === 'text_mention')) ||
-        isReplyToBot;
+
+    // Check if "lily" appears in text or caption
+    const hasLilyInText = /lily/i.test(t) || /lily/i.test(caption);
+
+    // Check if bot is specifically @mentioned (not just any mention)
+    const isBotMentioned = ctx.message.entities?.some(e => {
+        if (e.type === 'mention') {
+            // Extract the actual @mention text
+            const mentionText = (ctx.message.text || ctx.message.caption || '').substring(e.offset, e.offset + e.length);
+            return /lily/i.test(mentionText);
+        }
+        if (e.type === 'text_mention') {
+            // Direct user mention of bot
+            return e.user?.id === ctx.me.id;
+        }
+        return false;
+    }) || false;
+
+    const isNameMention = hasLilyInText || isBotMentioned || isReplyToBot;
 
     // PROFESSOR OVERRIDE: Lily never ignores her Master.
     const isTriggered = isCommand || (aiEnabled && isNameMention) || (isOwner && isNameMention);
