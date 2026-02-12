@@ -15,49 +15,33 @@ const settingsCache = new LRUCache<string, any>({
     fetchMethod: async (key) => {
         const groupId = key;
 
-        // 1. ATOMIC IDENTITY FETCH (Merged 4 queries into 1 for stability)
-        const res = await db.query(`
-            SELECT 
-                g.title,
-                s.*, 
-                (SELECT json_agg(user_id::text) FROM group_admins WHERE group_id = $1) as admin_list,
-                (SELECT json_agg(user_id::text) FROM group_operators WHERE group_id = $1) as operator_list
-            FROM groups g
-            LEFT JOIN group_settings s ON g.id = s.group_id
-            WHERE g.id = $1
-        `, [groupId]);
+        // 1. Fetch Actual Settings First (Priority: Feature Accuracy)
+        const sRes = await db.query('SELECT * FROM group_settings WHERE group_id = $1', [groupId]);
+        const s = sRes.rows[0];
 
-        const data = res.rows[0];
-        const title = data?.title || 'Lily Node';
+        // 2. Fetch Title Second (Non-Breaking)
+        const gRes = await db.query('SELECT title FROM groups WHERE id = $1', [groupId]);
+        const title = gRes.rows[0]?.title || 'Lily Node';
 
-        // 2. SAFETY CHECK: If DB returned absolutely nothing and it's NOT a mock, 
-        // it might be a transient sync issue. Do NOT cache the fallback yet.
-        if (!data && !db.isReady) {
-            throw new Error('Database Synchronizing... Cache Skip.');
-        }
-
-        if (data && data.group_id) {
+        if (s) {
             return {
-                ...data,
+                ...s,
                 title,
-                admins: data.admin_list || [],
-                operators: data.operator_list || [],
                 // Hard-coded defaults for the engine to ensure NO NULLs
-                guardian_enabled: !!data.guardian_enabled,
-                ai_brain_enabled: !!data.ai_brain_enabled,
-                welcome_enabled: !!data.welcome_enabled,
-                calc_enabled: !!(data.calc_enabled ?? true),
-                auditor_enabled: !!data.auditor_enabled,
-                mc_enabled: !!data.mc_enabled
+                guardian_enabled: !!s.guardian_enabled,
+                ai_brain_enabled: !!s.ai_brain_enabled,
+                welcome_enabled: !!s.welcome_enabled,
+                calc_enabled: !!(s.calc_enabled ?? true),
+                auditor_enabled: !!s.auditor_enabled,
+                mc_enabled: !!s.mc_enabled
             };
         }
 
-        // 3. Absolute Fallback (New Groups or Settings missing)
-        console.warn(`⚠️ [CACHE_MISS] No settings found for ${groupId}. Using DEFAULT profile (AI=ON).`);
+        // 3. Absolute Fallback (New Groups)
         return {
             title,
             guardian_enabled: false,
-            ai_brain_enabled: true, // FORCE ENABLE BRAIN
+            ai_brain_enabled: false,
             welcome_enabled: false,
             calc_enabled: true,
             auditor_enabled: false,
@@ -67,17 +51,31 @@ const settingsCache = new LRUCache<string, any>({
     }
 });
 
+// 💎 AUTH CACHE: Permission hits are the #1 source of DB lag.
+// We cache isAdmin/isOperator status for 5 minutes.
+const authCache = new LRUCache<string, boolean>({
+    max: 10000,
+    ttl: 300 * 1000, // 5 minutes
+    fetchMethod: async (key) => {
+        const [chatId, userId, role] = key.split(':');
+
+        if (role === 'ADMIN') {
+            const res = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [chatId, userId]);
+            return res.rows.length > 0;
+        } else if (role === 'OPERATOR') {
+            const res = await db.query('SELECT 1 FROM group_operators WHERE group_id = $1 AND user_id = $2', [chatId, userId]);
+            return res.rows.length > 0;
+        }
+        return false;
+    }
+});
+
 export const SettingsCache = {
     /**
      * Get settings with micro-latency (Memory -> DB)
      */
     async get(groupId: string | number): Promise<any> {
-        try {
-            return await settingsCache.fetch(String(groupId));
-        } catch (e) {
-            // Fallback for extreme cases (Sync lock)
-            return { ai_brain_enabled: true, calc_enabled: true, language_mode: 'CN' };
-        }
+        return await settingsCache.fetch(String(groupId));
     },
 
     /**
@@ -88,16 +86,22 @@ export const SettingsCache = {
     },
 
     /**
-     * Recovery: Wipe all to sync with reality
-     */
-    clearAll() {
-        settingsCache.clear();
-    },
-
-    /**
      * Direct update (Fastest update after write)
      */
     set(groupId: string | number, data: any) {
         settingsCache.set(String(groupId), data);
+    }
+};
+
+export const AuthCache = {
+    async isAdmin(chatId: string | number, userId: string | number): Promise<boolean> {
+        return await authCache.fetch(`${chatId}:${userId}:ADMIN`) || false;
+    },
+    async isOperator(chatId: string | number, userId: string | number): Promise<boolean> {
+        return await authCache.fetch(`${chatId}:${userId}:OPERATOR`) || false;
+    },
+    invalidate(chatId: string | number, userId: string | number) {
+        authCache.delete(`${chatId}:${userId}:ADMIN`);
+        authCache.delete(`${chatId}:${userId}:OPERATOR`);
     }
 };

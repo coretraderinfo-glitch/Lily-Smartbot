@@ -2,197 +2,108 @@ import { Pool } from 'pg';
 import fs from 'fs';
 import path from 'path';
 
-// Optional: Keep MockDB if you have it, otherwise standard pool
 import { MockDB } from './MockDB';
 
 // Determine Mode
 const dbUrl = process.env.DATABASE_URL || '';
 const isDefaultUrl = !dbUrl || dbUrl.includes('host:5432') || dbUrl.includes('placeholder');
-let pool: any;
+let dbClient: any;
 
 if (isDefaultUrl) {
     console.warn('⚠️  DATABASE_URL is placeholder or missing. Using Safe Mode (MockDB).');
-    pool = new MockDB();
+    dbClient = new MockDB();
 } else {
-    console.log(`🔌 [DB] Initializing Standard Connection Pool...`);
+    // Extract info for logging (Surgical check)
+    const dbMatch = dbUrl.match(/@([^/]+)\/(.+)$/);
+    const dbHost = dbMatch ? dbMatch[1] : 'External';
+    const dbName = dbMatch ? dbMatch[2].split('?')[0] : 'Database';
 
-    // CLASSIC STABLE CONFIGURATION (Hardened for Cloud)
-    pool = new Pool({
+    console.log(`🔌 [DB] Connecting to Client Node: ${dbHost} [DB: ${dbName}]`);
+
+    // ELITE CLOUD TUNING: Use original URL to preserve sslmode=require and other crucial params
+    dbClient = new Pool({
         connectionString: dbUrl,
-        ssl: { rejectUnauthorized: false },
-        max: 25,        // Increased to 25 for High-Throughput (Bot + Worker + Web + Scheduler)
-        min: 2,         // Keep 2 warm connections
-        idleTimeoutMillis: 15000,
-        connectionTimeoutMillis: 10000,
-        keepAlive: true,
-        keepAliveInitialDelayMillis: 0
+        ssl: { rejectUnauthorized: false }, // Fallback safety for Railway/DigitalOcean
+        max: 20,                            // Balanced for performance
+        idleTimeoutMillis: 30000,           // Keep connections alive for reuse (Fast)
+        connectionTimeoutMillis: 10000,     // 10s wait for new pipes
     });
 
-    pool.on('error', (err: any) => {
-        // Log but don't crash. The query wrapper will handle retries.
-        if (err.message.includes('terminated')) return;
-        console.error('⚠️ [DB_POOL_ERROR]', err.message);
+    // CRITICAL: Prevent pool errors from crashing the main AI process
+    dbClient.on('error', (err: any) => {
+        console.error('⚠️ [DB_RESOURCE_WARNING]:', err.message);
     });
 }
 
 export const db = {
     isReady: false,
 
-    // SHIELDED QUERY - Retries 3 TIMES with DELAY
+    // Surgical Query Wrapper (Root Cause Protection)
     query: async (text: string, params?: any[]) => {
-        let attempts = 0;
-        const maxAttempts = 3;
-
-        while (attempts < maxAttempts) {
-            try {
-                return await pool.query(text, params);
-            } catch (err: any) {
-                attempts++;
-                const isNetworkError = err.message.includes('terminated') ||
-                    err.message.includes('closed') ||
-                    err.message.includes('ended') ||
-                    err.message.includes('timeout') ||
-                    err.message.includes('reset');
-
-                if (isNetworkError && attempts < maxAttempts) {
-                    const delay = attempts * 1000;
-                    console.warn(`🔄 [DB_RETRY_${attempts}] Blip detected (${err.message}). Retrying in ${delay}ms...`);
-                    await new Promise(r => setTimeout(r, delay));
-                    continue;
-                }
-                throw err;
+        try {
+            return await dbClient.query(text, params);
+        } catch (err: any) {
+            // Handle common cloud termination errors with a single silent retry
+            const isRecoverable = /terminated|closed|connection/i.test(err.message);
+            if (isRecoverable) {
+                console.log('🔄 [DB_HEAL] Recovering pipe...');
+                return await dbClient.query(text, params);
             }
+            throw err;
         }
     },
+    getClient: () => dbClient.connect ? dbClient.connect() : dbClient.getClient(),
 
-    // STANDARD CLIENT GETTER - Retries 3 TIMES
-    getClient: async () => {
-        let attempts = 0;
-        const maxAttempts = 3;
-
-        while (attempts < maxAttempts) {
-            try {
-                return await pool.connect();
-            } catch (err: any) {
-                attempts++;
-                const isNetworkError = err.message.includes('terminated') ||
-                    err.message.includes('closed') ||
-                    err.message.includes('ended') ||
-                    err.message.includes('timeout') ||
-                    err.message.includes('reset') ||
-                    err.message.includes('SSL');
-
-                if (isNetworkError && attempts < maxAttempts) {
-                    const delay = attempts * 1000;
-                    console.warn(`🔄 [DB_CONNECT_RETRY_${attempts}] Blip detected (${err.message}). Retrying in ${delay}ms...`);
-                    await new Promise(r => setTimeout(r, delay));
-                    continue;
-                }
-                throw err;
-            }
-        }
-    },
-
-    // GRACEFUL RELEASE
-    close: async () => {
-        if (pool) {
-            console.log('🔌 [DB] Closing Connection Pool...');
-            await pool.end();
-            console.log('✅ [DB] Pool Terminated.');
-        }
-    },
-
-    /**
-     * WAIT FOR FOUNDATION
-     * Simple polling, no complex timeouts.
-     */
-    waitForReady: async () => {
-        while (!db.isReady) {
-            await new Promise(r => setTimeout(r, 500));
-        }
-    },
-
-    /**
-     * CLASSIC MIGRATION
-     * Runs once on startup. RETRIES until success or hard failure.
-     */
+    // Auto-Migrate function with ELITE RESILIENCE
     migrate: async () => {
         if (isDefaultUrl) {
             db.isReady = true;
             return;
         }
 
-        let attempts = 0;
-        const maxAttempts = 10;
-
-        while (attempts < maxAttempts) {
-            console.log(`🔄 [DB_SYNC] Synchronizing Database Schema (Attempt ${attempts + 1}/${maxAttempts})...`);
-            let client;
+        // Run in background to stay "Non-Stop"
+        (async () => {
+            console.log('🔄 Lily Engine: Initializing Memory Layer...');
             try {
-                client = await pool.connect();
+                const client = await dbClient.connect();
 
-                // 1. Base Schema Check
-                const checkRes = await client.query("SELECT 1 FROM information_schema.tables WHERE table_name = 'groups'");
-                const needsBase = checkRes.rows.length === 0;
-
-                if (needsBase) {
-                    const schemaPath = [
-                        path.join(__dirname, 'schema.sql'),
-                        path.join(process.cwd(), 'src/db/schema.sql'),
-                        path.join(process.cwd(), 'dist/src/db/schema.sql')
-                    ].find(p => fs.existsSync(p));
-
-                    if (schemaPath) {
-                        console.log('📦 [DB_INIT] Applying Base Schema...');
-                        await client.query(fs.readFileSync(schemaPath, 'utf8'));
-                    }
+                // 1. One-Shot Integrity Check (Fast)
+                const schemaPath = path.join(__dirname, 'schema.sql');
+                if (fs.existsSync(schemaPath)) {
+                    await client.query(fs.readFileSync(schemaPath, 'utf8'));
                 }
 
-                // 2. Migrations
-                let migrationsDir = [
-                    path.join(process.cwd(), 'db/migrations'),
-                    path.join(process.cwd(), 'dist/db/migrations')
-                ].find(p => fs.existsSync(p));
+                // 2. Surgical Safeguards
+                await client.query(`
+                    DO $$ 
+                    BEGIN 
+                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='group_settings' AND column_name='welcome_enabled') THEN
+                            ALTER TABLE group_settings ADD COLUMN welcome_enabled BOOLEAN DEFAULT FALSE;
+                            ALTER TABLE group_settings ADD COLUMN calc_enabled BOOLEAN DEFAULT TRUE;
+                        END IF;
+                    END $$;
+                `);
 
-                if (migrationsDir) {
-                    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-                    for (const file of files) {
-                        try {
-                            const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-                            await client.query(sql);
-                        } catch (e: any) {
-                            if (!e.message.includes('already exists') && !e.message.includes('duplicate')) {
-                                console.warn(`[DB_MIGRATE] Note (${file}): ${e.message}`);
-                            }
-                        }
-                    }
-                }
-
+                client.release();
                 db.isReady = true;
-                console.log('✅ [DB_READY] Database Synchronized & Stable.');
-                return; // SUCCESS
+                console.log('💎 Database Layer: STABLE & ONLINE');
 
             } catch (err: any) {
-                attempts++;
-                console.error(`🛑 [DB_SYNC_FAIL] Attempt ${attempts} failed:`, err.message);
-                if (attempts < maxAttempts) {
-                    const wait = Math.min(attempts * 2000, 10000); // Wait 2s, 4s, 6s... up to 10s
-                    console.log(`⏳ Waiting ${wait}ms before next sync attempt...`);
-                    await new Promise(r => setTimeout(r, wait));
-                } else {
-                    console.error('💀 [DB_FATAL] All sync attempts failed. Bot will stay in sync loop.');
-                }
-            } finally {
-                if (client) client.release();
+                console.error('🛑 [DB_INIT_DELAY] Memory banks lagging:', err.message);
+                // We don't loop here anymore; the 'query' wrapper handles retries later
+                db.isReady = false;
             }
-        }
+        })();
     },
 
-    // Support for Supergroup Migration (Kept for feature parity)
+    // Supergroup Migration Support
     migrateGroup: async (oldId: string | number, newId: string | number) => {
-        const client = await pool.connect();
+        const client = await dbClient.connect();
         try {
             await client.query('BEGIN');
+            console.log(`🔄 [Migration] Starting Transfer: ${oldId} -> ${newId}`);
+
+            // 1. Purge potentially conflicting 'new' shell (if it exists empty)
             const tables = ['group_settings', 'group_operators', 'group_admins', 'user_cache', 'node_groups', 'transactions', 'historical_archives'];
 
             for (const t of tables) {
@@ -200,21 +111,27 @@ export const db = {
             }
             try { await client.query('DELETE FROM groups WHERE id = $1', [newId]); } catch (e) { }
 
+            // 2. Clone Group Root
             await client.query(`
                 INSERT INTO groups (id, title, status, current_state, timezone, currency_symbol, license_key, license_expiry, created_at, last_seen, system_url)
                 SELECT $2, title, status, current_state, timezone, currency_symbol, license_key, license_expiry, created_at, last_seen, system_url
                 FROM groups WHERE id = $1
             `, [oldId, newId]);
 
+            // 3. Move Children
             for (const t of tables) {
                 try { await client.query(`UPDATE ${t} SET group_id = $2 WHERE group_id = $1`, [oldId, newId]); } catch (e) { }
             }
             try { await client.query(`UPDATE licenses SET used_by_group_id = $2 WHERE used_by_group_id = $1`, [oldId, newId]); } catch (e) { }
 
+            // 4. Destroy Old Identity
             await client.query('DELETE FROM groups WHERE id = $1', [oldId]);
+
             await client.query('COMMIT');
+            console.log(`✅ [Migration] Success! ${oldId} is now ${newId}`);
         } catch (e) {
             await client.query('ROLLBACK');
+            console.error(`❌ [Migration] Failed:`, e);
             throw e;
         } finally {
             client.release();

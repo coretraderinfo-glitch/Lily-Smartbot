@@ -146,14 +146,13 @@ export const Guardian = {
         const hasRegexLink = linkRegex.test(text);
 
         if (hasEntityLink || hasRegexLink) {
-            const userId = String(ctx.from.id);
+            const userId = ctx.from.id;
 
-            // 2. Authorization Check (INSTANT CACHE LOOKUP)
-            const isAuthorized =
-                (settings.admins && settings.admins.includes(userId)) ||
-                (settings.operators && settings.operators.includes(userId));
+            // 2. Authorization Check (Only Admins & Operators can post links)
+            const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
+            const isOperator = await db.query('SELECT 1 FROM group_operators WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
 
-            if (!isAuthorized) {
+            if (isAdmin.rows.length === 0 && isOperator.rows.length === 0) {
                 try {
                     // 🚨 ACTION: PURGE LINK
                     await ctx.deleteMessage();

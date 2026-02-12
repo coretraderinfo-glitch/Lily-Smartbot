@@ -212,24 +212,39 @@ export const Ledger = {
 
         const rateIn = new Decimal(settings.rate_in || 0);
         const rateOut = new Decimal(settings.rate_out || 0);
-        const rateUsd = new Decimal(settings.rate_usd || 0).toString();
+        const rateUsd = new Decimal(settings.rate_usd || 0);
 
-        // ATOMIC HYPER-UPDATE: One query instead of a slow loop
-        // We handle fee rates and currency conversion in SQL directly
-        await db.query(`
-            UPDATE transactions
-            SET 
-                fee_rate = CASE WHEN type = 'DEPOSIT' THEN $1::DECIMAL ELSE $2::DECIMAL END,
-                fee_amount = amount_raw * (CASE WHEN type = 'DEPOSIT' THEN $1::DECIMAL ELSE $2::DECIMAL END / 100),
-                net_amount = CASE 
-                    WHEN type = 'DEPOSIT' THEN (amount_raw - (amount_raw * ($1::DECIMAL / 100))) 
-                    ELSE amount_raw 
-                END * CASE 
-                    WHEN currency = 'USDT' AND $3::DECIMAL > 0 THEN $3::DECIMAL 
-                    ELSE 1 
-                END
-            WHERE group_id = $4 AND business_date = $5
-        `, [rateIn.toString(), rateOut.toString(), rateUsd, chatId, date]);
+        const txRes = await db.query(`
+            SELECT id, type, amount_raw, currency FROM transactions 
+            WHERE group_id = $1 AND business_date = $2
+        `, [chatId, date]);
+
+        for (const t of txRes.rows) {
+            const amount = new Decimal(t.amount_raw);
+            let feeRate = new Decimal(0);
+            let feeAmount = new Decimal(0);
+            let net = amount;
+
+            if (t.type === 'DEPOSIT') {
+                feeRate = rateIn;
+                feeAmount = amount.mul(feeRate.div(100));
+                net = amount.sub(feeAmount);
+            } else if (t.type === 'PAYOUT') {
+                feeRate = rateOut;
+                feeAmount = amount.mul(feeRate.div(100));
+                net = amount;
+            }
+
+            if (t.currency.toUpperCase() === 'USDT' && rateUsd.gt(0)) {
+                net = net.mul(rateUsd);
+            }
+
+            await db.query(`
+                UPDATE transactions 
+                SET fee_rate = $1, fee_amount = $2, net_amount = $3 
+                WHERE id = $4
+            `, [feeRate.toString(), feeAmount.toString(), net.toString(), t.id]);
+        }
     },
 
     async addCorrection(chatId: number, userId: number, username: string, type: 'DEPOSIT' | 'PAYOUT', amountStr: string): Promise<BillResult | string> {

@@ -12,8 +12,7 @@ import { bot } from '../bot/instance';
 import { Auditor } from '../guardian/auditor'; // 💎 Silent Auditor
 import { AIBrain } from '../utils/ai';
 import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
-import { MoneyChanger } from '../MC';
-import { SettingsCache } from '../core/cache'; // ⚡ Optimized Import
+import { MoneyChanger } from '../MC'; // 💱 Money Changer (New Module)
 
 interface CommandJob {
     chatId: number;
@@ -41,6 +40,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     const { chatId, userId, username, text, imageUrl } = job.data;
 
     // 1. Settings Fetch (ULTRA-FAST CACHE HIT)
+    const SettingsCache = require('../core/cache').SettingsCache;
     const config = await SettingsCache.get(chatId);
 
     const lang = config?.language_mode || 'CN';
@@ -50,13 +50,10 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     const mcEnabled = config?.mc_enabled || false;
     const groupTitle = config?.title || 'Lily Node';
 
-    // 2. Dynamic Mention Check (EVOLVED HEARING HYPER-SENSITIVE)
-    // Detects: "Lily" (any case), "@Lily", REPLY to bot, or JUST STARTING WITH "Lily"
-    const tLower = text.toLowerCase();
-    const isNameTrigger = tLower.includes('lily') ||
+    // 2. Dynamic Mention Check (Evolved Hearing)
+    // Detects: "Lily", "@LilyBot", or REPLY to a bot message
+    const isNameTrigger = /lily/i.test(text) ||
         (job.data.replyToMessage && job.data.replyToMessage.from?.is_bot);
-
-    console.log(`[Job ${job.id}] Group:${chatId} User:${username} Text:"${text}" Trigger:${isNameTrigger} Calc:${calcEnabled} AI:${aiEnabled}`);
 
     // Security Check
     const isOwner = Security.isSystemOwner(userId);
@@ -73,10 +70,8 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         const isShowOps = /^(?:显示操作人|Show Operators|Senarai Operator|operators)$/i.test(t);
 
         // 🚨 FEATURE FLAG: Calc (Ledger)
-        // FORCE-OVERRIDE: If "calc_enabled" is explicitly false, we skip.
-        // But if it's undefined or true, we ALLOW it.
-        if (calcEnabled === false && !isNameTrigger) {
-            console.log(`[Job ${job.id}] Skipped: Calc Disabled & Not AI Trigger`);
+        if (!calcEnabled && !isNameTrigger) {
+            // Unpurchased/Disabled mode: Lily ignores ledger commands
             return null;
         }
 

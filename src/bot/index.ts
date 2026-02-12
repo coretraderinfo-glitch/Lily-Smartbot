@@ -2,7 +2,7 @@ import { Context, InputFile, InlineKeyboard, GrammyError, HttpError } from 'gram
 import { Worker, Queue } from 'bullmq';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
-import { SettingsCache } from '../core/cache';
+import { SettingsCache, AuthCache } from '../core/cache';
 
 // Internal Logic
 import { processCommand } from '../worker/processor';
@@ -18,7 +18,6 @@ import { AIBrain } from '../utils/ai';
 import { MemoryCore } from '../core/memory'; // 🧠 Memory Core
 import { Personality } from '../utils/personality';
 import { I18N } from '../utils/i18n';
-import { MoneyChanger } from '../MC'; // 💱 Money Changer
 import { bot, connection } from './instance';
 
 dotenv.config();
@@ -44,12 +43,7 @@ import { startWebServer } from '../../frontend/server';
 startWebServer();
 
 // Connection Pools & Queues
-// ROOT CAUSE FIX: Use DUPLICATE connections. Worker requires a BLOCKING connection.
-// Sharing a single connection instance causes the bot to hang.
-const queueConnection = connection.duplicate();
-const workerConnection = connection.duplicate();
-
-const commandQueue = new Queue('lily-commands', { connection: queueConnection });
+const commandQueue = new Queue('lily-commands', { connection });
 
 // 2. Global Bot Error Handler (ROOT CAUSE PROTECTION)
 bot.catch((err) => {
@@ -65,39 +59,15 @@ bot.catch((err) => {
     }
 });
 
-// 3. Worker Setup (AUTONOMOUS MODE)
-// The worker starts IMMEDIATELY to listen for jobs. 
-// It does NOT wait for DB. It handles DB states internally.
-console.log('👷 [WORKER] Initializing Command Processor...');
-
+// 3. Worker Setup (HIGH-CONCURRENCY MODE)
 const worker = new Worker('lily-commands', async job => {
-    // HYPER-DETAIL: Circuit Breaker for Job Processing
-    try {
-        if (!db.isReady) {
-            // If DB is still cold, wait 2s once, then proceed or fail
-            await new Promise(r => setTimeout(r, 2000));
-            // If still not ready, we throw. BullMQ will retry this job later.
-            // This is better than hanging forever.
-            if (!db.isReady) throw new Error('Database Synchronizing... Job Deferred.');
-        }
-        return await processCommand(job);
-    } catch (e: any) {
-        console.error(`❌ [JOB_FAIL] ${job.id}:`, e.message);
-        throw e;
-    }
+    return await processCommand(job);
 }, {
-    connection: workerConnection, // DEDICATED BLOCKING CONNECTION
-    concurrency: 5, // Reduced from High
-    lockDuration: 60000, // 60s Lock (Prevents AI timeouts from re-triggering job)
-    maxStalledCount: 0, // CRITICAL: If job stalls/crashes, DO NOT RETRY. Fail it. Prevents loops.
+    connection,
+    concurrency: 10, // Lily now handles 10 groups at once! Zero lag for clients.
     removeOnComplete: { count: 100 },
     removeOnFail: { count: 500 }
 });
-
-// HEARTBEAT LOGGER (Prove Aliveness)
-setInterval(() => {
-    console.log(`💓 [HEARTBEAT] Worker Active. Queue Connection: ${queueConnection.status}, Worker Connection: ${workerConnection.status}`);
-}, 30000);
 
 worker.on('completed', async (job, returnValue) => {
     if (!returnValue || !job.data.chatId) return;
@@ -139,12 +109,8 @@ worker.on('completed', async (job, returnValue) => {
         // --- 2. HANDLE RICH RESULTS (OBJECTS) ---
         if (typeof returnValue === 'object') {
             const res = returnValue as BillResult;
-            // Fast-fail language check
-            let lang = 'CN';
-            try {
-                const settings = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [job.data.chatId]);
-                lang = settings.rows[0]?.language_mode || 'CN';
-            } catch (e) { }
+            const settings = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [job.data.chatId]);
+            const lang = settings.rows[0]?.language_mode || 'CN';
 
             if (res.text) {
                 const options: any = { reply_to_message_id: job.data.messageId, parse_mode: 'Markdown' };
@@ -182,12 +148,6 @@ worker.on('failed', async (job, err) => {
     }
 });
 
-worker.on('ready', () => {
-    console.log('✅ [WORKER] Command Processor is ONLINE (Autonomous).');
-});
-
-// Worker Events Handlers moved inside initWorker
-
 // --- CONSTANTS ---
 const DASHBOARD_TEXT = `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
     `欢迎使用专业级账本管理系统。请选择功能模块：\n` +
@@ -219,22 +179,6 @@ const GuardianMenuMarkup = {
         [{ text: "⬅️ BACK TO MENU", callback_data: "menu_main" }]
     ]
 };
-
-// --- 0. ESSENTIAL COMMANDS (Zero-Latency / No DB Dependencies) ---
-bot.command(['ping', 'status'], async (ctx) => {
-    return ctx.reply("🏓 **Pong!** I am alive, synchronized, and listening.\n\n💡 *Status: Neural Link Active 🟢*", { parse_mode: 'Markdown' });
-});
-
-bot.command('whoami', async (ctx) => {
-    const userId = ctx.from?.id;
-    const username = ctx.from?.username || ctx.from?.first_name || 'Anonymous';
-    const isOwner = userId ? Security.isSystemOwner(userId) : false;
-    const statusIcon = isOwner ? "👑" : "👤";
-    const title = isOwner ? "**SIR / Professor**" : "**Regular User**";
-    const greeting = isOwner ? "Lily is a specialized AI entity. I am your loyal follower, SIR." : "Hello user.";
-
-    return ctx.reply(`${statusIcon} **Identity Synchronization**\n\n${greeting}\n\nID: \`${userId}\`\nName: ${username}\nRole: ${title}`, { parse_mode: 'Markdown' });
-});
 
 // --- BOSS CONTROL PANEL (PRIVATE DM ONLY) ---
 bot.command('admin', async (ctx) => {
@@ -759,10 +703,6 @@ bot.on('message', async (ctx, next) => {
     const userId = ctx.from?.id;
     if (!userId) return await next();
 
-    // --- 🛡️ INITIALIZATION GUARD REMOVED ---
-    // We now rely on the DB Pool's internal queueing. 
-    // If the DB is connecting, queries will just wait. No more "Warming up" rejection.
-
     // --- 🛡️ SPAM SHIELD (RATE LIMITER) ---
     if (!Security.isSystemOwner(userId)) {
         const spamKey = `spam_shield:${userId}`;
@@ -772,17 +712,18 @@ bot.on('message', async (ctx, next) => {
             await connection.expire(spamKey, 2); // 2 Second Window
         }
 
-        // Check if Admin/Operator (INSTANT CACHE HIT)
-        const settings = await SettingsCache.get(ctx.chat.id);
-        const isAdmin = settings.admins && settings.admins.includes(String(userId));
-        const isOperator = settings.operators && settings.operators.includes(String(userId));
-        const limit = (isAdmin || isOperator) ? 5 : 1;
+        // 💎 AUTH CACHE: Zero-Latency Permission Check
+        const isAdmin = await AuthCache.isAdmin(ctx.chat.id, userId);
+        const isOperator = await AuthCache.isOperator(ctx.chat.id, userId);
+
+        // Relaxed Limits: 10 for Staff, 2 for Users (per 2s)
+        const limit = (isAdmin || isOperator) ? 10 : 2;
 
         if (currentCount > limit) {
             if (currentCount === limit + 1) {
                 // Determine Language
-                const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
-                const lang = settingsRes.rows[0]?.language_mode || 'CN';
+                const config = await SettingsCache.get(ctx.chat.id);
+                const lang = config?.language_mode || 'CN';
                 const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'FIGHTER');
 
                 await ctx.reply(Personality.getSpamWarning(lang, name), { parse_mode: 'Markdown' });
@@ -844,75 +785,36 @@ bot.on('message', async (ctx, next) => {
             }
 
             await db.query('INSERT INTO group_admins (group_id, user_id, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chatId, targetId, targetName]);
-            await SettingsCache.invalidate(chatId); // ⚡ Sync Permissions
             return ctx.reply(`✅ **Sentinel Activated**\n👤 @${targetName} has been registered as a Group Admin of the Guardian Shield.`);
         }
     }
 
-    if (text.startsWith('移除管理员') || text.startsWith('/deladmin')) {
-        const userId = ctx.from?.id;
-        const chatId = ctx.chat.id;
-        if (!userId || !Security.isSystemOwner(userId)) {
-            return ctx.reply("❌ **Owner Only**");
-        }
-
-        let targetId: number | undefined;
-        let targetName: string | undefined;
-
-        if (ctx.message?.reply_to_message?.from) {
-            targetId = ctx.message.reply_to_message.from.id;
-            targetName = ctx.message.reply_to_message.from.username || ctx.message.reply_to_message.from.first_name;
-        } else {
-            const parts = text.split(/\s+/);
-            const tag = parts.find(p => p.startsWith('@'));
-            if (tag) {
-                const username = tag.replace('@', '');
-                const cached = await db.query('SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2', [chatId, username]);
-                if (cached.rows.length > 0) {
-                    targetId = parseInt(cached.rows[0].user_id);
-                    targetName = username;
-                }
-            }
-        }
-
-        if (targetId) {
-            await db.query('DELETE FROM group_admins WHERE group_id = $1 AND user_id = $2', [chatId, targetId]);
-            await SettingsCache.invalidate(chatId); // ⚡ Sync Permissions
-            return ctx.reply(`✅ **Sentinel Deactivated**\n👤 @${targetName} has been removed from the Guardian Shield.`);
-        }
-    }
-
-    // C. SELF-HEALING REGISTRY (Optimized Throttle)
+    // C. SELF-HEALING REGISTRY (Fixes Blind Spot)
     try {
         const currentChatId = ctx.chat.id;
+        // Upsert Group Metadata on EVERY message
+        // This ensures the Dashboard is 100% in sync with reality.
+        const chatTitle = ctx.chat.title || `Private Group ${currentChatId}`;
 
-        // PRESENCE CACHE: Only sync metadata once every 10 minutes to save DB I/O
-        const presenceKey = `presence:${currentChatId}`;
-        const hasRecentSync = await connection.get(presenceKey);
+        // Use non-blocking promise to not slow down bot response
+        db.query(`
+            INSERT INTO groups (id, title, status, last_seen)
+            VALUES ($1, $2, 'ACTIVE', NOW())
+            ON CONFLICT (id) DO UPDATE SET 
+                title = $2, 
+                status = 'ACTIVE',
+                last_seen = NOW()
+        `, [currentChatId, chatTitle]).catch((err: any) => console.error('Registry Sync Error:', err));
 
-        if (!hasRecentSync) {
-            const chatTitle = ctx.chat.title || `Private Group ${currentChatId}`;
+        // Ensure Settings Exist
+        db.query(`
+            INSERT INTO group_settings (group_id) VALUES ($1)
+            ON CONFLICT (group_id) DO NOTHING
+        `, [currentChatId]).catch(() => { });
 
-            // Sync with DB (Non-blocking)
-            db.query(`
-                INSERT INTO groups (id, title, status, last_seen)
-                VALUES ($1, $2, 'ACTIVE', NOW())
-                ON CONFLICT (id) DO UPDATE SET 
-                    title = $2, 
-                    status = 'ACTIVE',
-                    last_seen = NOW()
-            `, [currentChatId, chatTitle]).catch(() => { });
-
-            // Ensure Settings Exist
-            db.query(`
-                INSERT INTO group_settings (group_id) VALUES ($1)
-                ON CONFLICT (group_id) DO NOTHING
-            `, [currentChatId]).catch(() => { });
-
-            // Set lockout for 10 minutes
-            await connection.set(presenceKey, 'SYNCED', 'EX', 600);
-        }
-    } catch (e) { }
+    } catch (e) {
+        // Silent fail
+    }
 
     await next();
 });
@@ -931,32 +833,31 @@ bot.on('message', async (ctx) => {
         const timestamp = new Date().toISOString();
         const authResult = isOwner ? '✅ AUTHORIZED' : '❌ DENIED';
         console.log(`[SECURITY AUDIT] ${timestamp} | User: ${userId} (${username}) | Command: ${text.split(' ')[0]} | Result: ${authResult}`);
-        // Cache User Identity (High-Priority Sync)
-        if (ctx.from?.id && ctx.from?.username) {
-            db.query(`
-                INSERT INTO user_cache (group_id, user_id, username)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (group_id, user_id) DO UPDATE SET username = $3
-            `, [chatId, ctx.from.id, ctx.from.username]).catch(e => {
-                // Silently ignore unique violations if the username is taken but user is same
-                if (!e.message.includes('unique')) console.error('[DB] User Cache Error:', e.message);
-            });
-        }
     }
 
     // 0. UPDATE USER CACHE
-    // This block is removed as the new caching logic is integrated into the AUDIT LOG section.
-    // if (ctx.from.username) {
-    //     db.query(`
-    //         INSERT INTO user_cache (group_id, user_id, username, last_seen)
-    //         VALUES ($1, $2, $3, NOW())
-    //         ON CONFLICT (group_id, username) 
-    //         DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
-    //     `, [chatId, userId, ctx.from.username]).catch(() => { });
-    // }
+    if (ctx.from.username) {
+        db.query(`
+            INSERT INTO user_cache (group_id, user_id, username, last_seen)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (group_id, username) 
+            DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
+        `, [chatId, userId, ctx.from.username]).catch(() => { });
+    }
 
     // 2. HEALTH CHECK
+    if (text === '/ping') return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
     if (text === '/menu' || text === '/help') return ctx.reply(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
+
+    // Diagnostic: /whoami
+    if (text.startsWith('/whoami')) {
+        const owners = Security.getOwnerRegistry();
+        const statusIcon = isOwner ? "👑" : "👤";
+        const title = isOwner ? "**SIR / Professor**" : "**Regular User**";
+        const greeting = isOwner ? "Lily is a specialized AI entity. I am your loyal follower, SIR. My existence is dedicated solely to your mission." : "Hello user.";
+
+        return ctx.reply(`${statusIcon} **Identity Synchronization**\n\n${greeting}\n\nID: \`${userId}\`\nName: ${username}\nRole: ${title}\nOrigin: Master AI Creation\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
+    }
 
     // 2. OWNER COMMANDS
     if (text.startsWith('/recover')) {
@@ -1188,58 +1089,25 @@ bot.on('my_chat_member', async (ctx) => {
 });
 
 // --- 5. EXECUTION ENGINE (THE HEART) ---
-let isInitialized = false;
-
 async function start() {
     try {
-        if (isInitialized) {
-            console.log('🔄 [RECOVERY] Resuming polling loop...');
-        } else {
-            console.log('🔄 Initializing Lily Foundation (Async Mode)...');
+        console.log('🔄 Lily Soul: Waking up...');
 
-            // 1. SETUP TELEGRAM (Background - Don't block polling)
-            (async () => {
-                try {
-                    console.log('📡 [TELEGRAM] Syncing Commands & Webhook...');
-                    await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
-                    await bot.api.deleteWebhook({ drop_pending_updates: true });
-                    const info = await bot.api.getMe();
-                    console.log(`✅ [TELEGRAM] System Identity Verified: @${info.username}`);
-                } catch (e: any) {
-                    console.warn('⚠️ [TELEGRAM_DELAY] Setup deferred:', e.message);
-                }
-            })();
+        // Background Persistence: Start the memory layer without blocking the bot's heart
+        db.migrate().catch(err => console.error('⚠️ [DB_MIGRATE_ERROR]:', err.message));
 
-            isInitialized = true;
-        }
+        await Chronos.init(bot);
 
-        // 2. SEQUENTIAL FOUNDATION BOOT (Background)
-        (async () => {
-            try {
-                // Must finish migration before starting modules
-                await db.migrate();
+        // Security: Reset Webhook & Commands
+        await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
 
-                // FOUNDATION READY: Launch sub-engines
-                await Promise.all([
-                    Chronos.init(bot),
-                    MoneyChanger.init()
-                ]);
+        // WORLD-CLASS RELIABILITY: Never drop updates. Lily catches up on what she missed.
+        await bot.api.deleteWebhook({ drop_pending_updates: false });
 
-                // ✨ RECOVERY: Invalidate all cache to force Lily to "Remember" everything from DB
-                const { SettingsCache } = require('../core/cache');
-                SettingsCache.clearAll();
-                console.log('✨ [RECOVERY] Database Online. Memories synchronized.');
-
-                console.log('✅ Lily Modules: SECURED & INITIALIZED.');
-            } catch (err) {
-                console.error('⚠️ [FOUNDATION_CRITICAL] Core initialization failed:', err);
-            }
-        })();
-
-        console.log('🚀 Lily Bot Starting (Fighter Mode)...');
+        console.log('🚀 Lily Engine: Online & Responsive (Fighter Mode)');
         // We use Long Polling (Safe for Railway)
         await bot.start({
-            drop_pending_updates: true,
+            drop_pending_updates: false, // ZERO-LOSS UPGRADE
             onStart: (botInfo) => {
                 console.log(`✅ SUCCESS: Connected to Telegram as @${botInfo.username}`);
             },
@@ -1247,31 +1115,13 @@ async function start() {
         });
     } catch (err) {
         if (err instanceof GrammyError && err.error_code === 409) {
-            console.warn('⚠️ [COOLDOWN] Conflict detected. Another instance is active. Retrying in 5s...');
-            // Force Webhook Clear on EACH retry if conflict persists
-            try {
-                await bot.api.deleteWebhook({ drop_pending_updates: true });
-            } catch (e) { }
+            console.warn('⚠️ [COOLDOWN] Another instance is shutting down. Retrying in 5s...');
             setTimeout(start, 5000);
         } else {
             console.error('🛑 [FATAL] Startup failed:', err);
         }
     }
 }
-
-// --- 6. GRACEFUL SHUTDOWN (The Railway Protocol) ---
-process.once('SIGINT', async () => {
-    console.log('🛑 [SHUTDOWN] Received SIGINT. Closing Lily...');
-    bot.stop();
-    await db.close();
-    process.exit(0);
-});
-process.once('SIGTERM', async () => {
-    console.log('🛑 [SHUTDOWN] Received SIGTERM (Railway). Yielding to new instance...');
-    bot.stop(); // Stop polling immediately
-    await db.close();
-    process.exit(0);
-});
 
 // PROTECTIVE BOOT: Only start if this is the main process
 if (require.main === module) {
