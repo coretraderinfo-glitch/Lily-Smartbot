@@ -1,4 +1,4 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, Client } from 'pg';
 import fs from 'fs';
 import path from 'path';
 import { MockDB } from './MockDB';
@@ -9,33 +9,43 @@ const isDefaultUrl = !dbUrl || dbUrl.includes('host:5432') || dbUrl.includes('pl
 let dbClient: any;
 
 /**
- * 💎 WORLD-CLASS POOL ENGINE
- * Optimized for Railway Internal & External networking.
+ * 💎 ELITE DUAL-MODE POOL ENGINE
+ * Automatically handles Railway internal vs external SSL handshakes.
  */
-const createPool = () => {
+const createPool = (forceSsl: boolean | null = null) => {
     if (isDefaultUrl) {
         console.warn('⚠️  DATABASE_URL is placeholder or missing. Using Safe Mode (MockDB).');
         return new MockDB();
     }
 
-    // Surgical SSL Logic: If internal, disable SSL to prevent handshake timeouts.
+    // Determine SSL state (Force -> Internal Detection -> Default External)
     const isInternal = dbUrl.includes('railway.internal');
+    const useSsl = forceSsl !== null ? forceSsl : (isInternal ? false : true);
 
-    const config = {
+    const config: any = {
         connectionString: dbUrl,
-        ssl: isInternal ? false : { rejectUnauthorized: false },
-        max: 10, // Increased for concurrent processing
+        max: 8,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 45000, // 45s maximum patience for handshakes
-        maxUses: 7500,
+        connectionTimeoutMillis: 20000, // 20s Fail-Fast to trigger retries
+        maxUses: 5000,
         keepAlive: true
     };
 
-    console.log(`🔌 [DB_INIT] Mode: ${isInternal ? 'INTERNAL (Non-SSL)' : 'EXTERNAL (SSL)'}`);
+    if (useSsl) {
+        config.ssl = { rejectUnauthorized: false };
+    } else {
+        config.ssl = false;
+        // Strip ?sslmode=... from URL to prevent driver conflicts
+        if (config.connectionString.includes('sslmode=')) {
+            config.connectionString = config.connectionString.replace(/([?&])sslmode=[^&]+/, '');
+        }
+    }
+
+    console.log(`🔌 [DB_HEART] Mode: ${useSsl ? 'SSL (Hardened)' : 'PLAIN (Internal)'} | Host: ${isInternal ? 'Internal' : 'External'}`);
     const pool = new Pool(config);
 
     pool.on('error', (err: any) => {
-        console.error('🛑 [DB_HEARTBEAT] Sudden death in connection pool:', err.message);
+        console.error('🛑 [DB_POOL] Unexpected error:', err.message);
     });
 
     return pool;
@@ -44,29 +54,29 @@ const createPool = () => {
 dbClient = createPool();
 
 /**
- * 🧠 LILY INTELLIGENT RETRY ENGINE
+ * 🧠 ADVANCED RECOVERY WRAPPER
  */
 async function reliableQuery(text: string, params?: any[], retryCount = 0): Promise<any> {
     try {
         return await dbClient.query(text, params);
     } catch (err: any) {
-        const isTransient = err.message.includes('terminated') ||
-            err.message.includes('timeout') ||
-            err.message.includes('closed') ||
-            err.message.includes('ECONNRESET') ||
-            err.message.includes('53300');
+        const msg = err.message.toLowerCase();
+        const isTransient = msg.includes('terminated') ||
+            msg.includes('timeout') ||
+            msg.includes('closed') ||
+            msg.includes('econnreset') ||
+            msg.includes('53300');
 
         if (isTransient && retryCount < 5) {
-            const delay = 2000 * (retryCount + 1);
-            console.warn(`⏳ [DB_RECOVERY] Attempt ${retryCount + 1}/5: System healing... (${err.message})`);
+            const delay = 1000 * (retryCount + 1);
+            console.warn(`⏳ [DB_LILY] Healing... Attempt ${retryCount + 1}/5 (${err.message})`);
 
-            // EMERGENCY REFRESH
-            if (retryCount >= 2 && !isDefaultUrl) {
-                console.log('🔄 [DB_AUTO_HEAL] Recycling pool mid-flight to clear dead sockets...');
+            // EMERGENCY REFRESH: If we keep failing, try toggling SSL mode
+            if (retryCount === 2 && !isDefaultUrl) {
+                console.log('🔄 [DB_LILY] Exhausted strategy. Toggling SSL mode...');
                 try {
-                    const oldPool = dbClient;
-                    dbClient = createPool();
-                    setTimeout(() => oldPool.end().catch(() => { }), 15000);
+                    const currentSsl = dbClient.options?.ssl !== false;
+                    dbClient = createPool(!currentSsl);
                 } catch (e) { }
             }
 
@@ -86,28 +96,34 @@ export const db = {
     },
 
     /**
-     * 🛡️ WORLD CLASS MIGRATION GORILLA
-     * Runs with absolute priority to ensure features come online.
+     * �️ AUTONOMOUS MIGRATION ENGINE
+     * Uses an independent, direct connection for schema updates to avoid pool congestion.
      */
     migrate: async () => {
         if (isDefaultUrl) return dbClient.migrate();
 
-        const runMigrationOnce = async (isBackground = false) => {
-            let client;
+        const sync = async () => {
+            let directClient;
             try {
-                if (isBackground) console.log('🔄 [Lily_Migration] background cycle starting...');
-                client = await dbClient.connect();
+                console.log('🔄 [Lily_Sync] Establishing direct line to DB...');
 
-                // 🛸 Priority Setup
-                await client.query('SET statement_timeout = 60000');
-                await client.query('SELECT 1');
+                // Use a dedicated client for migration to bypass pool limits
+                directClient = new Client({
+                    connectionString: dbUrl,
+                    ssl: dbUrl.includes('railway.internal') ? false : { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 15000
+                });
+
+                await directClient.connect();
+                await directClient.query('SET statement_timeout = 60000');
+                await directClient.query('SELECT 1');
 
                 const schemaPath = path.join(__dirname, 'schema.sql');
                 if (fs.existsSync(schemaPath)) {
-                    await client.query(fs.readFileSync(schemaPath, 'utf8'));
+                    await directClient.query(fs.readFileSync(schemaPath, 'utf8'));
                 }
 
-                // Inject Columns with Surgical Precision
+                // Inject Columns
                 const safeguards = [
                     { t: 'group_settings', c: 'welcome_enabled', type: 'BOOLEAN DEFAULT FALSE' },
                     { t: 'group_settings', c: 'calc_enabled', type: 'BOOLEAN DEFAULT TRUE' },
@@ -121,30 +137,24 @@ export const db = {
                 ];
 
                 for (const s of safeguards) {
-                    await client.query(`ALTER TABLE ${s.t} ADD COLUMN IF NOT EXISTS ${s.c.split(' ')[0]} ${s.type.replace('DEFAULT ', '')}`);
-                    // Ensure default is set for existing rows
-                    await client.query(`UPDATE ${s.t} SET ${s.c.split(' ')[0]} = ${s.type.split('DEFAULT ')[1]} WHERE ${s.c.split(' ')[0]} IS NULL`);
+                    await directClient.query(`ALTER TABLE ${s.t} ADD COLUMN IF NOT EXISTS ${s.c.split(' ')[0]} ${s.type.replace('DEFAULT ', '')}`);
+                    await directClient.query(`UPDATE ${s.t} SET ${s.c.split(' ')[0]} = ${s.type.split('DEFAULT ')[1]} WHERE ${s.c.split(' ')[0]} IS NULL`);
                 }
 
-                console.log('✅ [Lily_Migration] SUCCESS: Features unlocked and database synchronized.');
+                console.log('✅ [Lily_Sync] System synchronized. All features active.');
                 return true;
             } catch (err: any) {
-                console.error(`⚠️ [Lily_Migration] FAILED: ${err.message}. Features might be locked.`);
+                console.error(`⚠️ [Lily_Sync] Connection failed: ${err.message}`);
                 return false;
             } finally {
-                if (client) client.release();
+                if (directClient) await directClient.end();
             }
         };
 
-        // Execution Logic: Synchronous first attempt, background loop thereafter.
-        const ok = await runMigrationOnce();
-        if (!ok) {
-            console.warn('🚀 [Lily_Mode] Proceeding in Limited Mode. Synchronization will continue in the background.');
-            const interval = setInterval(async () => {
-                if (await runMigrationOnce(true)) {
-                    console.log('💎 [Lily_Mode] System fully synchronized. Upgrade to Full Mode complete.');
-                    clearInterval(interval);
-                }
+        const success = await sync();
+        if (!success) {
+            const runner = setInterval(async () => {
+                if (await sync()) clearInterval(runner);
             }, 30000);
         }
     },
