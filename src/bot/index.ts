@@ -1061,6 +1061,17 @@ async function start() {
     try {
         console.log('🔄 Initializing Lily Foundation...');
         await db.migrate();
+
+        // 🧠 FORGE VIP MEMORIES (Auto-load Professor & Lady Boss)
+        console.log('🧠 Forging VIP memories...');
+        await MemoryCore.forgeVIPMemories();
+        const memStatus = await MemoryCore.diagnose();
+        if (memStatus.exists) {
+            console.log(`✅ Memory Core Online (${memStatus.count} memories stored)`);
+        } else {
+            console.error(`⚠️ Memory Core Issue: ${memStatus.error}`);
+        }
+
         await Chronos.init(bot);
 
         // Security: Reset Webhook & Commands
