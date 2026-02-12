@@ -41,8 +41,11 @@ export const UsernameResolver = {
                 console.log(`[Resolver] Found ${username} in global registry (Tier 2)`);
                 return parseInt(globalResult.rows[0].user_id);
             }
-        } catch (error) {
-            console.error('[Resolver] Tier 2 failed:', error);
+        } catch (error: any) {
+            // Silently skip if table doesn't exist yet
+            if (error.code !== '42P01') {
+                console.error('[Resolver] Tier 2 failed:', error);
+            }
         }
 
         // TIER 3: Telegram API (For users who haven't spoken yet)
@@ -80,7 +83,12 @@ export const UsernameResolver = {
                 [cleanUsername, userId]
             );
             console.log(`[Resolver] Registered ${username} -> ${userId} in global registry`);
-        } catch (error) {
+        } catch (error: any) {
+            // Graceful degradation: If table doesn't exist yet, silently skip
+            if (error.code === '42P01') { // PostgreSQL: undefined_table
+                // Migration hasn't run yet - this is expected during first deploy
+                return;
+            }
             console.error('[Resolver] Failed to register username:', error);
         }
     }
