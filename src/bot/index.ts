@@ -8,6 +8,7 @@ import { SettingsCache } from '../core/cache';
 import { processCommand } from '../worker/processor';
 import { db } from '../db';
 import { Licensing } from '../core/licensing';
+import { UsernameResolver } from '../utils/username-resolver';
 import { RBAC } from '../core/rbac';
 import { Chronos } from '../core/scheduler';
 import { BillResult } from '../core/ledger';
@@ -803,7 +804,7 @@ bot.on('message', async (ctx) => {
         console.log(`[SECURITY AUDIT] ${timestamp} | User: ${userId} (${username}) | Command: ${text.split(' ')[0]} | Result: ${authResult}`);
     }
 
-    // 0. UPDATE USER CACHE
+    // 0. UPDATE USER CACHE (Group-specific + Global Registry)
     if (ctx.from.username) {
         db.query(`
             INSERT INTO user_cache (group_id, user_id, username, last_seen)
@@ -811,6 +812,9 @@ bot.on('message', async (ctx) => {
             ON CONFLICT (group_id, username) 
             DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
         `, [chatId, userId, ctx.from.username]).catch(() => { });
+
+        // WORLD-CLASS: Also register in global registry (permanent cross-group memory)
+        UsernameResolver.register(ctx.from.username, userId).catch(() => { });
     }
 
     // 2. HEALTH CHECK

@@ -218,6 +218,19 @@ CREATE TABLE IF NOT EXISTS user_cache (
     PRIMARY KEY (group_id, username)
 );
 
+-- 8.5 Global Username Registry (Cross-Group Permanent Memory)
+-- This table stores EVERY username Lily has EVER seen, regardless of group.
+-- Used for bulletproof @username -> user_id resolution in /remember and mentions.
+CREATE TABLE IF NOT EXISTS username_global_registry (
+    username VARCHAR(100) PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    first_seen TIMESTAMPTZ DEFAULT NOW(),
+    last_seen TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for fast reverse lookup (user_id -> username)
+CREATE INDEX IF NOT EXISTS idx_global_registry_user_id ON username_global_registry(user_id);
+
 -- 9. Fleet Management (Master Mode)
 CREATE TABLE IF NOT EXISTS fleet_nodes (
     id SERIAL PRIMARY KEY,

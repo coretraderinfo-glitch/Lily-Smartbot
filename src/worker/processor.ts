@@ -174,12 +174,11 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             const targetTag = rememberMatch[1];
             const memoryContent = rememberMatch[2].trim();
 
-            // Resolve User ID from Cache
-            const cacheRes = await db.query(`SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2`, [chatId, targetTag.replace('@', '')]);
+            // WORLD-CLASS: Use 3-tier resolver (group cache → global registry)
+            const { UsernameResolver } = require('../utils/username-resolver');
+            const targetId = await UsernameResolver.resolve(targetTag, chatId);
 
-            if (cacheRes.rows.length === 0) return `⚠️ I don't know who ${targetTag} is yet. Have they spoken here?`;
-
-            const targetId = parseInt(cacheRes.rows[0].user_id);
+            if (!targetId) return `⚠️ I cannot find ${targetTag}. Have they ever spoken in any group I'm in?`;
             await MemoryCore.imprint(targetId, memoryContent, 'DIRECTIVE');
 
             return `🧠 Memory Imprinted: I will remember that ${targetTag} -> "${memoryContent}"`;
