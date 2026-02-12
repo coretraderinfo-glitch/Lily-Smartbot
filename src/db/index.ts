@@ -19,15 +19,14 @@ if (isDefaultUrl) {
 
     console.log(`🔌 [DB] Initializing Resilient Pool for: ${dbHost}`);
 
+    // STANDARD PRODUCTION CONFIGURATION (Stable)
     dbClient = new Pool({
         connectionString: dbUrl,
         ssl: { rejectUnauthorized: false },
-        max: 10, // SURGICAL LIMIT: Prevent Resource Exhaustion
-        min: 0, // COLD START OPTIMIZATION: Don't force connections on boot
-        idleTimeoutMillis: 30000, // Release idle connections faster
-        connectionTimeoutMillis: 60000, // 60s TIMEOUT: Maximum tolerance for Railway "Wake Up"
-        maxUses: 5000, // Recycle frequently to keep connections fresh
-        allowExitOnIdle: true, // Allow Node process to sleep if needed
+        max: 10,
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 10000,
+        keepAlive: true // CRITICAL: Keeps TCP stream active
     });
 
     // Pool Level Error Handling (Prevents Crashes)
@@ -38,7 +37,7 @@ if (isDefaultUrl) {
 
 /**
  * World-Class Reliable Query Wrapper
- * Retries on temporary connection blips (Up to 5 times)
+ * Retries on temporary connection blips
  */
 async function reliableQuery(text: string, params?: any[], retryCount = 0): Promise<any> {
     try {
@@ -49,10 +48,9 @@ async function reliableQuery(text: string, params?: any[], retryCount = 0): Prom
             err.message.includes('closed') ||
             err.message.includes('ECONNRESET');
 
-        // Extended Retry Strategy (1s, 2s, 4s, 8s, 16s)
-        if (isTransient && retryCount < 5) {
+        if (isTransient && retryCount < 3) {
             const delay = Math.pow(2, retryCount) * 1000;
-            console.warn(`⏳ [DB_RECOVERY] Connection blip detected. Retrying in ${delay}ms... (Attempt ${retryCount + 1}/5)`);
+            console.warn(`⏳ [DB_RECOVERY] Connection blip detected. Retrying in ${delay}ms... (Attempt ${retryCount + 1}/3)`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return reliableQuery(text, params, retryCount + 1);
         }
@@ -68,37 +66,19 @@ export const db = {
         return await dbClient.connect();
     },
 
-    // Auto-Migrate function
+    // Auto-Migrate function (NON-BLOCKING / SOFT FAIL)
     migrate: async () => {
         if (isDefaultUrl) {
             return dbClient.migrate();
         }
 
         let client;
-        let attempts = 0;
-        const maxAttempts = 5;
-
-        // RETRY LOOP FOR INITIAL HANDSHAKE
-        while (attempts < maxAttempts) {
-            try {
-                if (attempts > 0) console.log(`🔄 [Migration] Handshake Attempt ${attempts + 1}/${maxAttempts}...`);
-                else console.log('🔄 [Migration] Handshaking with Database...');
-
-                client = await dbClient.connect();
-                break; // Connection successful
-            } catch (connErr: any) {
-                attempts++;
-                console.warn(`⚠️ [Migration] DB Connection Failed: ${connErr.message}`);
-                if (attempts >= maxAttempts) {
-                    console.error('❌ [Migration_Fatal] Could not establish initial connection after 5 attempts.');
-                    throw connErr;
-                }
-                // Wait 2 seconds before retry
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-        }
-
         try {
+            console.log('🔄 [Migration] Handshaking with Database...');
+
+            // Attempt Connection
+            client = await dbClient.connect();
+
             console.log('🔄 [Migration] Running Security & Feature Safeguards...');
 
             // Extended timeout for migrations
@@ -175,7 +155,8 @@ export const db = {
             console.log('✅ [DB_HEAL] Pipeline Synced and Hardened.');
 
         } catch (err: any) {
-            console.error('❌ [Migration_Fatal] Pipeline Failure:', err.message);
+            console.warn('⚠️ [Migration_Warn] Handshake failed, skipping deep checks:', err.message);
+            // DO NOT THROW. Allow bot to start in "Limited Mode".
         } finally {
             if (client) client.release();
         }
