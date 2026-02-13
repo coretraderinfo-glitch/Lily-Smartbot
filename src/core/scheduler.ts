@@ -122,16 +122,15 @@ export const Chronos = {
                         const pdf = await PDFExport.generateDailyPDF(group.id);
                         const lastDate = DateTime.now().setZone(tz).minus({ days: 1 }).toFormat('yyyy-MM-dd');
 
-                        const slogans = [
-                            "🌙 漫长的一天辛苦了，愿您好梦相伴，我们明天再战！",
-                            "🌟 星光不问赶路人，时光不负有心人。早点休息，明天见！",
-                            "✨ 万物归于沉静，愿您神采奕奕迎接崭新的一天。好梦！",
-                            "🌙 忙碌了一天，也请给心灵放个假。祝您平安喜乐，晚安！",
-                            "🌟 愿您在这静谧的夜里彻底放松，明天又是元气满满的一天！",
-                            "✨ 每一个奋斗的明天，都始于今晚的高质量休息。祝好梦！",
-                            "🌙 无论今天如何，都请温柔地对待今晚的自己。晚安，朋友！"
-                        ];
-                        const slogan = slogans[Math.floor(Math.random() * slogans.length)];
+                        // 🤖 DYNAMIC AI SLOGAN: Generate unique message every time
+                        const { AIBrain } = require('../utils/ai');
+                        const slogan = await AIBrain.generateResponse(
+                            '请生成一条温馨的晚安祝福语，告诉用户辛苦了一天，祝他们好梦，明天继续加油。要自然、温暖、有人情味，不要太长，1-2句话即可。',
+                            0, // System request
+                            'System',
+                            'CN',
+                            group.title || 'Group'
+                        ).catch(() => '🌙 辛苦了一天，早点休息吧。明天继续加油！'); // Fallback
 
                         const finalMsg = `🏁 **系统自动结算 (Time: ${resetHour}:00)**\n\n` +
                             `本日记录已正式截止并存入云端。\n\n` +
@@ -157,13 +156,15 @@ export const Chronos = {
                             console.error(`[CHRONOS] Failed to send report to group ${group.id}:`, err.message);
                         }
                     } else {
-                        // CALC DISABLED: Simple good night message
-                        const simpleGreetings = [
-                            "🌙 一天辛苦了！早点休息，祝您好梦。明天继续加油！",
-                            "🌟 夜深了，祝您睡个好觉。明天会更好！",
-                            "✨ 辛苦一天了，好好休息吧。祝您明天生意兴隆！"
-                        ];
-                        const greeting = simpleGreetings[Math.floor(Math.random() * simpleGreetings.length)];
+                        // CALC DISABLED: AI-generated simple good night message
+                        const { AIBrain } = require('../utils/ai');
+                        const greeting = await AIBrain.generateResponse(
+                            '请生成一条简短温馨的晚安问候，祝对方休息好，明天生意兴隆。要自然亲切，像朋友聊天，1句话即可。',
+                            0,
+                            'System',
+                            'CN',
+                            group.title || 'Group'
+                        ).catch(() => '🌙 晚安！祝您好梦，明天会更好！');
 
                         try {
                             await bot.api.sendMessage(group.id, greeting);
