@@ -85,9 +85,13 @@ export const Chronos = {
     async processAllRollovers(bot: Bot) {
         const client = await db.getClient();
         try {
-            // Find groups where current_time (in their timezone) has just hit the reset hour
-            // and we haven't processed today's rollover yet.
-            const groupsRes = await client.query('SELECT * FROM groups WHERE status = \'ACTIVE\'');
+            // WORLD-CLASS: Join with settings to check calc_enabled
+            const groupsRes = await client.query(`
+                SELECT g.*, gs.calc_enabled 
+                FROM groups g
+                LEFT JOIN group_settings gs ON g.id = gs.group_id
+                WHERE g.status = 'ACTIVE'
+            `);
 
             for (const group of groupsRes.rows) {
                 const tz = group.timezone || 'Asia/Shanghai';
@@ -109,48 +113,64 @@ export const Chronos = {
 
                     console.log(`[CHRONOS] Auto-Rollover triggering for Group ${group.id}`);
 
-                    // 3. EXECUTE CLOSURE
-                    await Ledger.generateBill(group.id); // Triggers internal checks
-                    const pdf = await PDFExport.generateDailyPDF(group.id);
-                    const lastDate = DateTime.now().setZone(tz).minus({ days: 1 }).toFormat('yyyy-MM-dd');
+                    // 🧠 SMART GREETING: Check if calc is enabled
+                    const calcEnabled = group.calc_enabled !== false; // Default true
 
-                    // WORLD-CLASS ROTATING SLOGANS
-                    const slogans = [
-                        "🌙 漫长的一天辛苦了，愿您好梦相伴，我们明天再战！",
-                        "🌟 星光不问赶路人，时光不负有心人。早点休息，明天见！",
-                        "✨ 万物归于沉静，愿您神采奕奕迎接崭新的一天。好梦！",
-                        "🌙 忙碌了一天，也请给心灵放个假。祝您平安喜乐，晚安！",
-                        "🌟 愿您在这静谧的夜里彻底放松，明天又是元气满满的一天！",
-                        "✨ 每一个奋斗的明天，都始于今晚的高质量休息。祝好梦！",
-                        "🌙 无论今天如何，都请温柔地对待今晚的自己。晚安，朋友！"
-                    ];
-                    const slogan = slogans[Math.floor(Math.random() * slogans.length)];
+                    if (calcEnabled) {
+                        // 3. EXECUTE CLOSURE (Full Report)
+                        await Ledger.generateBill(group.id);
+                        const pdf = await PDFExport.generateDailyPDF(group.id);
+                        const lastDate = DateTime.now().setZone(tz).minus({ days: 1 }).toFormat('yyyy-MM-dd');
 
-                    const finalMsg = `🏁 **系统自动结算 (Time: ${resetHour}:00)**\n\n` +
-                        `本日记录已正式截止并存入云端。\n\n` +
-                        `${slogan}\n\n` +
-                        `📢 **温馨提示：** 明天上班请记得回复 **“开始”** 以激活新的账单记录副本。`;
+                        const slogans = [
+                            "🌙 漫长的一天辛苦了，愿您好梦相伴，我们明天再战！",
+                            "🌟 星光不问赶路人，时光不负有心人。早点休息，明天见！",
+                            "✨ 万物归于沉静，愿您神采奕奕迎接崭新的一天。好梦！",
+                            "🌙 忙碌了一天，也请给心灵放个假。祝您平安喜乐，晚安！",
+                            "🌟 愿您在这静谧的夜里彻底放松，明天又是元气满满的一天！",
+                            "✨ 每一个奋斗的明天，都始于今晚的高质量休息。祝好梦！",
+                            "🌙 无论今天如何，都请温柔地对待今晚的自己。晚安，朋友！"
+                        ];
+                        const slogan = slogans[Math.floor(Math.random() * slogans.length)];
 
-                    try {
-                        // Send Text
-                        await bot.api.sendMessage(group.id, finalMsg, { parse_mode: 'Markdown' });
+                        const finalMsg = `🏁 **系统自动结算 (Time: ${resetHour}:00)**\n\n` +
+                            `本日记录已正式截止并存入云端。\n\n` +
+                            `${slogan}\n\n` +
+                            `📢 **温馨提示：** 明天上班请记得回复 **"开始"** 以激活新的账单记录副本。`;
 
-                        // 4. Archive Snapshot in Vault (DB)
-                        await client.query(`
-                            INSERT INTO historical_archives (group_id, business_date, type, pdf_blob)
-                            VALUES ($1, $2, 'DAILY_SNAPSHOT', $3)
-                        `, [group.id, lastDate, pdf]);
+                        try {
+                            await bot.api.sendMessage(group.id, finalMsg, { parse_mode: 'Markdown' });
 
-                        // 5. UPDATE STATE
-                        await client.query(`
-                            UPDATE groups 
-                            SET current_state = 'ENDED', 
-                                last_auto_reset = $1 
-                            WHERE id = $2
-                        `, [now.toJSDate(), group.id]);
+                            await client.query(`
+                                INSERT INTO historical_archives (group_id, business_date, type, pdf_blob)
+                                VALUES ($1, $2, 'DAILY_SNAPSHOT', $3)
+                            `, [group.id, lastDate, pdf]);
 
-                    } catch (err: any) {
-                        console.error(`[CHRONOS] Failed to send report to group ${group.id}:`, err.message);
+                            await client.query(`
+                                UPDATE groups 
+                                SET current_state = 'ENDED', 
+                                    last_auto_reset = $1 
+                                WHERE id = $2
+                            `, [now.toJSDate(), group.id]);
+
+                        } catch (err: any) {
+                            console.error(`[CHRONOS] Failed to send report to group ${group.id}:`, err.message);
+                        }
+                    } else {
+                        // CALC DISABLED: Simple good night message
+                        const simpleGreetings = [
+                            "🌙 一天辛苦了！早点休息，祝您好梦。明天继续加油！",
+                            "🌟 夜深了，祝您睡个好觉。明天会更好！",
+                            "✨ 辛苦一天了，好好休息吧。祝您明天生意兴隆！"
+                        ];
+                        const greeting = simpleGreetings[Math.floor(Math.random() * simpleGreetings.length)];
+
+                        try {
+                            await bot.api.sendMessage(group.id, greeting);
+                            await client.query(`UPDATE groups SET last_auto_reset = $1 WHERE id = $2`, [now.toJSDate(), group.id]);
+                        } catch (err: any) {
+                            console.error(`[CHRONOS] Failed to send greeting to group ${group.id}:`, err.message);
+                        }
                     }
                 }
             }
