@@ -275,7 +275,10 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
         // --- 7. SILENT AUDITOR TRIGGER (The Stealth Accountant) ---
         if (auditorEnabled) {
-            if (Auditor.isFinancialReport(text)) {
+            const isReport = Auditor.isFinancialReport(text);
+            console.log(`[Auditor] Detection result for ${chatId}: ${isReport ? '✅ FINANCIAL REPORT' : '❌ NOT A REPORT'}`);
+
+            if (isReport) {
                 // Construct a robust fake context for the auditor
                 try {
                     const fakeCtx: any = {
@@ -287,12 +290,14 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                         react: (emoji: string) => (bot.api as any).setMessageReaction(chatId, job.data.messageId, emoji ? [{ type: 'emoji', emoji }] : [])
                     };
                     // We await it to ensure the worker doesn't kill the process before OpenAI finishes
-                    console.log(`[Auditor] Triggering stealth audit for ${chatId}...`);
+                    console.log(`[Auditor] ⚡ Triggering stealth audit for ${chatId}...`);
                     await Auditor.audit(fakeCtx, text, lang);
                 } catch (auditErr) {
                     console.error('[Auditor] Background Audit Failed:', auditErr);
                 }
             }
+        } else {
+            console.log(`[Auditor] Disabled for group ${chatId}`);
         }
 
         // --- 6. AI BRAIN CHAT (GPT-4o + VISION + LEDGER + MARKET DATA) ---

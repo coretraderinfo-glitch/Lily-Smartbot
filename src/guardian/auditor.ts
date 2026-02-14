@@ -29,18 +29,47 @@ export const Auditor = {
     isFinancialReport(text: string): boolean {
         const lines = text.split('\n').filter(l => l.trim().length > 0);
 
-        // Pattern 1: Keywords (Expanded Financial Vocabulary)
-        const keywords = ['MALAYSIA', 'GROUP', 'TOTAL', 'HUAT', 'ALL TOTAL', 'ONG', 'BALIK', 'IN', 'OUT', 'RM', 'DEPO', 'DP', 'WITHDRAW', 'WD', 'TRX', 'CUCI', 'BANK', 'TNG', 'USDT'];
-        const foundKeywords = keywords.filter(k => text.toUpperCase().includes(k));
+        // WORLD-CLASS EXPANDED KEYWORDS (Multilingual + Variations)
+        const keywords = [
+            // English (Original)
+            'MALAYSIA', 'GROUP', 'TOTAL', 'HUAT', 'ALL TOTAL', 'ONG', 'BALIK',
+            'IN', 'OUT', 'RM', 'DEPO', 'DP', 'WITHDRAW', 'WD', 'TRX', 'CUCI',
+            'BANK', 'TNG', 'USDT',
+            // Lowercase variants (case-insensitive matching)
+            'total', 'group', 'huat', 'balik', 'depo', 'withdraw',
+            // Chinese keywords
+            '总计', '合计', '入款', '出款', '存款', '取款', '马来西亚', '小组',
+            // Abbreviations
+            'TTL', 'TOT', 'SUM', 'BAL', 'BALANCE'
+        ];
+
+        const upperText = text.toUpperCase();
+        const foundKeywords = keywords.filter(k => upperText.includes(k.toUpperCase()));
 
         // Pattern 2: Financial Structure (Lines containing numbers)
         const mathLines = lines.filter(l => /[\d,.]+/.test(l));
 
-        // Decision: Relaxed Trigger Logic
-        const strongIndicators = ['TOTAL', 'ALL TOTAL', 'RM', 'HUAT', 'ONG'].some(k => text.toUpperCase().includes(k));
+        // Pattern 3: NUMBER DENSITY (New!)
+        // If 40%+ of lines have numbers, it's likely a financial report
+        const numberDensity = mathLines.length / Math.max(lines.length, 1);
 
-        if (strongIndicators && mathLines.length >= 1) return true;
-        return foundKeywords.length >= 2 || (foundKeywords.length >= 1 && mathLines.length >= 2);
+        // Pattern 4: DECIMAL TYPO DETECTION (16.000 format)
+        const hasDecimalTypo = /\d+\.\d{3,}/.test(text); // 3+ decimals = typo
+
+        // Pattern 5: Money amount detection (RM followed by numbers)
+        const hasMoneyAmount = /RM\s*[\d,.]+/i.test(text);
+
+        // AGGRESSIVE TRIGGER LOGIC (World-Class Detection)
+        const strongIndicators = ['TOTAL', 'ALL TOTAL', 'RM', 'HUAT', 'ONG', '总计', '合计'].some(k => upperText.includes(k.toUpperCase()));
+
+        // Trigger if ANY of these conditions are met:
+        if (strongIndicators && mathLines.length >= 1) return true; // Strong keyword + numbers
+        if (foundKeywords.length >= 2) return true; // 2+ keywords
+        if (numberDensity >= 0.4 && mathLines.length >= 3) return true; // Number-heavy message
+        if (hasDecimalTypo) return true; // Decimal typo detected
+        if (hasMoneyAmount && mathLines.length >= 2) return true; // RM + numbers
+
+        return false;
     },
 
     /**
