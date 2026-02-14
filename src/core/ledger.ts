@@ -163,6 +163,12 @@ export const Ledger = {
             const settingsRes = await client.query('SELECT * FROM group_settings WHERE group_id = $1', [chatId]);
             const settings = settingsRes.rows[0] || {};
 
+            // WORLD-CLASS TYPO PROTECTION: Detect "16.000" (period used instead of comma)
+            // If there are exactly 3 digits after the dot, it's highly suspicious.
+            if (/\.\d{3}$/.test(amountStr)) {
+                return `🚨 **TRANSACTION BLOCKED** 🚨\n\nBoss, did you mean **${amountStr.replace('.', ',')}** (Thousand) or **${parseFloat(amountStr).toFixed(2)}** (Decimal)?\n\nYou typed \`${amountStr}\`. In finance, we only use 2 decimals. Please check and re-enter!`;
+            }
+
             let amount = new Decimal(amountStr);
             if (amount.lte(0)) return `❌ **Invalid Amount**`;
 
