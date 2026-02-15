@@ -105,7 +105,7 @@ export const Auditor = {
      * Stealth Audit: Checks the math and "pounces" with progressive intensity.
      * WORLD-CLASS HUMAN PERSONALITY: Patience wears thin after repeated mistakes.
      */
-    async audit(ctx: Context, text: string, lang: string = 'CN') {
+    async audit(ctx: Context, text: string, lang: string = 'CN', ledgerContext: string = '') {
         if (!process.env.OPENAI_API_KEY) return;
         const userId = ctx.from?.id;
         if (!userId) return;
@@ -146,32 +146,28 @@ export const Auditor = {
                         ${groupContext}
                         ${patienceContext}
 
-                        CRITICAL: Do NOT sound like an AI. No "detected", "error", or "mismatch". 
-                        ACT like a real person in the group who is doing the manual math in their head and just saw a mistake.
+                        ### INTERNAL LEDGER TRUTH (Lily's Database):
+                        ${ledgerContext || "No internal records for today yet."}
 
-                        STRICT AUDIT RULES:
-                        1. MATH VERIFICATION: 
-                           - Sum up all individual group totals. 
-                           - Check if they equal the "ALL TOTAL" or "GRAND TOTAL".
-                           - If the sum of parts doesn't match the reported total, you MUST scold them.
-                        2. DECIMAL TYPOS (The "Professor's Pet Peeve"):
-                           - Financial figures MUST have 2 decimal places (e.g., 16.00).
-                           - If you see ".000" (three zeros, e.g., 16.000), it is a TYPO. Point it out immediately. 16.000 is NOT 16,000.
-                        3. SPEED: Be concise but sharp.
+                        ### CRITICAL MISSION:
+                        1. **Internal Sync**: Compare the user's text against the INTERNAL LEDGER TRUTH. 
+                           - If the user's report is missing transactions that Lily has recorded, or the totals don't match Lily's database totals, POINT IT OUT SHARPLY.
+                        2. **Math Scan**: Sum individual entries in the user's text to verify their "TOTAL" and "ALL TOTAL".
+                        3. **Decimal Typos**: Flag "16.000" (3 decimals). Money must be 2 decimals.
 
-                        IF MATH IS 100% CORRECT:
+                        IF EVERYTHING MATCHES LILY'S TRUTH AND MATH IS CORRECT:
                         - Return JUST the word "CORRECT".
 
-                        IF ERRORS/TYPOS FOUND:
-                        - State exactly what is wrong (e.g., "The All Total should be 5000, not 4900" or "Why are you using 3 decimals like 16.000? Use 2!").
-                        - Follow the ${isFighterGroup ? 'Fighter (casual/Manglish)' : 'Client (professional)'} style directed above.
+                        IF ERRORS FOUND:
+                        - Act like a real person who just spotted a mistake. No "detected", No "mismatch".
+                        - Example: "Boss, wait. My record says All Total is 5000, why you write 4900? Typo kah?"
                         
                         Current language: ${lang}`
                     },
                     { role: "user", content: text }
                 ],
                 max_tokens: 350,
-                temperature: 0.3 // LOWER temperature for strict math consistency
+                temperature: 0.3
             });
 
             const verdict = response.choices[0]?.message?.content?.trim() || "";

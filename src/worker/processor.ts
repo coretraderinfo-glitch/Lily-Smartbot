@@ -281,6 +281,14 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             if (isReport) {
                 // Construct a robust fake context for the auditor
                 try {
+                    const ledgerSummary = calcEnabled ? await Ledger.getDailySummary(chatId) : null;
+                    const ledgerContext = ledgerSummary ? `
+Current Group Sales (Lily's Internal Ledger):
+- Total In (Net): ${ledgerSummary.totalIn}
+- Total Out: ${ledgerSummary.totalOut}
+- Balance: ${ledgerSummary.balance}
+                    `.trim() : "";
+
                     const fakeCtx: any = {
                         from: { id: userId, username, first_name: username },
                         chat: { id: chatId },
@@ -290,8 +298,8 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                         react: (emoji: string) => (bot.api as any).setMessageReaction(chatId, job.data.messageId, emoji ? [{ type: 'emoji', emoji }] : [])
                     };
                     // We await it to ensure the worker doesn't kill the process before OpenAI finishes
-                    console.log(`[Auditor] ⚡ Triggering stealth audit for ${chatId}...`);
-                    await Auditor.audit(fakeCtx, text, lang);
+                    console.log(`[Auditor] ⚡ Triggering synchronized stealth audit for ${chatId}...`);
+                    await Auditor.audit(fakeCtx, text, lang, ledgerContext);
                 } catch (auditErr) {
                     console.error('[Auditor] Background Audit Failed:', auditErr);
                 }

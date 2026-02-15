@@ -56,6 +56,7 @@ export const MemoryCore = {
      * Used for manual overrides and critical VIP recognition
      */
     async imprint(userId: number, content: string, type: 'IDENTITY' | 'DIRECTIVE' = 'DIRECTIVE'): Promise<void> {
+        if (!userId || userId <= 0) return;
         try {
             await db.query(`
                 INSERT INTO user_memories (user_id, type, content, confidence, created_at)
@@ -73,6 +74,7 @@ export const MemoryCore = {
      * OBSERVE: Auto-save a learned trait (Tier 2)
      */
     async observe(userId: number, content: string): Promise<void> {
+        if (!userId || userId <= 0) return;
         try {
             await db.query(`
                 INSERT INTO user_memories (user_id, type, content, confidence, created_at)
@@ -88,6 +90,7 @@ export const MemoryCore = {
      * RECALL: Get the "Dossier" for a user (Ultra Fast Cache Access)
      */
     async recall(userId: number): Promise<string> {
+        if (!userId || userId <= 0) return '';
         try {
             return await memoryCache.fetch(userId) || '';
         } catch (error) {
@@ -122,7 +125,7 @@ export const MemoryCore = {
                 // Check if already exists
                 const existing = await db.query(`
                     SELECT id FROM user_memories 
-                    WHERE user_id = $1 AND content LIKE '%PROFESSOR%' OR content LIKE '%LADY BOSS%'
+                    WHERE user_id = $1 AND (content LIKE '%PROFESSOR%' OR content LIKE '%LADY BOSS%')
                     LIMIT 1
                 `, [vip.userId]);
 

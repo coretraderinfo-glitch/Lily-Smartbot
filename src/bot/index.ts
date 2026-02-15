@@ -818,6 +818,15 @@ bot.on('message', async (ctx) => {
     }
 
     // 2. HEALTH CHECK
+    // 2. CORE COMMANDS
+    if (text === '/start') {
+        const { AIBrain } = require('../utils/ai');
+        const welcome = await AIBrain.generateSimpleGreeting(
+            `用户 ${username} 刚刚启动了 Lily 机器人。请生成一段非常亲切、有个性的欢迎语。告诉他们你是 Lily，随时准备好协助他们。`
+        );
+        return ctx.reply(welcome || `✨ **Welcome!** Lily is online and ready to serve.`);
+    }
+
     if (text === '/ping') return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
     if (text === '/menu' || text === '/help') return ctx.reply(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
 
@@ -1096,6 +1105,19 @@ bot.on('my_chat_member', async (ctx) => {
         `, [chatId]);
 
         console.log(`✅ Group ${chatId} registered successfully.`);
+
+        // 🌟 WORLD-CLASS ONBOARDING GREETING
+        try {
+            const { AIBrain } = require('../utils/ai');
+            const intro = await AIBrain.generateSimpleGreeting(
+                `Lily 刚刚加入了新群组 "${title}"。请生成一段简短、专业但又俏皮的开场白。自我介绍为 Lily，是您的全能理财助手。告诉大家你会记账、会聊天、还会保卫群组。鼓励大家输入 /menu 开始。可以使用中文或 Manglish。`
+            );
+            if (intro) {
+                await bot.api.sendMessage(chatId, `✨ **LILY ONLINE** ✨\n\n${intro}`, { parse_mode: 'Markdown' });
+            }
+        } catch (introErr) {
+            console.error('[Onboarding] Failed to send intro:', introErr);
+        }
     }
 });
 

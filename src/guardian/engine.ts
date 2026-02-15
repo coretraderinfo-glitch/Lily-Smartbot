@@ -103,10 +103,14 @@ export const Guardian = {
                 output += `${alertText}\n\n`;
             }
 
-            // 2. Branded Welcome Logic
+            // 2. Branded Welcome Logic (WORLD-CLASS AI GREETING)
             if (welcomeOn) {
-                // Vibrant Human Greeting (Random)
-                output += Personality.getWelcome(lang, displayName);
+                // Vibrant Human Greeting (AI GENERATED)
+                const { AIBrain } = require('../utils/ai');
+                const aiGreeting = await AIBrain.generateSimpleGreeting(
+                    `请为新加入群组的用户 ${displayName} 生成一条简短、温馨且带有关心感的欢迎语。要有人情味，不要像机器人。可以用中文、英文或马来西亚口语。`
+                );
+                output += aiGreeting || Personality.getWelcome(lang, displayName);
             } else if (guardianOn) {
                 // Standard Welcome (If personality is toggled off)
                 const stdWelcome = lang === 'CN' ? `✨ 欢迎 **${displayName}** 加入！`

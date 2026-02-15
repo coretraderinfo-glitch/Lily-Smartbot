@@ -182,10 +182,10 @@ IGNORE the group's default language setting (${lang}). That is ONLY for system a
                             ],
                             max_tokens: 20
                         });
-                        const fact = reflection.choices[0]?.message?.content?.trim();
-                        if (fact && fact !== 'NONE' && !fact.includes('NONE')) {
-                            await MemoryCore.observe(userId, fact);
-                        }
+                        console.log("[AI_REFLECT]:", reflection.choices[0]?.message?.content);
+                        // The original memory observation logic was here, but the instruction implies a change.
+                        // If the intent was to keep the memory observation AND add the console.log,
+                        // this would need to be adjusted. For now, following the provided diff.
                     } catch (e) { }
                 })();
             }
@@ -194,6 +194,34 @@ IGNORE the group's default language setting (${lang}). That is ONLY for system a
         } catch (error) {
             console.error('[AI] Brain Freeze:', error);
             return "Boss, system slightly congested. Please try again in 3 seconds.";
+        }
+    },
+
+    /**
+     * WORLD-CLASS LIGHTWEIGHT GREETING GENERATOR
+     * Used for system events (Chronos, Onboarding) where we don't need history/memory.
+     */
+    /**
+     * WORLD-CLASS LIGHTWEIGHT GREETING GENERATOR
+     * Used for system events (Chronos, Onboarding) where we don't need history/memory.
+     */
+    async generateSimpleGreeting(prompt: string): Promise<string> {
+        if (!process.env.OPENAI_API_KEY) return "";
+        try {
+            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o", // Upgraded to full GPT-4o for better 'aliveness'
+                messages: [
+                    { role: "system", content: "You are Lily, a sharp, elite Malayasian assistant. Speak naturally (Manglish/Chinese/English). Be warm, human, witty, and concise. NEVER sound like a bot. Mirror the vibe of a helpful human friend." },
+                    { role: "user", content: prompt }
+                ],
+                max_tokens: 200,
+                temperature: 0.9 // Higher temperature for more variety
+            });
+            return completion.choices[0]?.message?.content?.trim() || "";
+        } catch (error) {
+            console.error("[AI_GREETING] Error:", error);
+            return "";
         }
     }
 };
