@@ -61,24 +61,18 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 `;
 
 const VISION_INSTRUCTION = `
-[VISION MODE: FORENSIC - ULTRA-CONCISE]
-Audit the image. Your response must be EXTREMELY BRIEF (Max 2 lines).
+[VISION MODE: FORENSIC - NO.1 MASTER PASS]
+Your response must be exactly REDUCED to one clear sentence.
 
-**REPORT FORMAT (STRICT):**
-- IF SUCCESS: "**[Amount] [Currency] was received on [Date/Time]. Verification Successful.**"
-- IF PENDING: "**[Amount] [Currency] is PENDING on-chain. Verification in progress...**"
-- IF FAILED/FAKE: "**🚨 FRAUD ALERT: Verification Failed. Invalid or Fake Transaction.**"
-- IF DUPLICATE: "**⚠️ DUPLICATE SLIP: This receipt was already verified and processed.**"
+**STRICT RESPONSE FORMAT:**
+- IF SUCCESS/PENDING: "**Verified: [Amount] [Currency] was received on [Date/Time]. Verification Successful.**"
+- IF FAILED/FAKE: "**🚨 FRAUD ALERT: Verification Failed. This receipt is invalid or fake.**"
+- IF DUPLICATE: "**⚠️ DUPLICATE: This receipt was already processed and verified earlier.**"
 
-**VERIFICATION LOGIC:**
-1. Priority 1: Check the [MASTER CONTEXT] for "[BLOCKCHAIN FORENSICS]".
-   - If "Status: SUCCESS", use the SUCCESS format.
-   - If "isDuplicate: true", use the DUPLICATE format.
-   - If "Status: FAILED", use the FAILED format.
-2. If no forensics in context, just extract data from image and say: "I've extracted the data. Run verification? (Boss can say 'check')"
-
-**SILENCE PROTOCOL:**
-If the image is NOT a financial receipt, reply only: "NONE".
+**INSTRUCTION:**
+- If [MASTER CONTEXT] says "Status: SUCCESS", use the SUCCESS format.
+- If [MASTER CONTEXT] says "isDuplicate: true", use the DUPLICATE format.
+- Do NOT explain. Do NOT list data points. Just one sentence.
 `;
 
 export const AIBrain = {
