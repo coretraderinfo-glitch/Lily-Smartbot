@@ -38,6 +38,7 @@ const settingsCache = new LRUCache<string, any>({
                     calc_enabled: true,
                     auditor_enabled: false,
                     mc_enabled: false,
+                    calctape_enabled: false,
                     language_mode: 'CN'
                 };
             } catch (e) {
@@ -62,6 +63,7 @@ const settingsCache = new LRUCache<string, any>({
                 calc_enabled: true,
                 auditor_enabled: false,
                 mc_enabled: false,
+                calctape_enabled: false,
                 language_mode: 'CN'
             };
         }

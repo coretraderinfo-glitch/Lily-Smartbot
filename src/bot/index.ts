@@ -267,7 +267,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
     msg += `🛡️ ${labels.guardian}: ${s.guardian_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🧠 ${labels.ai}: ${s.ai_brain_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `💎 ${labels.auditor}: ${s.auditor_enabled ? '✅ ON' : '❌ OFF'}\n`;
-    msg += `🥊 ${labels.welcome}: ${s.welcome_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `🥊 ${labels.welcome}: ${s.welcome_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `💰 ${labels.mc}: ${s.mc_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `📜 ${labels.calctape}: ${s.calctape_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🌐 ${labels.langLabel}: **${lang}**\n`;
@@ -282,7 +282,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
         .text(s.auditor_enabled ? `${labels.disable} Auditor` : `${labels.enable} Auditor`, `toggle:auditor:${id}`).row()
 
         // Row 3: Hospitality, OTC & Calctape
-        .text(s.welcome_enabled !== false ? `${labels.disable} Welcome` : `${labels.enable} Welcome`, `toggle:welcome:${id}`)
+        .text(s.welcome_enabled ? `${labels.disable} Welcome` : `${labels.enable} Welcome`, `toggle:welcome:${id}`)
         .text(s.mc_enabled ? `${labels.disable} MC` : `${labels.enable} MC`, `toggle:mc:${id}`)
         .text(s.calctape_enabled ? `${labels.disable} Tape` : `${labels.enable} Tape`, `toggle:calctape:${id}`).row()
 
@@ -319,6 +319,7 @@ bot.on('callback_query:data', async (ctx) => {
             return ctx.answerCallbackQuery({ text: "⚠️ Money Changer 未启用 (Feature Disabled: Enable in /admin)", show_alert: true });
         }
 
+        await ctx.answerCallbackQuery();
         return ctx.editMessageText(
             `💱 **LILY MONEY CHANGER (OTC TRADING)**\n\n` +
             `🚀 **CONFIGURATION (Settings)**\n` +
@@ -341,6 +342,7 @@ bot.on('callback_query:data', async (ctx) => {
             return ctx.answerCallbackQuery({ text: "⚠️ CalcTape 未启用 (Feature Disabled: Enable in /admin)", show_alert: true });
         }
 
+        await ctx.answerCallbackQuery();
         return ctx.editMessageText(
             `📜 **LILY CALCTAPE (PAPER TAPE ENGINE)**\n\n` +
             `🚀 **CORE COMMANDS**\n` +
@@ -357,6 +359,7 @@ bot.on('callback_query:data', async (ctx) => {
     }
 
     if (data === "menu_main") {
+        await ctx.answerCallbackQuery();
         return ctx.editMessageText(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
     }
 
@@ -366,6 +369,7 @@ bot.on('callback_query:data', async (ctx) => {
             return ctx.answerCallbackQuery({ text: "⚠️ 财务功能未启用 (Feature Restricted: Calc Not Purchased)", show_alert: true });
         }
 
+        await ctx.answerCallbackQuery();
         return ctx.editMessageText(
             `📊 **LILY COMPLETE COMMAND LIST**\n\n` +
             `🚀 **FLOW CONTROL (流程控制)**\n` +

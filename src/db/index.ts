@@ -141,6 +141,7 @@ export const db = {
                     { t: 'group_settings', c: 'ai_brain_enabled', type: 'BOOLEAN DEFAULT FALSE' },
                     { t: 'group_settings', c: 'guardian_enabled', type: 'BOOLEAN DEFAULT FALSE' },
                     { t: 'group_settings', c: 'mc_enabled', type: 'BOOLEAN DEFAULT FALSE' },
+                    { t: 'group_settings', c: 'calctape_enabled', type: 'BOOLEAN DEFAULT FALSE' },
                     { t: 'group_settings', c: 'show_decimals', type: 'BOOLEAN DEFAULT TRUE' },
                     { t: 'groups', c: 'last_seen', type: 'TIMESTAMPTZ DEFAULT NOW()' }
                 ];
