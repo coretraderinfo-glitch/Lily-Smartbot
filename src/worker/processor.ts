@@ -137,18 +137,43 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // --- CALCTAPE COMMAND (/tape) ---
-        if (t.startsWith('/tape')) {
+        const isTapeThis = /lily\s+tape\s+this/i.test(t) || /lily\s+total\s+this/i.test(t);
+
+        if (t.startsWith('/tape') || isTapeThis) {
             if (!calctapeEnabled) {
                 return "ℹ️ **CalcTape is currently DISABLED.**\nProfessor needs to turn it on with `CalcTape on` first.";
             }
 
-            const args = t.slice(6).trim();
-            if (!args) {
-                return "📝 **Usage:** `/tape [Amount][Operator][Comment]`\nExample: `/tape 1000 + 500#Extra - 200#Fee`";
+            const { CalcTape } = require('../calctape/engine');
+            let lines: any[] = [];
+            let manualCurrency: string | undefined;
+
+            if (isTapeThis) {
+                // ELITE EXTRACTION: Scan Context
+                let sourceText = "";
+                if (job.data.replyToMessage) {
+                    sourceText = job.data.replyToMessage.text || job.data.replyToMessage.caption || "";
+                } else {
+                    const { SessionMemory } = require('../core/memory/session');
+                    const history = await SessionMemory.recall(chatId, userId);
+                    sourceText = history.slice(-5).map((turn: any) => turn.content).join("\n");
+                }
+                lines = CalcTape.smartExtract(sourceText);
+            } else {
+                // NORMAL PARSING
+                const args = t.slice(6).trim();
+                if (!args) {
+                    return "📝 **Usage:** `/tape [Amount][Operator][Comment]`\nExample: `/tape 1000 + 500#Extra - 200#Fee`";
+                }
+                const result = CalcTape.parse(args);
+                lines = result.lines;
+                manualCurrency = result.currency;
             }
 
-            const { CalcTape } = require('../calctape/engine');
-            const { lines, currency: manualCurrency } = CalcTape.parse(args);
+            if (lines.length === 0) {
+                return "❌ **Extraction Failed**: I couldn't find any amounts or 'k' notations to total up. Please try again or use manual `/tape`.";
+            }
+
             const total = CalcTape.recalculate(lines);
 
             return CalcTape.format({

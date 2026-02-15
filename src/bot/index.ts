@@ -347,13 +347,14 @@ bot.on('callback_query:data', async (ctx) => {
             `📜 **LILY CALCTAPE (PAPER TAPE ENGINE)**\n\n` +
             `🚀 **CORE COMMANDS**\n` +
             `• \`/tape [Calculation]\`: Start a professional paper tape\n` +
-            `• Example: \`/tape 1000 Deposit + 500 Bonus - 200 Fee\`\n\n` +
+            `• \`Lily tape this\`: (Reply to chat) Automatically extract math from text\n` +
+            `• Example: \`/tape 1000 Deposit + 500 Bonus = usdt\`\n\n` +
             `📟 **MATHEMATICAL LOGIC**\n` +
-            `• Lily uses **Sequential (Running Total)** logic.\n` +
-            `• Operators: \`+\`, \`-\`, \`*\`, \`/\` are supported.\n` +
-            `• Descriptions: You can add text after numbers (e.g., 500 [Bonus]).\n\n` +
+            `• Lily supports **'k' Notation** (e.g. 30k = 30,000).\n` +
+            `• Suffixes like \`=usdt\` or \`=myr\` set the final currency.\n` +
+            `• Descriptions: Just add text after numbers (e.g. 500 bonus).\n\n` +
             `💡 **PRO TIP:**\n` +
-            `CalcTape is strictly business. It is designed for multi-line accounting where you need to see every step of the calculation.`,
+            `Use '**Lily tape this**' on forwarded messages or bank slips to save time. Lily will automatically find names and amounts for you.`,
             { parse_mode: 'Markdown', reply_markup: CalcTapeMenuMarkup }
         );
     }

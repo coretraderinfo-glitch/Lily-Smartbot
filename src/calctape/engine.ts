@@ -46,6 +46,39 @@ export class CalcTape {
     }
 
     /**
+     * SMART EXTRACT: Scans unstructured text for amounts and descriptions
+     * e.g. "CHEN 30k" -> { value: 30000, comment: "CHEN" }
+     */
+    static smartExtract(text: string): TapeLine[] {
+        const lines: TapeLine[] = [];
+        let i = 1;
+
+        // Pattern: [Description] [Amount][k]
+        // Group 1 (Optional Name): Words/Chinese Chars
+        // Group 2 (Amount): Numbers
+        // Group 3 (Multiplier): 'k' (optional)
+        const pattern = /([a-zA-Z\u4e00-\u9fa5]{2,})?\s*([\d.]+)([kK])?/g;
+        let match;
+
+        while ((match = pattern.exec(text)) !== null) {
+            let val = parseFloat(match[2]);
+            if (match[3] && match[3].toLowerCase() === 'k') val *= 1000;
+
+            const name = (match[1] || '').trim();
+
+            if (!isNaN(val) && val > 0) {
+                lines.push({
+                    index: i++,
+                    value: val,
+                    operator: '+',
+                    comment: name
+                });
+            }
+        }
+        return lines;
+    }
+
+    /**
      * Recalculate the entire tape with running subtotals
      */
     static recalculate(lines: TapeLine[]): number {
