@@ -311,10 +311,32 @@ Current Group Sales (Lily's Internal Ledger):
         // --- 6. AI BRAIN CHAT (GPT-4o + VISION + LEDGER + MARKET DATA) ---
         if ((aiEnabled || isOwner) && isNameTrigger) {
             // FIRE EVERYTHING IN PARALLEL (WORLD-CLASS SPEED)
-            const [ledgerSummary, marketContext] = await Promise.all([
+            const [ledgerSummary, marketContext, txVerification] = await Promise.all([
                 calcEnabled ? Ledger.getDailySummary(chatId) : Promise.resolve(null),
-                MarketData.scanAndFetch(text)
+                MarketData.scanAndFetch(text),
+                // NEW: Blockchain Autoscan
+                (async () => {
+                    // Extract potential TXID (simplistic regex)
+                    const txMatch = text.match(/(e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
+                    if (txMatch) {
+                        const { Blockchain } = require('../core/blockchain');
+                        return await Blockchain.verify(txMatch[0]);
+                    }
+                    return null;
+                })()
             ]);
+
+            let blockchainContext = "";
+            if (txVerification && txVerification.found) {
+                blockchainContext = `
+[BLOCKCHAIN FORENSICS]:
+TXID Found: ${txVerification.status}
+Chain: ${txVerification.currency || 'Unknown'}
+Detail: ${txVerification.error || 'Confirmed on-chain'}
+Amount: ${txVerification.amount || '?'}
+Timestamp: ${txVerification.timestamp || '?'}
+                `.trim();
+            }
 
             const ledgerContext = ledgerSummary ? `
 Current Group Sales (Internal Ledger):
@@ -324,7 +346,10 @@ Current Group Sales (Internal Ledger):
             `.trim() : "Internal Ledger: Access Restricted (Not Purchased).";
 
             const replyContext = job.data.replyToMessage?.text || job.data.replyToMessage?.caption || "";
-            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, ledgerContext, marketContext, replyContext, chatId);
+            // MERGE CONTEXTS: Ledger + Market + Blockchain
+            const fullContext = `${ledgerContext}\n\n${marketContext}\n\n${blockchainContext}`;
+
+            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, fullContext, replyContext, chatId);
         }
 
         return null;

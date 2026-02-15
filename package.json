@@ -30,6 +30,7 @@
     "ioredis": "^5.9.2",
     "lru-cache": "^11.2.6",
     "luxon": "^3.7.2",
+    "node-fetch": "^3.3.2",
     "openai": "^6.18.0",
     "pdfkit": "^0.17.2",
     "pdfkit-table": "^0.1.99",

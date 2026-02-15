@@ -61,16 +61,22 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 `;
 
 const VISION_INSTRUCTION = `
-[VISION MODE: ACTIVE]
-Audit this image with 100% accuracy. 
-1. Extract ALL amounts, currencies, and dates.
-2. Identify the Bank/Platform and Transaction Reference/TXID.
-3. Determine if the status is "Success" or "Pending/Failed".
-4. If no text is provided, give a full report of the slip.
+[VISION MODE: ACTIVE - FORENSIC LEVEL]
+Audit this image with 100% accuracy. Create a forensic report.
+
+**CRITICAL EXTRACTION TARGETS:**
+1. **TXID / HASH**: Look for long alphanumeric strings (e.g., e80b88... or 0x123...). This is the MOST IMPORTANT data.
+2. **Amounts**: Extract specific amounts and currencies (USDT, RM, etc.).
+3. **Date/Time**: Extract the exact timestamp.
+4. **Status**: Is it "Success", "Completed", or "Pending"?
+
+**VERIFICATION PROMPT:**
+If you find a TXID, you MUST output it clearly and ask:
+"Boss, I found TXID: [INSERT_TXID]. Do you want me to run a Blockchain Verification on it?"
 `;
 
 export const AIBrain = {
-    async generateResponse(text: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, ledgerContext?: string, marketContext?: string, replyContext?: string, chatId: number = 0, isFighterGroup: boolean = false): Promise<string> {
+    async generateResponse(text: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, contextDump: string = "", replyContext: string = "", chatId: number = 0, isFighterGroup: boolean = false): Promise<string> {
         if (!process.env.OPENAI_API_KEY) return "";
 
         let effectiveText = text?.trim() || "";
@@ -132,11 +138,12 @@ export const AIBrain = {
                 { role: "system", content: SYSTEM_PROMPT },
                 {
                     role: "system", content: `MASTER CONTEXT:
-- Real-Time Date: Feb 12 2026.
+- Real-Time Date: Feb 15 2026.
 - User: ${username} (ID:${userId}).
 - Group: ${groupTitle}.
-- Internal Sales: ${ledgerContext || "None"}.
-- Real-Time Market Feed: ${marketContext || "TICKER ACTIVE"}.
+
+${contextDump || "No external data."}
+
 ${memoryContext ? memoryContext : ""}
 ${mentionedContext ? mentionedContext : ""}
 ${replyContext ? `- [CONVERSATION THREAD] User is replying to: "${replyContext}"` : ""}
