@@ -985,10 +985,13 @@ bot.on('message', async (ctx) => {
 
     // 4. BUSINESS LOGIC (MULTILINGUAL)
     const t = text.trim();
+    // COMMAND NORMALIZATION: Strip "Lily" or bot mention triggers to check for functional commands
+    const cleanT = t.replace(/^(?:lily|@\w+)\s+/i, '').trim();
+
     const isCommand = text.startsWith('/') ||
-        /^(?:开始|Start|结束记录|Stop|显示账单|Show Bill|bill|显示操作人|operators|清理今天数据|cleardata|下载报表|export|导出Excel|excel|设置|Set|删除|Delete)/i.test(t) ||
-        /^[+\-取]\s*\d/.test(text) ||
-        /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*[\d.]+/i.test(text);
+        /^(?:开始|Start|结束记录|Stop|显示账单|Show Bill|bill|显示操作人|operators|清理今天数据|cleardata|下载报表|export|导出Excel|excel|设置|Set|删除|Delete)/i.test(cleanT) ||
+        /^[+\-取]\s*\d/.test(cleanT) ||
+        /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*-?\s*[\d.]+/i.test(cleanT);
 
     // 4. SETTINGS & TRIGGER DETECTION (Ultra-Fast Cache Layer)
     const config = await SettingsCache.get(chatId);
@@ -1060,9 +1063,9 @@ bot.on('message', async (ctx) => {
             const groupResForState = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
             const state = groupResForState.rows[0]?.current_state || 'WAITING_FOR_START';
 
-            // World-Class Transaction Detection (Synced with Processor)
+            // World-Class Transaction Detection (Synced with Processor & Correction logic)
             const isTransaction = /^[+\-取]\s*\d/.test(t) ||
-                /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*[\d.]+/i.test(t);
+                /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*-?\s*[\d.]+/i.test(t);
 
             if (isTransaction && state !== 'RECORDING') {
                 const settingsResForLang = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [chatId]);

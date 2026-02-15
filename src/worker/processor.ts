@@ -354,9 +354,11 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // --- 5. REAL-TIME ACCOUNTING (PHASE D) ---
+        // ROOT CAUSE FIX: Allow optional "Lily" or other triggers before the command
+        const cmdText = t.replace(/^(?:lily|@\w+)\s+/i, '').trim();
 
         // Deposits: +100, In 100, Masuk 100
-        const depositMatch = t.match(/^(?:\+|入款|In|Masuk)\s*([\d.]+[uU]?)$/i);
+        const depositMatch = cmdText.match(/^(?:\+|入款|In|Masuk)\s*([\d.]+[uU]?)(?:\s+.*)?$/i);
         if (depositMatch) {
             const valStr = depositMatch[1];
             let currency = 'CNY';
@@ -370,7 +372,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // Payouts: -100, Out 100, Keluar 100
-        const payoutMatch = t.match(/^(?:\-|下发|取|Out|Keluar)\s*([\d.]+[uU]?)$/i);
+        const payoutMatch = cmdText.match(/^(?:\-|下发|取|Out|Keluar)\s*([\d.]+[uU]?)(?:\s+.*)?$/i);
         if (payoutMatch) {
             const valStr = payoutMatch[1];
             let currency = 'CNY';
@@ -384,14 +386,14 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // Returns
-        const returnMatch = t.match(/^(?:回款|Return|Balik)\s*([\d.]+)$/i);
+        const returnMatch = cmdText.match(/^(?:回款|Return|Balik)\s*([\d.]+)(?:\s+.*)?$/i);
         if (returnMatch) return await Ledger.addReturn(chatId, userId, username, returnMatch[1]);
 
         // Corrections (Void)
-        const voidDepMatch = t.match(/^(?:入款|In|Masuk)\s*-\s*([\d.]+)$/i);
+        const voidDepMatch = cmdText.match(/^(?:入款|In|Masuk)\s*-\s*([\d.]+)(?:\s+.*)?$/i);
         if (voidDepMatch) return await Ledger.addCorrection(chatId, userId, username, 'DEPOSIT', voidDepMatch[1]);
 
-        const voidPayMatch = t.match(/^(?:下发|Out|Keluar)\s*-\s*([\d.]+)$/i);
+        const voidPayMatch = cmdText.match(/^(?:下发|Out|Keluar)\s*-\s*([\d.]+)(?:\s+.*)?$/i);
         if (voidPayMatch) return await Ledger.addCorrection(chatId, userId, username, 'PAYOUT', voidPayMatch[1]);
 
         // Misc Reports
