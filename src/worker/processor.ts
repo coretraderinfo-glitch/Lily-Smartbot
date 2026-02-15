@@ -323,10 +323,29 @@ Current Group Sales (Lily's Internal Ledger):
                 // NEW: Blockchain Autoscan (Only if AI Brain is active)
                 (async () => {
                     if (!aiEnabled) return null;
-                    // Extract potential TXID (simplistic regex)
-                    const txMatch = text.match(/(e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
+
+                    // 1. Scan current text
+                    let txMatch = text.match(/(739[a-f0-9]{20,}|e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
+
+                    // 2. Scan Reply-To context (Elite Retrieval)
+                    if (!txMatch && job.data.replyToMessage) {
+                        const replyText = job.data.replyToMessage.text || job.data.replyToMessage.caption || "";
+                        txMatch = replyText.match(/(739[a-f0-9]{20,}|e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
+                    }
+
+                    // 3. Scan Last 3 turns of Session Memory (Deep Brain Scan)
+                    if (!txMatch) {
+                        const { SessionMemory } = require('../core/memory/session');
+                        const history = await SessionMemory.recall(chatId, userId);
+                        for (const turn of history.slice(-3)) {
+                            txMatch = turn.content.match(/(739[a-f0-9]{20,}|e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
+                            if (txMatch) break;
+                        }
+                    }
+
                     if (txMatch) {
                         const { Blockchain } = require('../core/blockchain');
+                        console.log(`[Blockchain] 🔍 Found TXID in context: ${txMatch[0]}`);
                         return await Blockchain.verify(txMatch[0]).catch((e: any) => { console.error('Chain Lag:', e); return null; });
                     }
                     return null;

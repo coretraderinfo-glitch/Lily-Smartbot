@@ -73,15 +73,26 @@ export const Blockchain = {
                 return { found: false, status: 'UNKNOWN', error: 'TXID Not Found on TronScan' };
             }
 
-            // ... (Rest of logic) ...
-            const status = data.contractRet === 'SUCCESS' ? 'SUCCESS' : 'FAILED';
+            // WORLD-CLASS STATUS CHECK: Handle TronScan API nuances
+            // A transaction is SUCCESS if contractRet is SUCCESS AND it's confirmed
+            const isConfirmed = data.confirmed === true;
+            const isSuccessRet = data.contractRet === 'SUCCESS' || data.result === 'SUCCESS';
+
+            const status = (isSuccessRet && isConfirmed) ? 'SUCCESS' :
+                (!isConfirmed && isSuccessRet) ? 'PENDING' : 'FAILED';
+
             let amount = 0;
             let currency = 'TRX';
 
+            // Look for TRC20 Transfer info (Priority)
             if (data.trc20TransferInfo && data.trc20TransferInfo.length > 0) {
                 const transfer = data.trc20TransferInfo[0];
                 amount = parseFloat(transfer.amount_str) / Math.pow(10, transfer.decimals);
                 currency = transfer.symbol;
+            } else if (data.amount) {
+                // Fallback to TRX amount
+                amount = data.amount / 1000000;
+                currency = 'TRX';
             }
 
             return {
@@ -89,9 +100,9 @@ export const Blockchain = {
                 status,
                 amount,
                 currency,
-                timestamp: data.timestamp,
-                from: data.ownerAddress,
-                to: data.toAddress
+                timestamp: data.timestamp || data.time,
+                from: data.ownerAddress || data.transfer_from,
+                to: data.toAddress || data.transfer_to
             };
 
         } catch (error: any) {
