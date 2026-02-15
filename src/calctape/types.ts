@@ -3,6 +3,7 @@
  */
 
 export interface TapeLine {
+    index: number;
     value: number;
     operator: '+' | '-' | '*' | '/' | '=';
     comment?: string;
@@ -12,6 +13,7 @@ export interface TapeLine {
 export interface TapeSession {
     id: string;
     chatId: number;
+    creatorId: number;
     lines: TapeLine[];
     total: number;
     currency: string;

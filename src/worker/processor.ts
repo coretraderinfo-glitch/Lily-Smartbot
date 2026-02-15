@@ -154,6 +154,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             return CalcTape.format({
                 id: Math.random().toString(36).substring(7).toUpperCase(),
                 chatId,
+                creatorId: userId,
                 lines,
                 total,
                 currency: lang === 'CN' ? 'CNY' : 'RM',

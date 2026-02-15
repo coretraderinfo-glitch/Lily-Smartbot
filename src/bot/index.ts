@@ -150,6 +150,7 @@ const DASHBOARD_TEXT = `🌟 **Lily Smart Ledger - Dashboard**\n\n` +
 const MainMenuMarkup = {
     inline_keyboard: [
         [{ text: "📊 CALC", callback_data: "menu_calc" }],
+        [{ text: "📜 CALCTAPE", callback_data: "menu_calctape" }],
         [{ text: "🛡️ GUARDIAN", callback_data: "menu_guardian" }],
         [{ text: "💱 MONEY CHANGER", callback_data: "menu_mc" }]
     ]
@@ -162,6 +163,12 @@ const MCMenuMarkup = {
 };
 
 const CalcMenuMarkup = {
+    inline_keyboard: [
+        [{ text: "⬅️ BACK TO MENU", callback_data: "menu_main" }]
+    ]
+};
+
+const CalcTapeMenuMarkup = {
     inline_keyboard: [
         [{ text: "⬅️ BACK TO MENU", callback_data: "menu_main" }]
     ]
@@ -230,9 +237,10 @@ async function renderManagementConsole(ctx: Context, id: string) {
         if (s.welcome_enabled === null) s.welcome_enabled = false;
         if (s.auditor_enabled === null) s.auditor_enabled = false;
         if (s.calc_enabled === null) s.calc_enabled = true;
+        if (s.calctape_enabled === null) s.calctape_enabled = false;
     } else {
         // Fallback object if row is missing entirely
-        settings.rows[0] = { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: false, calc_enabled: true, auditor_enabled: false, language_mode: 'CN' };
+        settings.rows[0] = { guardian_enabled: false, ai_brain_enabled: false, welcome_enabled: false, calc_enabled: true, auditor_enabled: false, calctape_enabled: false, language_mode: 'CN' };
     }
 
     const title = group.rows[0]?.title || 'Group';
@@ -250,6 +258,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
         enable: I18N.t(lang, 'console.enable'),
         cycle: I18N.t(lang, 'console.cycle'),
         mc: I18N.t(lang, 'console.mc'),
+        calctape: I18N.t(lang, 'console.calctape'),
         back: I18N.t(lang, 'console.back')
     };
 
@@ -260,6 +269,7 @@ async function renderManagementConsole(ctx: Context, id: string) {
     msg += `💎 ${labels.auditor}: ${s.auditor_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🥊 ${labels.welcome}: ${s.welcome_enabled !== false ? '✅ ON' : '❌ OFF'}\n`;
     msg += `💰 ${labels.mc}: ${s.mc_enabled ? '✅ ON' : '❌ OFF'}\n`;
+    msg += `📜 ${labels.calctape}: ${s.calctape_enabled ? '✅ ON' : '❌ OFF'}\n`;
     msg += `🌐 ${labels.langLabel}: **${lang}**\n`;
 
     const keyboard = new InlineKeyboard()
@@ -271,9 +281,10 @@ async function renderManagementConsole(ctx: Context, id: string) {
         .text(s.ai_brain_enabled ? `${labels.disable} AI Brain` : `${labels.enable} AI Brain`, `toggle:ai:${id}`)
         .text(s.auditor_enabled ? `${labels.disable} Auditor` : `${labels.enable} Auditor`, `toggle:auditor:${id}`).row()
 
-        // Row 3: Hospitality & OTC
+        // Row 3: Hospitality, OTC & Calctape
         .text(s.welcome_enabled !== false ? `${labels.disable} Welcome` : `${labels.enable} Welcome`, `toggle:welcome:${id}`)
-        .text(s.mc_enabled ? `${labels.disable} MC` : `${labels.enable} MC`, `toggle:mc:${id}`).row()
+        .text(s.mc_enabled ? `${labels.disable} MC` : `${labels.enable} MC`, `toggle:mc:${id}`)
+        .text(s.calctape_enabled ? `${labels.disable} Tape` : `${labels.enable} Tape`, `toggle:calctape:${id}`).row()
 
         // Row 4: Settings & Dangerous Actions
         .text(labels.cycle, `cycle_lang:${id}`).row()
@@ -321,6 +332,27 @@ bot.on('callback_query:data', async (ctx) => {
             `• Submit a **Screenshot** of the slip for manual audit.\n\n` +
             `💡 *Note: Rates must be configured before trading starts.*`,
             { parse_mode: 'Markdown', reply_markup: MCMenuMarkup }
+        );
+    }
+
+    if (data === "menu_calctape") {
+        const settings = await SettingsCache.get(chatId);
+        if (settings?.calctape_enabled === false && !isOwner) {
+            return ctx.answerCallbackQuery({ text: "⚠️ CalcTape 未启用 (Feature Disabled: Enable in /admin)", show_alert: true });
+        }
+
+        return ctx.editMessageText(
+            `📜 **LILY CALCTAPE (PAPER TAPE ENGINE)**\n\n` +
+            `🚀 **CORE COMMANDS**\n` +
+            `• \`/tape [Calculation]\`: Start a professional paper tape\n` +
+            `• Example: \`/tape 1000 Deposit + 500 Bonus - 200 Fee\`\n\n` +
+            `📟 **MATHEMATICAL LOGIC**\n` +
+            `• Lily uses **Sequential (Running Total)** logic.\n` +
+            `• Operators: \`+\`, \`-\`, \`*\`, \`/\` are supported.\n` +
+            `• Descriptions: You can add text after numbers (e.g., 500 [Bonus]).\n\n` +
+            `💡 **PRO TIP:**\n` +
+            `CalcTape is strictly business. It is designed for multi-line accounting where you need to see every step of the calculation.`,
+            { parse_mode: 'Markdown', reply_markup: CalcTapeMenuMarkup }
         );
     }
 
@@ -539,6 +571,7 @@ bot.on('callback_query:data', async (ctx) => {
         if (type === 'auditor') column = 'auditor_enabled';
         if (type === 'calc') column = 'calc_enabled';
         if (type === 'mc') column = 'mc_enabled';
+        if (type === 'calctape') column = 'calctape_enabled';
 
         // Use UPSERT for Toggles with NULL-Safety (COALESCE)
         // If row is missing, we create it. If it exists, we flip it.

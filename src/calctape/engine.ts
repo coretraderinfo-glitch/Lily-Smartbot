@@ -15,21 +15,23 @@ export class CalcTape {
      */
     static parse(input: string): TapeLine[] {
         const lines: TapeLine[] = [];
-        const pattern = /([-+*/=])?\s*([\d.]+)\s*(?:\[(.*?)\]|#(.*?)|$)/gm;
+        // Humanized regex: Captures operator, value, and anything after it as a comment
+        const pattern = /([-+*/=])?\s*([\d.]+)\s*(?:\[(.*?)\]|#(.*?)|(?:\s+([a-zA-Z\u4e00-\u9fa5].*?))|$)/gm;
         let match;
+        let i = 1;
 
         while ((match = pattern.exec(input)) !== null) {
             const operator = (match[1] as '+' | '-' | '*' | '/' | '=') || '+';
             const value = parseFloat(match[2]);
-            const comment = (match[3] || match[4] || '').trim();
+            const comment = (match[3] || match[4] || match[5] || '').trim();
 
-            lines.push({ value, operator, comment });
+            lines.push({ index: i++, value, operator, comment });
         }
         return lines;
     }
 
     /**
-     * Recalculate the entire tape
+     * Recalculate the entire tape with running subtotals
      */
     static recalculate(lines: TapeLine[]): number {
         let total = 0;
@@ -44,23 +46,24 @@ export class CalcTape {
     }
 
     /**
-     * Format the tape into the 'Classic CalcTape' visual style
+     * Format the tape into the 'Classic CalcTape' visual style with indices
      */
     static format(session: TapeSession): string {
         let output = `📜 **LILY PAPER TAPE**\n`;
-        output += `\`----------------------\`\n`;
+        output += `\`----------------------------\`\n`;
 
         for (const line of session.lines) {
             const op = line.operator === '+' ? ' ' : line.operator;
             const val = line.value.toLocaleString(undefined, { minimumFractionDigits: 2 });
+            const idx = `[${line.index}]`.padEnd(4);
             const comment = line.comment ? ` # ${line.comment}` : '';
-            output += `\`${op} ${val.padStart(10)}\` ${comment}\n`;
+            output += `\`${idx} ${op} ${val.padStart(10)}\` ${comment}\n`;
         }
 
-        output += `\`----------------------\`\n`;
+        output += `\`----------------------------\`\n`;
         output += `🔥 **TOTAL: ${session.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}**\n`;
-        output += `\`----------------------\`\n`;
-        output += `_Session ID: ${session.id}_`;
+        output += `\`----------------------------\`\n`;
+        output += `_Session ID: ${session.id}_  |  _Use /tape edit [ID] [Line] [NewContent]_`;
 
         return output;
     }
