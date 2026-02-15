@@ -74,13 +74,16 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     try {
         // --- 1. COMMAND NORMALIZATION & MULTILINGUAL ALIASES ---
         const t = text.trim();
-        const isShowBill = /^(?:显示账单|Show Bill|Papar Bil|Laporan|bill)$/i.test(t);
-        const isClearDay = /^(?:清理今天数据|Clear Today|Cuci Hari|Reset Hari|cleardata)$/i.test(t);
-        const isDownloadReport = /^(?:下载报表|Download Report|Muat Turun Laporan|export)$/i.test(t);
-        const isExportExcel = /^(?:导出Excel|Export Excel|Eksport Excel|excel)$/i.test(t);
-        const isStartDay = /^(?:开始|Start)$/i.test(t);
-        const isStopDay = /^(?:结束记录|Stop|Finalize)$/i.test(t);
-        const isShowOps = /^(?:显示操作人|Show Operators|Senarai Operator|operators)$/i.test(t);
+        // ROOT CAUSE FIX: Allow optional "Lily" or other triggers before any command
+        const cmdText = t.replace(/^(?:lily|@\w+)\s+/i, '').trim();
+
+        const isShowBill = /^(?:显示账单|Show Bill|Papar Bil|Laporan|bill)$/i.test(cmdText);
+        const isClearDay = /^(?:清理今天数据|Clear Today|Cuci Hari|Reset Hari|cleardata)$/i.test(cmdText);
+        const isDownloadReport = /^(?:下载报表|Download Report|Muat Turun Laporan|export)$/i.test(cmdText);
+        const isExportExcel = /^(?:导出Excel|Export Excel|Eksport Excel|excel)$/i.test(cmdText);
+        const isStartDay = /^(?:开始|Start)$/i.test(cmdText);
+        const isStopDay = /^(?:结束记录|Stop|Finalize)$/i.test(cmdText);
+        const isShowOps = /^(?:显示操作人|Show Operators|Senarai Operator|operators)$/i.test(cmdText);
 
         // 🚨 FEATURE FLAG: Calc (Ledger)
         if (!calcEnabled && !isNameTrigger) {
@@ -90,52 +93,52 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
         // --- 2. THE FEATURE CONFIGURATION (PHASE A) ---
 
-        const usdMatch = t.match(/^(?:设置美元汇率|Set USD Rate|Kadar USD|USD)\s*([\d.]+)$/i);
+        const usdMatch = cmdText.match(/^(?:设置美元汇率|Set USD Rate|Kadar USD|USD)\s*([\d.]+)$/i);
         if (usdMatch) {
             const res = await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
-        const usdDeleteMatch = /^(?:删除美元汇率|Delete USD Rate|Reset USD|delete usd)$/i.test(t);
+        const usdDeleteMatch = /^(?:删除美元汇率|Delete USD Rate|Reset USD|delete usd)$/i.test(cmdText);
         if (usdDeleteMatch) {
             const res = await Settings.setForexRate(chatId, 'usd', 0);
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
-        const myrMatch = t.match(/^(?:设置马币汇率|Set MYR Rate|Kadar MYR|MYR)\s*([\d.]+)$/i);
+        const myrMatch = cmdText.match(/^(?:设置马币汇率|Set MYR Rate|Kadar MYR|MYR)\s*([\d.]+)$/i);
         if (myrMatch) {
             const res = await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
-        const myrDeleteMatch = /^(?:删除马币汇率|Delete MYR Rate|Reset MYR|delete myr)$/i.test(t);
+        const myrDeleteMatch = /^(?:删除马币汇率|Delete MYR Rate|Reset MYR|delete myr)$/i.test(cmdText);
         if (myrDeleteMatch) {
             const res = await Settings.setForexRate(chatId, 'myr', 0);
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
-        const thbMatch = t.match(/^(?:设置泰铢汇率|Set THB Rate|Kadar THB|THB)\s*([\d.]+)$/i);
+        const thbMatch = cmdText.match(/^(?:设置泰铢汇率|Set THB Rate|Kadar THB|THB)\s*([\d.]+)$/i);
         if (thbMatch) {
             const res = await Settings.setForexRate(chatId, 'thb', parseFloat(thbMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
-        const thbDeleteMatch = /^(?:删除泰铢汇率|Delete THB Rate|Reset THB|delete thb)$/i.test(t);
+        const thbDeleteMatch = /^(?:删除泰铢汇率|Delete THB Rate|Reset THB|delete thb)$/i.test(cmdText);
         if (thbDeleteMatch) {
             const res = await Settings.setForexRate(chatId, 'thb', 0);
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
-        const phpMatch = t.match(/^(?:设置比索汇率|Set PHP Rate|Kadar PHP|PHP)\s*([\d.]+)$/i);
+        const phpMatch = cmdText.match(/^(?:设置比索汇率|Set PHP Rate|Kadar PHP|PHP)\s*([\d.]+)$/i);
         if (phpMatch) {
             const res = await Settings.setForexRate(chatId, 'php', parseFloat(phpMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
-        const phpDeleteMatch = /^(?:删除比索汇率|Delete PHP Rate|Reset PHP|delete php)$/i.test(t);
+        const phpDeleteMatch = /^(?:删除比索汇率|Delete PHP Rate|Reset PHP|delete php)$/i.test(cmdText);
         if (phpDeleteMatch) {
             const res = await Settings.setForexRate(chatId, 'php', 0);
             await Ledger.syncNetAmounts(chatId);
@@ -143,26 +146,26 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // Fee Settings
-        const rateInMatch = t.match(/^(?:设置费率|Set Rate|Kadar Fee Masuk|Rate|Fee)\s*([\d.]+)%?$/i);
+        const rateInMatch = cmdText.match(/^(?:设置费率|Set Rate|Kadar Fee Masuk|Rate|Fee)\s*([\d.]+)%?$/i);
         if (rateInMatch) {
             const res = await Settings.setInboundRate(chatId, parseFloat(rateInMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
-        const rateInDeleteMatch = /^(?:删除费率|Reset Rate|Delete Rate|delete fee)$/i.test(t);
+        const rateInDeleteMatch = /^(?:删除费率|Reset Rate|Delete Rate|delete fee)$/i.test(cmdText);
         if (rateInDeleteMatch) {
             const res = await Settings.setInboundRate(chatId, 0);
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
-        const rateOutMatch = t.match(/^(?:设置下发费率|Set Outbound Rate|Kadar Fee Keluar|Out Rate)\s*([\d.]+)%?$/i);
+        const rateOutMatch = cmdText.match(/^(?:设置下发费率|Set Outbound Rate|Kadar Fee Keluar|Out Rate)\s*([\d.]+)%?$/i);
         if (rateOutMatch) {
             const res = await Settings.setOutboundRate(chatId, parseFloat(rateOutMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
-        const rateOutDeleteMatch = /^(?:删除下发费率|Reset Out Rate|Delete Out Rate|delete out fee)$/i.test(t);
+        const rateOutDeleteMatch = /^(?:删除下发费率|Reset Out Rate|Delete Out Rate|delete out fee)$/i.test(cmdText);
         if (rateOutDeleteMatch) {
             const res = await Settings.setOutboundRate(chatId, 0);
             await Ledger.syncNetAmounts(chatId);
@@ -170,29 +173,29 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // Display Modes
-        if (/^(?:设置为无小数|No Decimals|Tanpa Perpuluhan)$/i.test(t)) {
+        if (/^(?:设置为无小数|No Decimals|Tanpa Perpuluhan)$/i.test(cmdText)) {
             const res = await Settings.setDecimals(chatId, false);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
-        if (/^(?:设置为计数模式|Count Mode|Mod Kiraan)$/i.test(t)) {
+        if (/^(?:设置为计数模式|Count Mode|Mod Kiraan)$/i.test(cmdText)) {
             const res = await Settings.setDisplayMode(chatId, 5);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
-        if (/^(?:设置为原始模式|Original Mode|Mod Asal)$/i.test(t)) {
+        if (/^(?:设置为原始模式|Original Mode|Mod Asal)$/i.test(cmdText)) {
             await Settings.setDisplayMode(chatId, 1);
             const res = await Settings.setDecimals(chatId, true);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
         // Toggle Silent Auditor
-        const auditorMatch = t.match(/^(?:开启审计|关闭审计|Auditor)\s+(on|off)$/i);
+        const auditorMatch = cmdText.match(/^(?:开启审计|关闭审计|Auditor)\s+(on|off)$/i);
         if (auditorMatch && isOwner) {
             const enabled = auditorMatch[1].toLowerCase() === 'on';
             return await Settings.toggleAuditor(chatId, enabled);
         }
 
         // Toggle CalcTape
-        const calctapeMatch = t.match(/^(?:开启纸带|关闭纸带|CalcTape)\s+(on|off)$/i);
+        const calctapeMatch = cmdText.match(/^(?:开启纸带|关闭纸带|CalcTape)\s+(on|off)$/i);
         if (calctapeMatch && isOwner) {
             const enabled = calctapeMatch[1].toLowerCase() === 'on';
             return await Settings.toggleCalcTape(chatId, enabled);
@@ -205,7 +208,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             /lily.*?[*/]\s*[\d.]+/.test(t)
         );
 
-        if (t.startsWith('/tape') || isTapeThis) {
+        if (cmdText.startsWith('/tape') || isTapeThis) {
             if (!calctapeEnabled) {
                 return "ℹ️ **CalcTape is currently DISABLED.**\nProfessor needs to turn it on with `CalcTape on` first.";
             }
@@ -228,7 +231,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                 lines = CalcTape.smartExtract(sourceText);
 
                 // Check for modifiers in the command itself (e.g. *3.9=usdt or /3.9=usdt)
-                const modifierMatch = t.match(/([*/])\s*([\d.]+)(?:\s*=([a-zA-Z]{2,5}))?/i);
+                const modifierMatch = cmdText.match(/([*/])\s*([\d.]+)(?:\s*=([a-zA-Z]{2,5}))?/i);
                 if (modifierMatch && lines.length > 0) {
                     lines.push({
                         index: lines.length + 1,
@@ -241,12 +244,12 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
                 // Also check for standalone currency suffix (=usdt)
                 if (!manualCurrency) {
-                    const suffixMatch = t.match(/=\s*([a-zA-Z]{2,5})\s*$/i);
+                    const suffixMatch = cmdText.match(/=\s*([a-zA-Z]{2,5})\s*$/i);
                     if (suffixMatch) manualCurrency = suffixMatch[1].toUpperCase();
                 }
             } else {
                 // NORMAL PARSING
-                const args = t.slice(6).trim();
+                const args = cmdText.slice(6).trim();
                 if (!args) {
                     return "📝 **Usage:** `/tape [Amount][Operator][Comment]`\nExample: `/tape 1000 + 500#Extra - 200#Fee`";
                 }
@@ -288,7 +291,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // --- 3. TEAM & SECURITY (PHASE B) ---
-        if (t.startsWith('设置操作人') || t.startsWith('Set Operator') || t.startsWith('Tambah Operator')) {
+        if (cmdText.startsWith('设置操作人') || cmdText.startsWith('Set Operator') || cmdText.startsWith('Tambah Operator')) {
             const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
             const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
             if (hasOperators && !isOwner) {
@@ -302,7 +305,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                 targetId = replyToMsg.from.id;
                 targetName = replyToMsg.from.username || replyToMsg.from.first_name;
             } else {
-                const tagMatch = t.match(/@(\w+)/);
+                const tagMatch = cmdText.match(/@(\w+)/);
                 if (tagMatch) {
                     const usernameTag = tagMatch[1];
                     const cacheRes = await db.query(`SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2`, [chatId, usernameTag]);
@@ -314,6 +317,31 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             }
             if (targetId && targetName) return await RBAC.addOperator(chatId, targetId, targetName, userId);
             return `ℹ️ **Reply** to someone or **@Tag** them to add as operator.`;
+        }
+
+        if (cmdText.startsWith('删除操作人') || cmdText.startsWith('Remove Operator') || cmdText.startsWith('Buang Operator')) {
+            if (!isOwner && !(await RBAC.isAuthorized(chatId, userId))) {
+                return I18N.t(lang, 'err.unauthorized');
+            }
+            let targetId: number | null = null;
+            let targetName: string | null = null;
+            const replyToMsg = job.data.replyToMessage;
+            if (replyToMsg) {
+                targetId = replyToMsg.from.id;
+                targetName = replyToMsg.from.username || replyToMsg.from.first_name;
+            } else {
+                const tagMatch = cmdText.match(/@(\w+)/);
+                if (tagMatch) {
+                    const usernameTag = tagMatch[1];
+                    const cacheRes = await db.query(`SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2`, [chatId, usernameTag]);
+                    if (cacheRes.rows.length > 0) {
+                        targetId = parseInt(cacheRes.rows[0].user_id);
+                        targetName = usernameTag;
+                    }
+                }
+            }
+            if (targetId && targetName) return await RBAC.removeOperator(chatId, targetId, targetName);
+            return `ℹ️ **Reply** to someone or **@Tag** them to remove as operator.`;
         }
 
         if (isShowOps) return await RBAC.listOperators(chatId);
@@ -354,8 +382,6 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // --- 5. REAL-TIME ACCOUNTING (PHASE D) ---
-        // ROOT CAUSE FIX: Allow optional "Lily" or other triggers before the command
-        const cmdText = t.replace(/^(?:lily|@\w+)\s+/i, '').trim();
 
         // Deposits: +100, In 100, Masuk 100
         const depositMatch = cmdText.match(/^(?:\+|入款|In|Masuk)\s*([\d.]+[uU]?)(?:\s+.*)?$/i);
