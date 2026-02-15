@@ -137,7 +137,11 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // --- CALCTAPE COMMAND (/tape) ---
-        const isTapeThis = /lily\s+(?:tape|total)/i.test(t);
+        // HEAVY DUTY TRIGGER: Broadly capture "Lily" + math keywords if toggle is ON
+        const isTapeThis = calctapeEnabled && (
+            /lily.*?(?:tape|total|账单|计算|算一下|加起来)/i.test(t) ||
+            /lily.*?[*/]\s*[\d.]+/.test(t)
+        );
 
         if (t.startsWith('/tape') || isTapeThis) {
             if (!calctapeEnabled) {
@@ -161,7 +165,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                 }
                 lines = CalcTape.smartExtract(sourceText);
 
-                // Check for modifiers in the command itself (e.g. *3.9=usdt)
+                // Check for modifiers in the command itself (e.g. *3.9=usdt or /3.9=usdt)
                 const modifierMatch = t.match(/([*/])\s*([\d.]+)(?:\s*=([a-zA-Z]{2,5}))?/i);
                 if (modifierMatch && lines.length > 0) {
                     lines.push({

@@ -49,43 +49,39 @@ export class CalcTape {
         const lines: TapeLine[] = [];
         let i = 1;
 
-        // Pattern: [Description] [Amount][k/m]
-        // Group 1 (Optional Description): Words/Chinese Chars
-        // Group 2 (Amount): Numbers
-        // Group 3 (Multiplier): 'k' or 'm' (optional)
-        const pattern = /([a-zA-Z\u4e00-\u9fa5]{2,})?\s*([\d,.]+)([kKmM])?/g;
+        // Pattern: Detects [Name/Label] [Amount][k/m/decimal]
+        // This is a more greedy pattern to capture names before or after amounts
+        const pattern = /([a-zA-Z\u4e00-\u9fa5]{2,})?\s*([\d,.]+)([kKmM])?\s*([a-zA-Z\u4e00-\u9fa5]{2,})?/g;
         let match;
 
         while ((match = pattern.exec(text)) !== null) {
             const rawDigits = match[2].replace(/[,]/g, '');
             let val = parseFloat(rawDigits);
             const multiplier = (match[3] || '').toLowerCase();
+            const hasDecimal = match[2].includes('.');
 
-            // MULTIPLIER LOGIC
             if (multiplier === 'k') val *= 1000;
             if (multiplier === 'm') val *= 1000000;
 
-            // BANK ACCOUNT FILTER: 
-            // 1. If it's a very long string of digits (e.g. >= 9 digits) and NOT marked with 'k', it's likely an account number.
-            if (rawDigits.length >= 9 && !multiplier) continue;
+            // ELITE BANK ACCOUNT SHIELD:
+            // Skip long numbers (9+ digits) EXCEPT if they have a decimal point or a k/m multiplier.
+            if (rawDigits.length >= 9 && !multiplier && !hasDecimal) continue;
+            if (isNaN(val) || val <= 0) continue;
 
-            const name = (match[1] || '').trim();
+            // Extract Name/Comment from either group 1 or group 4
+            let name = (match[1] || match[4] || '').trim();
 
-            // 2. Clear currency prefixes from the name (e.g. "RM1950" -> name is "RM", we clear it)
+            // Scrubbing
             const cleanName = name.replace(/^(rm|usd|cny|rmb)$/i, '').trim();
-
-            // 3. Skip common bank noise & long descriptions that don't look like names
             const noise = /bank|maybank|cimb|pbb|hlb|rhb|ambank|standard|nacional|simpanan|nasional|sdn|bhd|branch|enterprise|ipoh|car|battery/i;
-            const filteredName = noise.test(cleanName) ? "" : cleanName;
+            const finalName = noise.test(cleanName) ? "" : cleanName;
 
-            if (!isNaN(val) && val > 0) {
-                lines.push({
-                    index: i++,
-                    value: val,
-                    operator: '+',
-                    comment: filteredName
-                });
-            }
+            lines.push({
+                index: i++,
+                value: val,
+                operator: '+',
+                comment: finalName
+            });
         }
         return lines;
     }
