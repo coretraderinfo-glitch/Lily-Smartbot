@@ -204,8 +204,6 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             const precisionMatch = t.match(/\.([024])\s*(?:=|$)/);
             if (precisionMatch) {
                 precision = parseInt(precisionMatch[1]);
-            } else if (manualCurrency === 'USDT') {
-                precision = 4; // USDT trades default to 4 for the Professor
             }
 
             return CalcTape.format({

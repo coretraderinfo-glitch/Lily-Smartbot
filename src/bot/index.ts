@@ -352,7 +352,7 @@ bot.on('callback_query:data', async (ctx) => {
             `📟 **MATHEMATICAL LOGIC**\n` +
             `• **'k' Notation**: Lily reads \`30k\` as 30,000.\n` +
             `• **Currency**: Use \`=usdt\` or \`=myr\` at the end.\n` +
-            `• **Precision**: Use \`.0\`, \`.2\`, or \`.4\` to force decimals.\n` +
+            `• **Precision**: Defaults to \`2\` decimals. Use \`.4\` for high-precision.\n` +
             `• **Example**: \`Lily tape /3.9 .2=usdt\` (Extract, Convert, 2 Decimals)\n\n` +
             `💡 **PRO TIP:**\n` +
             `Use '**Lily tape this *3.9=usdt**' on bank slips to instantly total, convert, and format your settlement report.`,
