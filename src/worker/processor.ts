@@ -90,31 +90,31 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
         // --- 2. THE FEATURE CONFIGURATION (PHASE A) ---
 
+        // Forex Settings (Root Cause Fix: Support optional spaces and fuzzy matches)
+        const usdMatch = t.match(/^(?:设置美元汇率|Set USD Rate|Kadar USD|USD)\s*([\d.]+)$/i);
+        if (usdMatch) {
+            const res = await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+        const myrMatch = t.match(/^(?:设置马币汇率|Set MYR Rate|Kadar MYR|MYR)\s*([\d.]+)$/i);
+        if (myrMatch) {
+            const res = await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+
         // Fee Settings
-        const rateInMatch = t.match(/^(?:设置费率|Set Rate|Kadar Fee Masuk)\s*([\d.]+)%?$/i);
+        const rateInMatch = t.match(/^(?:设置费率|Set Rate|Kadar Fee Masuk|Rate|Fee)\s*([\d.]+)%?$/i);
         if (rateInMatch) {
             const res = await Settings.setInboundRate(chatId, parseFloat(rateInMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
 
-        const rateOutMatch = t.match(/^(?:设置下发费率|Set Outbound Rate|Kadar Fee Keluar)\s*([\d.]+)%?$/i);
+        const rateOutMatch = t.match(/^(?:设置下发费率|Set Outbound Rate|Kadar Fee Keluar|Out Rate)\s*([\d.]+)%?$/i);
         if (rateOutMatch) {
             const res = await Settings.setOutboundRate(chatId, parseFloat(rateOutMatch[1]));
-            await Ledger.syncNetAmounts(chatId);
-            return combine(res, await Ledger.generateBillWithMode(chatId));
-        }
-
-        // Forex Settings
-        const usdMatch = t.match(/^(?:设置美元汇率|Set USD Rate|Kadar USD)\s+([\d.]+)$/i);
-        if (usdMatch) {
-            const res = await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
-            await Ledger.syncNetAmounts(chatId);
-            return combine(res, await Ledger.generateBillWithMode(chatId));
-        }
-        const myrMatch = t.match(/^(?:设置马币汇率|Set MYR Rate|Kadar MYR)\s+([\d.]+)$/i);
-        if (myrMatch) {
-            const res = await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
