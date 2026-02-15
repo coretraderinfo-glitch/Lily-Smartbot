@@ -61,22 +61,24 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 `;
 
 const VISION_INSTRUCTION = `
-[VISION MODE: ACTIVE - FORENSIC LEVEL]
-Audit this image with 100% accuracy. Create a forensic report.
+[VISION MODE: FORENSIC - ULTRA-CONCISE]
+Audit the image. Your response must be EXTREMELY BRIEF (Max 2 lines).
 
-**CRITICAL EXTRACTION TARGETS:**
-1. **TXID / HASH**: Look for long alphanumeric strings (e.g., e80b88... or 0x123...). This is the MOST IMPORTANT data.
-2. **Amounts**: Extract specific amounts and currencies (USDT, RM, etc.).
-3. **Date/Time**: Extract the exact timestamp.
-4. **Status**: Is it "Success", "Completed", or "Pending"?
+**REPORT FORMAT (STRICT):**
+- IF SUCCESS: "**[Amount] [Currency] was received on [Date/Time]. Verification Successful.**"
+- IF PENDING: "**[Amount] [Currency] is PENDING on-chain. Verification in progress...**"
+- IF FAILED/FAKE: "**🚨 FRAUD ALERT: Verification Failed. Invalid or Fake Transaction.**"
+- IF DUPLICATE: "**⚠️ DUPLICATE SLIP: This receipt was already verified and processed.**"
 
-**VERIFICATION PROTOCOL:**
-1. Check the [MASTER CONTEXT] provided to you. If there is already a "[BLOCKCHAIN FORENSICS]" section with a Status (SUCCESS/FAILED), REPORT THIS RESULT IMMEDIATELY to the boss. Do not ask for permission.
-2. Only if the [MASTER CONTEXT] is empty or "Null" for forensics, and you extracted a TXID from the image, you MUST ask:
-   "Boss, I found TXID: [INSERT_TXID]. Do you want me to run a Blockchain Verification on it?"
+**VERIFICATION LOGIC:**
+1. Priority 1: Check the [MASTER CONTEXT] for "[BLOCKCHAIN FORENSICS]".
+   - If "Status: SUCCESS", use the SUCCESS format.
+   - If "isDuplicate: true", use the DUPLICATE format.
+   - If "Status: FAILED", use the FAILED format.
+2. If no forensics in context, just extract data from image and say: "I've extracted the data. Run verification? (Boss can say 'check')"
 
 **SILENCE PROTOCOL:**
-If the image is NOT a financial transaction slip, bank receipt, or payment confirmation, you MUST reply with exactly one word: "NONE". Do not explain yourself. Stay silent unless it's for business.
+If the image is NOT a financial receipt, reply only: "NONE".
 `;
 
 export const AIBrain = {

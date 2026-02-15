@@ -29,12 +29,14 @@ export const Blockchain = {
     async verify(txid: string): Promise<TxResult> {
         txid = txid.trim();
 
-        // 1. PROACTIVE FRAUD CHECK (Redis Cache)
-        const cacheKey = `blockchain:txid:${txid}`;
+        // 1. PROACTIVE FRAUD CHECK (Redis Persistence)
+        const cacheKey = `blockchain:txid:v2:${txid}`;
         try {
-            const seen = await redis.get(cacheKey);
-            if (seen) {
-                return { found: true, status: 'UNKNOWN', error: '⚠️ DUPLICATE SLIP DETECTED! This TXID was already verified today in another session.' };
+            const cached = await redis.get(cacheKey);
+            if (cached) {
+                const result = JSON.parse(cached);
+                result.isDuplicate = true;
+                return result;
             }
         } catch (e) { }
 
@@ -50,7 +52,7 @@ export const Blockchain = {
 
         // 3. Cache the ID if found/success to prevent double-dipping today
         if (result.found && result.status === 'SUCCESS') {
-            await redis.set(cacheKey, 'SEEN', 'EX', 86400); // 24 hour protection
+            await redis.set(cacheKey, JSON.stringify(result), 'EX', 86400); // 24 hour protection
         }
 
         return result;

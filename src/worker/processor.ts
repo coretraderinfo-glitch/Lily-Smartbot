@@ -464,9 +464,10 @@ Current Group Sales (Lily's Internal Ledger):
                 blockchainContext = `
 [BLOCKCHAIN FORENSICS]:
 Status: ${txVerification.status}
+isDuplicate: ${txVerification.isDuplicate ? 'true' : 'false'}
 Chain: ${txVerification.currency || 'Unknown'}
 Detail: ${txVerification.error || 'Confirmed on-chain'}
-Amount: ${txVerification.amount || '?'}
+Amount: ${txVerification.total || txVerification.amount || '?'}
 Timestamp: ${txVerification.timestamp ? new Date(txVerification.timestamp).toLocaleString() : '?'}
                 `.trim();
             }
