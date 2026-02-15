@@ -215,6 +215,34 @@ IGNORE the group's default language setting (${lang}). That is ONLY for system a
     },
 
     /**
+     * ELITE VISION EXTRACTION: Scans image strictly for TXID
+     */
+    async extractTXIDFromImage(imageUrl: string): Promise<string | null> {
+        if (!process.env.OPENAI_API_KEY) return null;
+        try {
+            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [
+                    { role: "system", content: "You are a forensic data extractor. Look at the image and extract ONLY the Blockchain Transaction ID (TXID) or Hash. Common formats include 64-character hex strings or 66-character strings starting with 0x. Return ONLY the alphanumeric hash string. If none found, return 'NONE'." },
+                    {
+                        role: "user", content: [
+                            { type: "image_url", image_url: { url: imageUrl, detail: "high" } }
+                        ]
+                    }
+                ],
+                max_tokens: 100
+            });
+            const result = completion.choices[0]?.message?.content?.trim() || "NONE";
+            // Clean up any stray text from the AI
+            const match = result.match(/[a-fA-F0-9]{64}|0x[a-fA-F0-9]{64}/);
+            return match ? match[0] : null;
+        } catch (e) {
+            return null;
+        }
+    },
+
+    /**
      * WORLD-CLASS LIGHTWEIGHT GREETING GENERATOR
      * Used for system events (Chronos, Onboarding) where we don't need history/memory.
      */

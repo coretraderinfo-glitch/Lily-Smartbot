@@ -414,29 +414,43 @@ Current Group Sales (Lily's Internal Ledger):
                 (async () => {
                     if (!aiEnabled) return null;
 
-                    // 1. Scan current text
-                    let txMatch = text.match(/(739[a-f0-9]{20,}|e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
+                    const { Blockchain } = require('../core/blockchain');
+
+                    // --- WORLD-CLASS FORENSIC DISCOVERY ---
+
+                    // 1. Scan current text (Improved Regex: 0x... or 64-char hex)
+                    let txMatch = text.match(/(0x[a-fA-F0-9]{64}|[a-fA-F0-9]{64})/i);
 
                     // 2. Scan Reply-To context (Elite Retrieval)
                     if (!txMatch && job.data.replyToMessage) {
                         const replyText = job.data.replyToMessage.text || job.data.replyToMessage.caption || "";
-                        txMatch = replyText.match(/(739[a-f0-9]{20,}|e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
+                        txMatch = replyText.match(/(0x[a-fA-F0-9]{64}|[a-fA-F0-9]{64})/i);
                     }
 
-                    // 3. Scan Last 3 turns of Session Memory (Deep Brain Scan)
-                    if (!txMatch) {
+                    // 3. ELITE VISION UPGRADE: If imageUrl and no text TXID found, SCRAPE IMAGE
+                    let visualTxid = null;
+                    if (!txMatch && imageUrl) {
+                        console.log(`[Blockchain] 👁️ Image detected. Running visual forensic scraper...`);
+                        visualTxid = await AIBrain.extractTXIDFromImage(imageUrl);
+                    }
+
+                    const finalTxid = txMatch ? txMatch[0] : visualTxid;
+
+                    // 4. Scan Session Memory (Deep Brain Scan)
+                    if (!finalTxid) {
                         const { SessionMemory } = require('../core/memory/session');
                         const history = await SessionMemory.recall(chatId, userId);
                         for (const turn of history.slice(-3)) {
-                            txMatch = turn.content.match(/(739[a-f0-9]{20,}|e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
-                            if (txMatch) break;
+                            const turnMatch = turn.content.match(/(0x[a-fA-F0-9]{64}|[a-fA-F0-9]{64})/i);
+                            if (turnMatch) {
+                                return await Blockchain.verify(turnMatch[0]).catch((e: any) => { console.error('Chain Lag:', e); return null; });
+                            }
                         }
                     }
 
-                    if (txMatch) {
-                        const { Blockchain } = require('../core/blockchain');
-                        console.log(`[Blockchain] 🔍 Found TXID in context: ${txMatch[0]}`);
-                        return await Blockchain.verify(txMatch[0]).catch((e: any) => { console.error('Chain Lag:', e); return null; });
+                    if (finalTxid) {
+                        console.log(`[Blockchain] 🔍 Found TXID: ${finalTxid} (${txMatch ? 'via Text' : 'via Vision'})`);
+                        return await Blockchain.verify(finalTxid).catch((e: any) => { console.error('Chain Lag:', e); return null; });
                     }
                     return null;
                 })()
