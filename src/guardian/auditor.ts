@@ -146,6 +146,9 @@ export const Auditor = {
                         ${groupContext}
                         ${patienceContext}
 
+                        ### INTERNAL LEDGER TRUTH (Lily's Database):
+                        ${ledgerContext || "No internal records for today yet."}
+
                         CRITICAL: Do NOT sound like an AI. No "detected", "error", or "mismatch". 
                         ACT like a real person in the group who is doing the manual math in their head and just saw a mistake.
 

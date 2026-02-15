@@ -313,32 +313,38 @@ Current Group Sales (Lily's Internal Ledger):
         const shouldTriggerAI = (aiEnabled && imageUrl) || ((aiEnabled || isOwner) && isNameTrigger);
 
         if (shouldTriggerAI) {
+            const start = Date.now();
+            console.log(`[AI Brain] ⚡ Starting world-class parallel audit for ${chatId}...`);
+
             // FIRE EVERYTHING IN PARALLEL (WORLD-CLASS SPEED)
             const [ledgerSummary, marketContext, txVerification] = await Promise.all([
-                calcEnabled ? Ledger.getDailySummary(chatId) : Promise.resolve(null),
-                MarketData.scanAndFetch(text),
+                calcEnabled ? Ledger.getDailySummary(chatId).catch(e => { console.error('Ledger Lag:', e); return null; }) : Promise.resolve(null),
+                MarketData.scanAndFetch(text).catch(e => { console.error('Market Lag:', e); return ""; }),
                 // NEW: Blockchain Autoscan (Only if AI Brain is active)
                 (async () => {
-                    if (!aiEnabled) return null; // MASTER SWITCH
+                    if (!aiEnabled) return null;
                     // Extract potential TXID (simplistic regex)
                     const txMatch = text.match(/(e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
                     if (txMatch) {
                         const { Blockchain } = require('../core/blockchain');
-                        return await Blockchain.verify(txMatch[0]);
+                        return await Blockchain.verify(txMatch[0]).catch(e => { console.error('Chain Lag:', e); return null; });
                     }
                     return null;
                 })()
             ]);
 
+            const profiling = Date.now() - start;
+            console.log(`[AI Brain] ✅ Context gathered in ${profiling}ms (Ledger/Market/Chain parallelized)`);
+
             let blockchainContext = "";
             if (txVerification && txVerification.found) {
                 blockchainContext = `
 [BLOCKCHAIN FORENSICS]:
-TXID Found: ${txVerification.status}
+Status: ${txVerification.status}
 Chain: ${txVerification.currency || 'Unknown'}
 Detail: ${txVerification.error || 'Confirmed on-chain'}
 Amount: ${txVerification.amount || '?'}
-Timestamp: ${txVerification.timestamp || '?'}
+Timestamp: ${txVerification.timestamp ? new Date(txVerification.timestamp).toLocaleString() : '?'}
                 `.trim();
             }
 
@@ -347,7 +353,7 @@ Current Group Sales (Internal Ledger):
 - Total In: ${ledgerSummary.totalIn}
 - Total Out: ${ledgerSummary.totalOut}
 - Balance: ${ledgerSummary.balance}
-            `.trim() : "Internal Ledger: Access Restricted (Not Purchased).";
+            `.trim() : "Internal Ledger: Access Restricted (Not Active).";
 
             const replyContext = job.data.replyToMessage?.text || job.data.replyToMessage?.caption || "";
             // MERGE CONTEXTS: Ledger + Market + Blockchain
