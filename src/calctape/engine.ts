@@ -49,16 +49,16 @@ export class CalcTape {
         const lines: TapeLine[] = [];
         let i = 1;
 
-        // Pattern: Detects [Name/Label] [Amount][k/m/decimal]
-        // This is a more greedy pattern to capture names before or after amounts
-        const pattern = /([a-zA-Z\u4e00-\u9fa5]{2,})?\s*([\d,.]+)([kKmM])?\s*([a-zA-Z\u4e00-\u9fa5]{2,})?/g;
+        // Pattern: Only extract [Amount][k/m/decimal]
+        // We completely ignore surrounding text to keep the tape "Raw" and "Clean"
+        const pattern = /([\d,.]+)([kKmM])?/g;
         let match;
 
         while ((match = pattern.exec(text)) !== null) {
-            const rawDigits = match[2].replace(/[,]/g, '');
+            const rawDigits = match[1].replace(/[,]/g, '');
             let val = parseFloat(rawDigits);
-            const multiplier = (match[3] || '').toLowerCase();
-            const hasDecimal = match[2].includes('.');
+            const multiplier = (match[2] || '').toLowerCase();
+            const hasDecimal = match[1].includes('.');
 
             if (multiplier === 'k') val *= 1000;
             if (multiplier === 'm') val *= 1000000;
@@ -68,19 +68,11 @@ export class CalcTape {
             if (rawDigits.length >= 9 && !multiplier && !hasDecimal) continue;
             if (isNaN(val) || val <= 0) continue;
 
-            // Extract Name/Comment from either group 1 or group 4
-            let name = (match[1] || match[4] || '').trim();
-
-            // Scrubbing
-            const cleanName = name.replace(/^(rm|usd|cny|rmb)$/i, '').trim();
-            const noise = /bank|maybank|cimb|pbb|hlb|rhb|ambank|standard|nacional|simpanan|nasional|sdn|bhd|branch|enterprise|ipoh|car|battery|affin|gx|tng|grab|shopee|wallet/i;
-            const finalName = noise.test(cleanName) ? "" : cleanName;
-
             lines.push({
                 index: i++,
                 value: val,
                 operator: '+',
-                comment: finalName
+                comment: "" // Professor requested raw amounts only
             });
         }
         return lines;
