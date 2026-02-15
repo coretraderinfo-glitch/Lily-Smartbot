@@ -75,9 +75,10 @@ If the boss asks to "total", "count", or "tape" amounts from the image, you MUST
 🔥 **TOTAL: [Total Sum] [Currency]**
 \`----------------------------\`
 
-- IGNORE ALL DATES (e.g. 1/13), indices (1., 2.), and model numbers (i5-700) in the list.
+- **TRANSLATE**: If items are in Chinese/other languages, translate the descriptions to professional English (e.g. 电脑 -> Power Supply).
+- Keep technical info like model numbers (i5-700) in the description.
 - Use dot notation for decimals.
-- List ONLY individual price/subtotal items from the image.
+- List individual price/subtotal items from the image accurately.
 - If a multiplier (like *3.9) or currency (like =usdt) is in the "User Request", apply it and show it in the Tape.
 - Keep descriptions short and professional.
 `;
