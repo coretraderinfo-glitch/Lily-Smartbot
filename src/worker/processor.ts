@@ -46,6 +46,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     const lang = config?.language_mode || 'CN';
     const aiEnabled = config?.ai_brain_enabled || false;
     const auditorEnabled = config?.auditor_enabled || false;
+    const calctapeEnabled = config?.calctape_enabled || false;
     const calcEnabled = config?.calc_enabled !== false; // Default TRUE
     const mcEnabled = config?.mc_enabled || false;
     const groupTitle = config?.title || 'Lily Node';
@@ -126,6 +127,39 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         if (auditorMatch && isOwner) {
             const enabled = auditorMatch[1].toLowerCase() === 'on';
             return await Settings.toggleAuditor(chatId, enabled);
+        }
+
+        // Toggle CalcTape
+        const calctapeMatch = t.match(/^(?:开启纸带|关闭纸带|CalcTape)\s+(on|off)$/i);
+        if (calctapeMatch && isOwner) {
+            const enabled = calctapeMatch[1].toLowerCase() === 'on';
+            return await Settings.toggleCalcTape(chatId, enabled);
+        }
+
+        // --- CALCTAPE COMMAND (/tape) ---
+        if (t.startsWith('/tape')) {
+            if (!calctapeEnabled) {
+                return "ℹ️ **CalcTape is currently DISABLED.**\nProfessor needs to turn it on with `CalcTape on` first.";
+            }
+
+            const args = t.slice(6).trim();
+            if (!args) {
+                return "📝 **Usage:** `/tape [Amount][Operator][Comment]`\nExample: `/tape 1000 + 500#Extra - 200#Fee`";
+            }
+
+            const { CalcTape } = require('../calctape/engine');
+            const lines = CalcTape.parse(args);
+            const total = CalcTape.recalculate(lines);
+
+            return CalcTape.format({
+                id: Math.random().toString(36).substring(7).toUpperCase(),
+                chatId,
+                lines,
+                total,
+                currency: lang === 'CN' ? 'CNY' : 'RM',
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
         }
 
         // --- 3. TEAM & SECURITY (PHASE B) ---

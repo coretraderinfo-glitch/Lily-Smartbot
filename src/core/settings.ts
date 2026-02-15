@@ -128,6 +128,22 @@ export const Settings = {
     },
 
     /**
+     * Toggle CalcTape Mode
+     */
+    async toggleCalcTape(chatId: number, enabled: boolean): Promise<string> {
+        await Settings.ensureSettings(chatId);
+        await db.query(`
+            UPDATE group_settings 
+            SET calctape_enabled = $1, updated_at = NOW()
+            WHERE group_id = $2
+        `, [enabled, chatId]);
+
+        return enabled
+            ? `📊 **CalcTape: ACTIVATED**\nPaper-tape style calculations are now enabled! Use /tape to start.`
+            : `📊 **CalcTape: DEACTIVATED**\nPaper-tape functionality is now hidden.`;
+    },
+
+    /**
      * Get Current Settings
      */
     async getSettings(chatId: number): Promise<any> {

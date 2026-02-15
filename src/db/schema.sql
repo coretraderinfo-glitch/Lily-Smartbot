@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS group_settings (
     ai_brain_enabled BOOLEAN DEFAULT FALSE,
     welcome_enabled BOOLEAN DEFAULT FALSE,
     calc_enabled BOOLEAN DEFAULT TRUE,
+    auditor_enabled BOOLEAN DEFAULT FALSE,
+    calctape_enabled BOOLEAN DEFAULT FALSE,
     
     -- Logic Config
     daily_reset_hour INT DEFAULT 4,        -- Default 4 AM
@@ -125,6 +127,16 @@ BEGIN
     END;
     BEGIN
         ALTER TABLE group_settings ADD COLUMN calc_enabled BOOLEAN DEFAULT TRUE;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN auditor_enabled BOOLEAN DEFAULT FALSE;
+    EXCEPTION
+        WHEN duplicate_column THEN NULL;
+    END;
+    BEGIN
+        ALTER TABLE group_settings ADD COLUMN calctape_enabled BOOLEAN DEFAULT FALSE;
     EXCEPTION
         WHEN duplicate_column THEN NULL;
     END;
