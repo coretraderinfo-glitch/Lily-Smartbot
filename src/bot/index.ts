@@ -1074,7 +1074,7 @@ bot.on('message', async (ctx) => {
             }
         }
 
-        // VISION LINK: Extract Photo URL for GPT-4o
+        // VISION LINK: Extract Photo URL (Always extract and cache for contextual awareness)
         let imageUrl: string | undefined;
         if (ctx.message.photo && ctx.message.photo.length > 0) {
             try {
@@ -1082,16 +1082,30 @@ bot.on('message', async (ctx) => {
                 const file = await ctx.api.getFile(photo.file_id);
                 if (file.file_path) {
                     imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
+                    // Cache the last image for this group (30 min TTL)
+                    await connection.set(`last_image:${chatId}`, imageUrl, 'EX', 1800);
                 }
             } catch (e) {
                 console.warn('[Vision] Failed to extract photo URL:', e);
             }
         }
 
+        // HYDRATE REPLY CONTEXT: If user is replying to a photo, try to get its URL
+        let enrichedReply: any = ctx.message.reply_to_message;
+        if (enrichedReply && enrichedReply.photo && enrichedReply.photo.length > 0 && !enrichedReply.imageUrl) {
+            try {
+                const photo = enrichedReply.photo[enrichedReply.photo.length - 1];
+                const file = await ctx.api.getFile(photo.file_id);
+                if (file.file_path) {
+                    enrichedReply.imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
+                }
+            } catch (e) { }
+        }
+
         try {
             await commandQueue.add('cmd', {
                 chatId, userId, username, text, messageId,
-                replyToMessage: ctx.message.reply_to_message,
+                replyToMessage: enrichedReply,
                 imageUrl
             });
         } catch (queueErr) {

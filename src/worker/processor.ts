@@ -40,9 +40,15 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
     const { chatId, userId, username, text } = job.data;
     let imageUrl = job.data.imageUrl;
 
-    // ELITE CONTEXTUAL VISION: If user replied to a photo, adopt it as our vision context
-    if (!imageUrl && job.data.replyToMessage && job.data.replyToMessage.imageUrl) {
-        imageUrl = job.data.replyToMessage.imageUrl;
+    // ELITE CONTEXTUAL VISION: Inherit image from Reply OR Last Group Photo
+    const { connection: redis } = require('../bot/instance');
+    if (!imageUrl) {
+        if (job.data.replyToMessage && job.data.replyToMessage.imageUrl) {
+            imageUrl = job.data.replyToMessage.imageUrl;
+        } else {
+            // Check Redis for the absolute last image sent in this group
+            imageUrl = await redis.get(`last_image:${chatId}`) || undefined;
+        }
     }
 
     // 1. Settings Fetch (ULTRA-FAST CACHE HIT)
@@ -200,12 +206,11 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             }
 
             if (lines.length === 0) {
-                // Failsafe: If it's a "Lily total" command on an image and the raw extractor failed, 
-                // it means the image is too complex for basic regex.
-                // WE FALL THROUGH to the AI Brain (GPT-4o Vision) to handle it smartly.
-                if (isTapeThis && imageUrl) {
-                    console.log(`[Processor] CalcTape failed to extract from image. Falling back to AI Brain...`);
-                    // We let the code continue to the AI Brain section below
+                // ELITE FAILSAFE: If raw extraction failed but AI Brain is on, we UPGRADE the request.
+                // This handles spreadsheets, complex text, and messy group chat requests.
+                if (aiEnabled || imageUrl) {
+                    console.log(`[Processor] CalcTape failed. Falling through to AI Brain for smart extraction...`);
+                    // FALL THROUGH to AI Brain section below
                 } else {
                     return "❌ **Extraction Failed**: I couldn't find any amounts or 'k' notations to total up. Please try again or use manual `/tape`.";
                 }
