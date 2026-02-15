@@ -73,7 +73,7 @@ export class CalcTape {
 
             // Scrubbing
             const cleanName = name.replace(/^(rm|usd|cny|rmb)$/i, '').trim();
-            const noise = /bank|maybank|cimb|pbb|hlb|rhb|ambank|standard|nacional|simpanan|nasional|sdn|bhd|branch|enterprise|ipoh|car|battery/i;
+            const noise = /bank|maybank|cimb|pbb|hlb|rhb|ambank|standard|nacional|simpanan|nasional|sdn|bhd|branch|enterprise|ipoh|car|battery|affin|gx|tng|grab|shopee|wallet/i;
             const finalName = noise.test(cleanName) ? "" : cleanName;
 
             lines.push({
