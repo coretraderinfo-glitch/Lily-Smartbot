@@ -350,11 +350,12 @@ bot.on('callback_query:data', async (ctx) => {
             `• \`Lily tape this\`: (Reply to chat) Automatically extract math from text\n` +
             `• Example: \`/tape 1000 Deposit + 500 Bonus = usdt\`\n\n` +
             `📟 **MATHEMATICAL LOGIC**\n` +
-            `• Lily supports **'k' Notation** (e.g. 30k = 30,000).\n` +
-            `• Suffixes like \`=usdt\` or \`=myr\` set the final currency.\n` +
-            `• Descriptions: Just add text after numbers (e.g. 500 bonus).\n\n` +
+            `• **'k' Notation**: Lily reads \`30k\` as 30,000.\n` +
+            `• **Currency**: Use \`=usdt\` or \`=myr\` at the end.\n` +
+            `• **Precision**: Use \`.0\`, \`.2\`, or \`.4\` to force decimals.\n` +
+            `• **Example**: \`Lily tape /3.9 .2=usdt\` (Extract, Convert, 2 Decimals)\n\n` +
             `💡 **PRO TIP:**\n` +
-            `Use '**Lily tape this *3.9=usdt**' on bank slips to automatically total up payments and convert them to USDT at a rate of 3.9 in one step.`,
+            `Use '**Lily tape this *3.9=usdt**' on bank slips to instantly total, convert, and format your settlement report.`,
             { parse_mode: 'Markdown', reply_markup: CalcTapeMenuMarkup }
         );
     }

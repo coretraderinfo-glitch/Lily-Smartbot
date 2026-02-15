@@ -199,6 +199,15 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
             const total = CalcTape.recalculate(lines);
 
+            // 3. Determine Precision (Override > Global Setting > Default 2)
+            let precision = config?.show_decimals === false ? 0 : 2;
+            const precisionMatch = t.match(/\.([024])\s*(?:=|$)/);
+            if (precisionMatch) {
+                precision = parseInt(precisionMatch[1]);
+            } else if (manualCurrency === 'USDT') {
+                precision = 4; // USDT trades default to 4 for the Professor
+            }
+
             return CalcTape.format({
                 id: Math.random().toString(36).substring(7).toUpperCase(),
                 chatId,
@@ -208,7 +217,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                 currency: manualCurrency || (lang === 'CN' ? 'CNY' : 'RM'),
                 createdAt: new Date(),
                 updatedAt: new Date()
-            });
+            }, precision);
         }
 
         // --- 3. TEAM & SECURITY (PHASE B) ---

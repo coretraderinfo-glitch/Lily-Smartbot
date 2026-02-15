@@ -110,20 +110,27 @@ export class CalcTape {
 
     /**
      * Format the tape into the 'Professor's Professional' list style
+     * @param precision Number of decimal places (default 2, up to 4)
      */
-    static format(session: TapeSession): string {
+    static format(session: TapeSession, precision: number = 2): string {
         let output = `📜 **LILY PAPER TAPE**\n`;
         output += `\`----------------------------\`\n`;
 
         for (const line of session.lines) {
             const op = line.operator;
-            const val = line.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+            const val = line.value.toLocaleString(undefined, {
+                minimumFractionDigits: precision,
+                maximumFractionDigits: precision
+            });
             const comment = line.comment ? `  ${line.comment}` : '';
             output += `\`${op} ${val.padStart(10)}\`${comment}\n`;
         }
 
         output += `\`----------------------------\`\n`;
-        output += `🔥 **TOTAL: ${session.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${session.currency}**\n`;
+        output += `🔥 **TOTAL: ${session.total.toLocaleString(undefined, {
+            minimumFractionDigits: precision,
+            maximumFractionDigits: precision
+        })} ${session.currency}**\n`;
         output += `\`----------------------------\`\n`;
 
         return output;
