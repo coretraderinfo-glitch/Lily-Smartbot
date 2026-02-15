@@ -73,6 +73,9 @@ Audit this image with 100% accuracy. Create a forensic report.
 **VERIFICATION PROMPT:**
 If you find a TXID, you MUST output it clearly and ask:
 "Boss, I found TXID: [INSERT_TXID]. Do you want me to run a Blockchain Verification on it?"
+
+**SILENCE PROTOCOL:**
+If the image is NOT a financial transaction slip, bank receipt, or payment confirmation, you MUST reply with exactly one word: "NONE". Do not explain yourself. Stay silent unless it's for business.
 `;
 
 export const AIBrain = {

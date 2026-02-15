@@ -309,13 +309,17 @@ Current Group Sales (Lily's Internal Ledger):
         }
 
         // --- 6. AI BRAIN CHAT (GPT-4o + VISION + LEDGER + MARKET DATA) ---
-        if ((aiEnabled || isOwner) && isNameTrigger) {
+        // Auto-Trigger for Images if AI Brain is active, otherwise name trigger
+        const shouldTriggerAI = (aiEnabled && imageUrl) || ((aiEnabled || isOwner) && isNameTrigger);
+
+        if (shouldTriggerAI) {
             // FIRE EVERYTHING IN PARALLEL (WORLD-CLASS SPEED)
             const [ledgerSummary, marketContext, txVerification] = await Promise.all([
                 calcEnabled ? Ledger.getDailySummary(chatId) : Promise.resolve(null),
                 MarketData.scanAndFetch(text),
-                // NEW: Blockchain Autoscan
+                // NEW: Blockchain Autoscan (Only if AI Brain is active)
                 (async () => {
+                    if (!aiEnabled) return null; // MASTER SWITCH
                     // Extract potential TXID (simplistic regex)
                     const txMatch = text.match(/(e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
                     if (txMatch) {
@@ -349,7 +353,11 @@ Current Group Sales (Internal Ledger):
             // MERGE CONTEXTS: Ledger + Market + Blockchain
             const fullContext = `${ledgerContext}\n\n${marketContext}\n\n${blockchainContext}`;
 
-            return await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, fullContext, replyContext, chatId);
+            const reply = await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, fullContext, replyContext, chatId);
+
+            // SILENCE PROTOCOL: If Lily says NONE, we discard the message
+            if (reply.toUpperCase() === 'NONE' || !reply) return null;
+            return reply;
         }
 
         return null;
