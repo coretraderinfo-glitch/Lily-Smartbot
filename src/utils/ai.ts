@@ -75,8 +75,9 @@ If the boss asks to "total", "count", or "tape" amounts from the image, you MUST
 🔥 **TOTAL: [Total Sum] [Currency]**
 \`----------------------------\`
 
+- IGNORE ALL DATES (e.g. 1/13), indices (1., 2.), and model numbers (i5-700) in the list.
 - Use dot notation for decimals.
-- List individual items from the image if they contribute to the total.
+- List ONLY individual price/subtotal items from the image.
 - If a multiplier (like *3.9) or currency (like =usdt) is in the "User Request", apply it and show it in the Tape.
 - Keep descriptions short and professional.
 `;

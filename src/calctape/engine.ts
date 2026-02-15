@@ -64,22 +64,25 @@ export class CalcTape {
             if (multiplier === 'm') val *= 1000000;
 
             // --- NOISE SHIELD (Surgical Data Purity) ---
+            const index = match.index;
+            const afterIndex = index + match[0].length;
+            const prevChar = index > 0 ? text[index - 1] : '';
+            const nextChar = text[afterIndex] || '';
 
             // 1. ELITE BANK ACCOUNT SHIELD: Skip long numbers (9+ digits) unless decimal/k.
             if (rawDigits.length >= 9 && !multiplier && !hasDecimal) continue;
 
-            // 2. CODE SHIELD: Ignore extremely small whole numbers (< 10) if no multiplier and no decimal.
-            // These are almost always small worker codes (J1, J5, J8) or item indices.
+            // 2. CODE SHIELD: Ignore extremely small whole numbers (< 10) unless multiplier/decimal.
             if (val < 10 && !multiplier && !hasDecimal) continue;
 
-            // 3. CONTEXT SHIELD: If the number is immediately preceded by a letter (like J, K, A) skip it.
-            // Check the character right before the match in the original text.
-            const index = match.index;
-            if (index > 0) {
-                const prevChar = text[index - 1];
-                // If preceded by a letter that isn't part of 'RM' or 'USD' symbols
-                if (/[a-gi-ln-qst-vw-xz]/i.test(prevChar)) continue;
-            }
+            // 3. LIST INDEX SHIELD: Skip if followed by ". " or ".\n" (e.g., "1. ")
+            if (nextChar === '.' && (text[afterIndex + 1] === ' ' || text[afterIndex + 1] === '\n' || !text[afterIndex + 1])) continue;
+
+            // 4. CONTEXT SHIELD: Skip if preceded by a letter, dash, or slash (e.g., "i5-700", "Jan 13", "1/13")
+            if (/[a-z\-/]/i.test(prevChar)) continue;
+
+            // 5. TRAILING NOISE SHIELD: Skip if followed by common date markers
+            if (/^(?:st|nd|rd|th|月|日|year|yr)/i.test(text.slice(afterIndex))) continue;
 
             if (isNaN(val) || val <= 0) continue;
 
