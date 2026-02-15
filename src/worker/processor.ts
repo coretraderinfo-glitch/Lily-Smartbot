@@ -148,7 +148,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             }
 
             const { CalcTape } = require('../calctape/engine');
-            const lines = CalcTape.parse(args);
+            const { lines, currency: manualCurrency } = CalcTape.parse(args);
             const total = CalcTape.recalculate(lines);
 
             return CalcTape.format({
@@ -157,7 +157,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                 creatorId: userId,
                 lines,
                 total,
-                currency: lang === 'CN' ? 'CNY' : 'RM',
+                currency: manualCurrency || (lang === 'CN' ? 'CNY' : 'RM'),
                 createdAt: new Date(),
                 updatedAt: new Date()
             });

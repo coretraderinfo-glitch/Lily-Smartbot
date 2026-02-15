@@ -13,10 +13,19 @@ export class CalcTape {
      * Parse a raw input string into a structured Paper Tape
      * Format: "100 + 200 - 50" or line breaks
      */
-    static parse(input: string): TapeLine[] {
+    static parse(input: string): { lines: TapeLine[], currency?: string } {
         const lines: TapeLine[] = [];
-        // PROFESSOR'S REGEX: Specifically tuned to handle tight math (100+200) and descriptions (#text or [text])
-        // Group 1: Operator, Group 2: Value, Group 3: Comment (everything until next operator or start of next digits)
+
+        // 1. Detect Currency Suffix (e.g., =usdt, =myr)
+        let currency: string | undefined;
+        const currencyMatch = input.match(/=\s*([a-zA-Z]{2,5})\s*$/);
+        if (currencyMatch) {
+            currency = currencyMatch[1].toUpperCase();
+            // Clean the input for mathematical parsing
+            input = input.replace(/=\s*[a-zA-Z]{2,5}\s*$/, '');
+        }
+
+        // 2. Parse Lines
         const pattern = /([-+*/=])?\s*([\d,.]+)\s*([^+\-*/=]*)/g;
         let match;
         let i = 1;
@@ -33,7 +42,7 @@ export class CalcTape {
                 lines.push({ index: i++, value, operator, comment });
             }
         }
-        return lines;
+        return { lines, currency };
     }
 
     /**
@@ -60,13 +69,13 @@ export class CalcTape {
 
         for (const line of session.lines) {
             const op = line.operator;
-            const val = line.value.toLocaleString(undefined, { minimumFractionDigits: 2 });
+            const val = line.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
             const comment = line.comment ? `  ${line.comment}` : '';
             output += `\`${op} ${val.padStart(10)}\`${comment}\n`;
         }
 
         output += `\`----------------------------\`\n`;
-        output += `🔥 **TOTAL: ${session.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}**\n`;
+        output += `🔥 **TOTAL: ${session.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${session.currency}**\n`;
         output += `\`----------------------------\`\n`;
 
         return output;
