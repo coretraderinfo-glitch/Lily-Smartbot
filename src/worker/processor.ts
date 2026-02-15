@@ -152,13 +152,32 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                 // ELITE EXTRACTION: Scan Context
                 let sourceText = "";
                 if (job.data.replyToMessage) {
-                    sourceText = job.data.replyToMessage.text || job.data.replyToMessage.caption || "";
+                    sourceText = (job.data.replyToMessage.text || job.data.replyToMessage.caption || "").trim();
                 } else {
                     const { SessionMemory } = require('../core/memory/session');
                     const history = await SessionMemory.recall(chatId, userId);
-                    sourceText = history.slice(-5).map((turn: any) => turn.content).join("\n");
+                    // Extract from the message just before the command
+                    sourceText = history.slice(-2)[0]?.content || "";
                 }
                 lines = CalcTape.smartExtract(sourceText);
+
+                // Check for modifiers in the command itself (e.g. *3.9=usdt)
+                const modifierMatch = t.match(/([*/])\s*([\d.]+)(?:\s*=([a-zA-Z]{2,5}))?/i);
+                if (modifierMatch && lines.length > 0) {
+                    lines.push({
+                        index: lines.length + 1,
+                        value: parseFloat(modifierMatch[2]),
+                        operator: modifierMatch[1] as '*' | '/',
+                        comment: "Rate"
+                    });
+                    if (modifierMatch[3]) manualCurrency = modifierMatch[3].toUpperCase();
+                }
+
+                // Also check for standalone currency suffix (=usdt)
+                if (!manualCurrency) {
+                    const suffixMatch = t.match(/=\s*([a-zA-Z]{2,5})\s*$/i);
+                    if (suffixMatch) manualCurrency = suffixMatch[1].toUpperCase();
+                }
             } else {
                 // NORMAL PARSING
                 const args = t.slice(6).trim();

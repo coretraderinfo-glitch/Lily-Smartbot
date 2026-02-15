@@ -354,7 +354,7 @@ bot.on('callback_query:data', async (ctx) => {
             `• Suffixes like \`=usdt\` or \`=myr\` set the final currency.\n` +
             `• Descriptions: Just add text after numbers (e.g. 500 bonus).\n\n` +
             `💡 **PRO TIP:**\n` +
-            `Use '**Lily tape this**' on forwarded messages or bank slips to save time. Lily will automatically find names and amounts for you.`,
+            `Use '**Lily tape this *3.9=usdt**' on bank slips to automatically total up payments and convert them to USDT at a rate of 3.9 in one step.`,
             { parse_mode: 'Markdown', reply_markup: CalcTapeMenuMarkup }
         );
     }
