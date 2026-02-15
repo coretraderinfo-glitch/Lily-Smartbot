@@ -15,16 +15,19 @@ export class CalcTape {
      */
     static parse(input: string): TapeLine[] {
         const lines: TapeLine[] = [];
-        // NEW WORLD-CLASS REGEX: Handles tight strings like 100-200+300 gracefully
-        // It looks for an operator (optional for first), a number, and then an optional comment
-        const pattern = /([-+*/=])?\s*([\d,.]+)(?:\s*(?:\[(.*?)\]|#(.*?)|(?:\s+([a-zA-Z\u4e00-\u9fa5].*?))))?/g;
+        // PROFESSOR'S REGEX: Specifically tuned to handle tight math (100+200) and descriptions (#text or [text])
+        // Group 1: Operator, Group 2: Value, Group 3: Comment (everything until next operator or start of next digits)
+        const pattern = /([-+*/=])?\s*([\d,.]+)\s*([^+\-*/=]*)/g;
         let match;
         let i = 1;
 
         while ((match = pattern.exec(input)) !== null) {
             const operator = (match[1] as '+' | '-' | '*' | '/' | '=') || '+';
             const value = parseFloat(match[2].replace(/,/g, ''));
-            const comment = (match[3] || match[4] || match[5] || '').trim();
+
+            // Clean up the comment (remove [], #, and leading/trailing whitespace)
+            let comment = (match[3] || '').trim();
+            comment = comment.replace(/^[#\[\]]+|[#\[\]]+$/g, '').trim();
 
             if (!isNaN(value)) {
                 lines.push({ index: i++, value, operator, comment });
@@ -59,7 +62,7 @@ export class CalcTape {
             const op = line.operator;
             const val = line.value.toLocaleString(undefined, { minimumFractionDigits: 2 });
             const comment = line.comment ? ` # ${line.comment}` : '';
-            output += `\`${op} ${val.padStart(10)}\`${comment}\n`;
+            output += `\`${op} ${val.padStart(10)}\` ${comment}\n`;
         }
 
         output += `\`----------------------------\`\n`;
