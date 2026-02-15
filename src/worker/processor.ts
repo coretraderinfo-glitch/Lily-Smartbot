@@ -37,7 +37,13 @@ const combine = (prefix: string, bill: BillResult): BillResult => ({
  * World-class bilingual command engine
  */
 export const processCommand = async (job: Job<CommandJob>): Promise<BillResult | string | null> => {
-    const { chatId, userId, username, text, imageUrl } = job.data;
+    const { chatId, userId, username, text } = job.data;
+    let imageUrl = job.data.imageUrl;
+
+    // ELITE CONTEXTUAL VISION: If user replied to a photo, adopt it as our vision context
+    if (!imageUrl && job.data.replyToMessage && job.data.replyToMessage.imageUrl) {
+        imageUrl = job.data.replyToMessage.imageUrl;
+    }
 
     // 1. Settings Fetch (ULTRA-FAST CACHE HIT)
     const SettingsCache = require('../core/cache').SettingsCache;

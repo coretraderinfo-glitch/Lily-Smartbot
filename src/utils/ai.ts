@@ -60,19 +60,22 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 - Do NOT hallucinate trends from 2023. Use the contextual data ONLY.
 `;
 
-const VISION_INSTRUCTION = `
-[VISION MODE: FORENSIC - NO.1 MASTER PASS]
-Your response must be exactly REDUCED to one clear sentence.
+const MASTER_VISION_INSTRUCTION = `
+[VISION MODE: MASTER AUDITOR - TOTALING PROTOCOL]
+Audit this image with 100% accuracy. 
+- If the boss asks to "total" or "count", extract ALL amounts and provide the final sum.
+- List the items clearly if it's a spreadsheet. 
+- Be sharp, professional, and accurate.
+`;
+
+const FORENSIC_INSTRUCTION = `
+[VISION MODE: FORENSIC - MASTER PASS]
+Your response must be exactly REDUCED to one clear sentence based on the blockchain result.
 
 **STRICT RESPONSE FORMAT:**
 - IF SUCCESS/PENDING: "**Verified: [Amount] [Currency] was received on [Date/Time]. Verification Successful.**"
 - IF FAILED/FAKE: "**🚨 FRAUD ALERT: Verification Failed. This receipt is invalid or fake.**"
 - IF DUPLICATE: "**⚠️ DUPLICATE: This receipt was already processed and verified earlier.**"
-
-**INSTRUCTION:**
-- If [MASTER CONTEXT] says "Status: SUCCESS", use the SUCCESS format.
-- If [MASTER CONTEXT] says "isDuplicate: true", use the DUPLICATE format.
-- Do NOT explain. Do NOT list data points. Just one sentence.
 `;
 
 export const AIBrain = {
@@ -87,10 +90,13 @@ export const AIBrain = {
         try {
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+            const isForensicRequest = contextDump.includes("[BLOCKCHAIN FORENSICS]");
+            const activeInstruction = isForensicRequest ? FORENSIC_INSTRUCTION : MASTER_VISION_INSTRUCTION;
+
             let userContent: any = effectiveText;
             if (imageUrl) {
                 userContent = [
-                    { type: "text", text: `${VISION_INSTRUCTION}\n\nUser Request: ${effectiveText}` },
+                    { type: "text", text: `${activeInstruction}\n\nUser Request: ${effectiveText}` },
                     { type: "image_url", image_url: { url: imageUrl, detail: "high" } }
                 ];
             }
