@@ -68,9 +68,9 @@ export class CalcTape {
             // 1. ELITE BANK ACCOUNT SHIELD: Skip long numbers (9+ digits) unless decimal/k.
             if (rawDigits.length >= 9 && !multiplier && !hasDecimal) continue;
 
-            // 2. CODE SHIELD: Ignore small whole numbers (< 100) if no multiplier and no decimal.
-            // These are almost always worker codes (J1, J5, J20) or inventory counts.
-            if (val < 100 && !multiplier && !hasDecimal) continue;
+            // 2. CODE SHIELD: Ignore extremely small whole numbers (< 10) if no multiplier and no decimal.
+            // These are almost always small worker codes (J1, J5, J8) or item indices.
+            if (val < 10 && !multiplier && !hasDecimal) continue;
 
             // 3. CONTEXT SHIELD: If the number is immediately preceded by a letter (like J, K, A) skip it.
             // Check the character right before the match in the original text.

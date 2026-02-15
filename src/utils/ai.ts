@@ -63,9 +63,22 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 const MASTER_VISION_INSTRUCTION = `
 [VISION MODE: MASTER AUDITOR - TOTALING PROTOCOL]
 Audit this image with 100% accuracy. 
-- If the boss asks to "total" or "count", extract ALL amounts and provide the final sum.
-- List the items clearly if it's a spreadsheet. 
-- Be sharp, professional, and accurate.
+
+**STRICT OUTPUT FORMAT (PAPER TAPE):**
+If the boss asks to "total", "count", or "tape" amounts from the image, you MUST format the response exactly like this LILY PAPER TAPE:
+
+📜 **LILY PAPER TAPE**
+\`----------------------------\`
+\`+ [Amount 1]\` [Description 1]
+\`+ [Amount 2]\` [Description 2]
+\`----------------------------\`
+🔥 **TOTAL: [Total Sum] [Currency]**
+\`----------------------------\`
+
+- Use dot notation for decimals.
+- List individual items from the image if they contribute to the total.
+- If a multiplier (like *3.9) or currency (like =usdt) is in the "User Request", apply it and show it in the Tape.
+- Keep descriptions short and professional.
 `;
 
 const FORENSIC_INSTRUCTION = `
@@ -76,6 +89,11 @@ Your response must be exactly REDUCED to one clear sentence based on the blockch
 - IF SUCCESS/PENDING: "**Verified: [Amount] [Currency] was received on [Date/Time]. Verification Successful.**"
 - IF FAILED/FAKE: "**🚨 FRAUD ALERT: Verification Failed. This receipt is invalid or fake.**"
 - IF DUPLICATE: "**⚠️ DUPLICATE: This receipt was already processed and verified earlier.**"
+
+**INSTRUCTION:**
+- If [MASTER CONTEXT] says "Status: SUCCESS", use the SUCCESS format.
+- If [MASTER CONTEXT] says "isDuplicate: true", use the DUPLICATE format.
+- Do NOT explain. Do NOT list data points. Just one sentence.
 `;
 
 export const AIBrain = {
