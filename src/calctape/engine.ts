@@ -15,17 +15,20 @@ export class CalcTape {
      */
     static parse(input: string): TapeLine[] {
         const lines: TapeLine[] = [];
-        // Humanized regex: Captures operator, value, and anything after it as a comment
-        const pattern = /([-+*/=])?\s*([\d.]+)\s*(?:\[(.*?)\]|#(.*?)|(?:\s+([a-zA-Z\u4e00-\u9fa5].*?))|$)/gm;
+        // NEW WORLD-CLASS REGEX: Handles tight strings like 100-200+300 gracefully
+        // It looks for an operator (optional for first), a number, and then an optional comment
+        const pattern = /([-+*/=])?\s*([\d,.]+)(?:\s*(?:\[(.*?)\]|#(.*?)|(?:\s+([a-zA-Z\u4e00-\u9fa5].*?))))?/g;
         let match;
         let i = 1;
 
         while ((match = pattern.exec(input)) !== null) {
             const operator = (match[1] as '+' | '-' | '*' | '/' | '=') || '+';
-            const value = parseFloat(match[2]);
+            const value = parseFloat(match[2].replace(/,/g, ''));
             const comment = (match[3] || match[4] || match[5] || '').trim();
 
-            lines.push({ index: i++, value, operator, comment });
+            if (!isNaN(value)) {
+                lines.push({ index: i++, value, operator, comment });
+            }
         }
         return lines;
     }
@@ -46,24 +49,23 @@ export class CalcTape {
     }
 
     /**
-     * Format the tape into the 'Classic CalcTape' visual style with indices
+     * Format the tape into the 'Professor's Professional' list style
      */
     static format(session: TapeSession): string {
         let output = `📜 **LILY PAPER TAPE**\n`;
         output += `\`----------------------------\`\n`;
 
         for (const line of session.lines) {
-            const op = line.operator === '+' ? ' ' : line.operator;
+            const op = line.operator;
             const val = line.value.toLocaleString(undefined, { minimumFractionDigits: 2 });
-            const idx = `[${line.index}]`.padEnd(4);
             const comment = line.comment ? ` # ${line.comment}` : '';
-            output += `\`${idx} ${op} ${val.padStart(10)}\` ${comment}\n`;
+            output += `\`${op} ${val.padStart(10)}\`${comment}\n`;
         }
 
         output += `\`----------------------------\`\n`;
         output += `🔥 **TOTAL: ${session.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}**\n`;
         output += `\`----------------------------\`\n`;
-        output += `_Session ID: ${session.id}_  |  _Use /tape edit [ID] [Line] [NewContent]_`;
+        output += `_Session: [${session.id}]  |  Copy & Send to Client_`;
 
         return output;
     }
