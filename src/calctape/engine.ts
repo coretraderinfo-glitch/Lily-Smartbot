@@ -129,11 +129,12 @@ export class CalcTape {
             output += `\`${op} ${val.padStart(10)}\`${comment}\n`;
         }
 
+        const currencySuffix = session.currency?.trim() ? ` ${session.currency.trim()}` : '';
         output += `\`----------------------------\`\n`;
         output += `🔥 **TOTAL: ${session.total.toLocaleString(undefined, {
             minimumFractionDigits: precision,
             maximumFractionDigits: precision
-        })} ${session.currency}**\n`;
+        })}${currencySuffix}**\n`;
         output += `\`----------------------------\`\n`;
 
         return output;

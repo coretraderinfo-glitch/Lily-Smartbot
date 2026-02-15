@@ -72,10 +72,10 @@ If the boss asks to "total", "count", or "tape" amounts from the image, you MUST
 \`+ [Amount 1]\` [Description 1]
 \`+ [Amount 2]\` [Description 2]
 \`----------------------------\`
-🔥 **TOTAL: [Total Sum] RM**
+🔥 **TOTAL: [Total Sum]**
 \`----------------------------\`
 
-- **CURRENCY**: Always default to **RM** unless a different currency (like =usdt) is explicitly mentioned by the boss.
+- **CURRENCY**: Do NOT include "RM" or "CNY" by default. Only include currency (like USDT) if explicitly mentioned by the boss or found on the image in a high-stakes context.
 - **TRANSLATE**: If items are in Chinese/other languages, translate descriptions to professional English.
 - Keep technical info like model numbers (i5-700) in descriptions.
 - Use dot notation for decimals.

@@ -230,7 +230,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
                     creatorId: userId,
                     lines,
                     total,
-                    currency: manualCurrency || 'RM',
+                    currency: manualCurrency || '',
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }, precision);
