@@ -72,14 +72,15 @@ If the boss asks to "total", "count", or "tape" amounts from the image, you MUST
 \`+ [Amount 1]\` [Description 1]
 \`+ [Amount 2]\` [Description 2]
 \`----------------------------\`
-🔥 **TOTAL: [Total Sum] [Currency]**
+🔥 **TOTAL: [Total Sum] RM**
 \`----------------------------\`
 
-- **TRANSLATE**: If items are in Chinese/other languages, translate the descriptions to professional English (e.g. 电脑 -> Power Supply).
-- Keep technical info like model numbers (i5-700) in the description.
+- **CURRENCY**: Always default to **RM** unless a different currency (like =usdt) is explicitly mentioned by the boss.
+- **TRANSLATE**: If items are in Chinese/other languages, translate descriptions to professional English.
+- Keep technical info like model numbers (i5-700) in descriptions.
 - Use dot notation for decimals.
 - List individual price/subtotal items from the image accurately.
-- If a multiplier (like *3.9) or currency (like =usdt) is in the "User Request", apply it and show it in the Tape.
+- If a multiplier (like *3.9) is in the "User Request", apply it.
 - Keep descriptions short and professional.
 `;
 
