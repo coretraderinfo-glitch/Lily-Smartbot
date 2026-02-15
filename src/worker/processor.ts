@@ -90,16 +90,54 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
 
         // --- 2. THE FEATURE CONFIGURATION (PHASE A) ---
 
-        // Forex Settings (Root Cause Fix: Support optional spaces and fuzzy matches)
         const usdMatch = t.match(/^(?:设置美元汇率|Set USD Rate|Kadar USD|USD)\s*([\d.]+)$/i);
         if (usdMatch) {
             const res = await Settings.setForexRate(chatId, 'usd', parseFloat(usdMatch[1]));
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
+        const usdDeleteMatch = /^(?:删除美元汇率|Delete USD Rate|Reset USD|delete usd)$/i.test(t);
+        if (usdDeleteMatch) {
+            const res = await Settings.setForexRate(chatId, 'usd', 0);
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+
         const myrMatch = t.match(/^(?:设置马币汇率|Set MYR Rate|Kadar MYR|MYR)\s*([\d.]+)$/i);
         if (myrMatch) {
             const res = await Settings.setForexRate(chatId, 'myr', parseFloat(myrMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+        const myrDeleteMatch = /^(?:删除马币汇率|Delete MYR Rate|Reset MYR|delete myr)$/i.test(t);
+        if (myrDeleteMatch) {
+            const res = await Settings.setForexRate(chatId, 'myr', 0);
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+
+        const thbMatch = t.match(/^(?:设置泰铢汇率|Set THB Rate|Kadar THB|THB)\s*([\d.]+)$/i);
+        if (thbMatch) {
+            const res = await Settings.setForexRate(chatId, 'thb', parseFloat(thbMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+        const thbDeleteMatch = /^(?:删除泰铢汇率|Delete THB Rate|Reset THB|delete thb)$/i.test(t);
+        if (thbDeleteMatch) {
+            const res = await Settings.setForexRate(chatId, 'thb', 0);
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+
+        const phpMatch = t.match(/^(?:设置比索汇率|Set PHP Rate|Kadar PHP|PHP)\s*([\d.]+)$/i);
+        if (phpMatch) {
+            const res = await Settings.setForexRate(chatId, 'php', parseFloat(phpMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+        const phpDeleteMatch = /^(?:删除比索汇率|Delete PHP Rate|Reset PHP|delete php)$/i.test(t);
+        if (phpDeleteMatch) {
+            const res = await Settings.setForexRate(chatId, 'php', 0);
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
@@ -111,10 +149,22 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
+        const rateInDeleteMatch = /^(?:删除费率|Reset Rate|Delete Rate|delete fee)$/i.test(t);
+        if (rateInDeleteMatch) {
+            const res = await Settings.setInboundRate(chatId, 0);
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
 
         const rateOutMatch = t.match(/^(?:设置下发费率|Set Outbound Rate|Kadar Fee Keluar|Out Rate)\s*([\d.]+)%?$/i);
         if (rateOutMatch) {
             const res = await Settings.setOutboundRate(chatId, parseFloat(rateOutMatch[1]));
+            await Ledger.syncNetAmounts(chatId);
+            return combine(res, await Ledger.generateBillWithMode(chatId));
+        }
+        const rateOutDeleteMatch = /^(?:删除下发费率|Reset Out Rate|Delete Out Rate|delete out fee)$/i.test(t);
+        if (rateOutDeleteMatch) {
+            const res = await Settings.setOutboundRate(chatId, 0);
             await Ledger.syncNetAmounts(chatId);
             return combine(res, await Ledger.generateBillWithMode(chatId));
         }
