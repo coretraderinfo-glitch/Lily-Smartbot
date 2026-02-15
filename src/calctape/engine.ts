@@ -50,7 +50,7 @@ export class CalcTape {
         let i = 1;
 
         // Pattern: Only extract [Amount][k/m/decimal]
-        // We completely ignore surrounding text to keep the tape "Raw" and "Clean"
+        // We look for numbers that aren't parts of a code (like J1, J5)
         const pattern = /([\d,.]+)([kKmM])?/g;
         let match;
 
@@ -63,9 +63,24 @@ export class CalcTape {
             if (multiplier === 'k') val *= 1000;
             if (multiplier === 'm') val *= 1000000;
 
-            // ELITE BANK ACCOUNT SHIELD:
-            // Skip long numbers (9+ digits) EXCEPT if they have a decimal point or a k/m multiplier.
+            // --- NOISE SHIELD (Surgical Data Purity) ---
+
+            // 1. ELITE BANK ACCOUNT SHIELD: Skip long numbers (9+ digits) unless decimal/k.
             if (rawDigits.length >= 9 && !multiplier && !hasDecimal) continue;
+
+            // 2. CODE SHIELD: Ignore small whole numbers (< 100) if no multiplier and no decimal.
+            // These are almost always worker codes (J1, J5, J20) or inventory counts.
+            if (val < 100 && !multiplier && !hasDecimal) continue;
+
+            // 3. CONTEXT SHIELD: If the number is immediately preceded by a letter (like J, K, A) skip it.
+            // Check the character right before the match in the original text.
+            const index = match.index;
+            if (index > 0) {
+                const prevChar = text[index - 1];
+                // If preceded by a letter that isn't part of 'RM' or 'USD' symbols
+                if (/[a-gi-ln-qst-vw-xz]/i.test(prevChar)) continue;
+            }
+
             if (isNaN(val) || val <= 0) continue;
 
             lines.push({
