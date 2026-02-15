@@ -194,28 +194,36 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
             }
 
             if (lines.length === 0) {
-                return "❌ **Extraction Failed**: I couldn't find any amounts or 'k' notations to total up. Please try again or use manual `/tape`.";
+                // Failsafe: If it's a "Lily total" command on an image and the raw extractor failed, 
+                // it means the image is too complex for basic regex.
+                // WE FALL THROUGH to the AI Brain (GPT-4o Vision) to handle it smartly.
+                if (isTapeThis && imageUrl) {
+                    console.log(`[Processor] CalcTape failed to extract from image. Falling back to AI Brain...`);
+                    // We let the code continue to the AI Brain section below
+                } else {
+                    return "❌ **Extraction Failed**: I couldn't find any amounts or 'k' notations to total up. Please try again or use manual `/tape`.";
+                }
+            } else {
+                const total = CalcTape.recalculate(lines);
+
+                // 3. Determine Precision (Override > Global Setting > Default 2)
+                let precision = config?.show_decimals === false ? 0 : 2;
+                const precisionMatch = t.match(/\.([024])\s*(?:=|$)/);
+                if (precisionMatch) {
+                    precision = parseInt(precisionMatch[1]);
+                }
+
+                return CalcTape.format({
+                    id: Math.random().toString(36).substring(7).toUpperCase(),
+                    chatId,
+                    creatorId: userId,
+                    lines,
+                    total,
+                    currency: manualCurrency || (lang === 'CN' ? 'CNY' : 'RM'),
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }, precision);
             }
-
-            const total = CalcTape.recalculate(lines);
-
-            // 3. Determine Precision (Override > Global Setting > Default 2)
-            let precision = config?.show_decimals === false ? 0 : 2;
-            const precisionMatch = t.match(/\.([024])\s*(?:=|$)/);
-            if (precisionMatch) {
-                precision = parseInt(precisionMatch[1]);
-            }
-
-            return CalcTape.format({
-                id: Math.random().toString(36).substring(7).toUpperCase(),
-                chatId,
-                creatorId: userId,
-                lines,
-                total,
-                currency: manualCurrency || (lang === 'CN' ? 'CNY' : 'RM'),
-                createdAt: new Date(),
-                updatedAt: new Date()
-            }, precision);
         }
 
         // --- 3. TEAM & SECURITY (PHASE B) ---
