@@ -137,7 +137,7 @@ export const processCommand = async (job: Job<CommandJob>): Promise<BillResult |
         }
 
         // --- CALCTAPE COMMAND (/tape) ---
-        const isTapeThis = /lily\s+tape\s+this/i.test(t) || /lily\s+total\s+this/i.test(t);
+        const isTapeThis = /lily\s+(?:tape|total)/i.test(t);
 
         if (t.startsWith('/tape') || isTapeThis) {
             if (!calctapeEnabled) {

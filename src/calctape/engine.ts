@@ -71,9 +71,12 @@ export class CalcTape {
 
             const name = (match[1] || '').trim();
 
-            // 2. Skip common bank noise & long descriptions that don't look like names
+            // 2. Clear currency prefixes from the name (e.g. "RM1950" -> name is "RM", we clear it)
+            const cleanName = name.replace(/^(rm|usd|cny|rmb)$/i, '').trim();
+
+            // 3. Skip common bank noise & long descriptions that don't look like names
             const noise = /bank|maybank|cimb|pbb|hlb|rhb|ambank|standard|nacional|simpanan|nasional|sdn|bhd|branch|enterprise|ipoh|car|battery/i;
-            const filteredName = noise.test(name) ? "" : name;
+            const filteredName = noise.test(cleanName) ? "" : cleanName;
 
             if (!isNaN(val) && val > 0) {
                 lines.push({
