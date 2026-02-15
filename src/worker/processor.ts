@@ -318,8 +318,8 @@ Current Group Sales (Lily's Internal Ledger):
 
             // FIRE EVERYTHING IN PARALLEL (WORLD-CLASS SPEED)
             const [ledgerSummary, marketContext, txVerification] = await Promise.all([
-                calcEnabled ? Ledger.getDailySummary(chatId).catch(e => { console.error('Ledger Lag:', e); return null; }) : Promise.resolve(null),
-                MarketData.scanAndFetch(text).catch(e => { console.error('Market Lag:', e); return ""; }),
+                calcEnabled ? Ledger.getDailySummary(chatId).catch((e: any) => { console.error('Ledger Lag:', e); return null; }) : Promise.resolve(null),
+                MarketData.scanAndFetch(text).catch((e: any) => { console.error('Market Lag:', e); return ""; }),
                 // NEW: Blockchain Autoscan (Only if AI Brain is active)
                 (async () => {
                     if (!aiEnabled) return null;
@@ -327,7 +327,7 @@ Current Group Sales (Lily's Internal Ledger):
                     const txMatch = text.match(/(e80[a-f0-9]{20,}|0x[a-f0-9]{64}|[a-f0-9]{64})/i);
                     if (txMatch) {
                         const { Blockchain } = require('../core/blockchain');
-                        return await Blockchain.verify(txMatch[0]).catch(e => { console.error('Chain Lag:', e); return null; });
+                        return await Blockchain.verify(txMatch[0]).catch((e: any) => { console.error('Chain Lag:', e); return null; });
                     }
                     return null;
                 })()
