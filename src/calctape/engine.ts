@@ -65,7 +65,6 @@ export class CalcTape {
         output += `\`----------------------------\`\n`;
         output += `🔥 **TOTAL: ${session.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}**\n`;
         output += `\`----------------------------\`\n`;
-        output += `_Session: [${session.id}]  |  Copy & Send to Client_`;
 
         return output;
     }
