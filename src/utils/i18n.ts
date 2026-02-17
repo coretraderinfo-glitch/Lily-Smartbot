@@ -65,7 +65,9 @@ export const I18N = {
                 'fin.total_out': '总下发 (Total Payouts)',
                 'fin.total_ret': '回款 (Total Returns)',
                 'fin.balance': '余 (Final Balance)',
-                'fin.equiv': '余额换算'
+                'fin.equiv': '余额换算',
+                'err.typo_protection': '🚨 **交易已拦截 (Blocked)** 🚨\n\n老板，您输入的是 **{raw}**。在财务记录中，如果您想输入“千”，请使用逗号或直接输入数字。请核对这是 **{thousand}** 还只是 **{decimal}**？Lily 不能随便帮您记账哦。',
+                'err.invalid_amount_short': '❌ **无效金额 (Invalid Amount)**'
             },
             EN: {
                 'sys.ready': '🚀 **System Ready**\n📅 Business Date: {date}\n\n{wish}\n\n💡 Start recording now',
@@ -123,7 +125,9 @@ export const I18N = {
                 'fin.total_out': 'Total Payouts',
                 'fin.total_ret': 'Total Returns',
                 'fin.balance': 'Final Balance',
-                'fin.equiv': 'Equivalent'
+                'fin.equiv': 'Equivalent',
+                'err.typo_protection': '🚨 **TRANSACTION BLOCKED** 🚨\n\nBoss, you typed **{raw}**. Did you mean **{thousand}** (Thousand) or **{decimal}** (Decimal)? In finance, we only use 2 decimals. Lily cannot cincai record this for you!',
+                'err.invalid_amount_short': '❌ **Invalid Amount**'
             },
             MY: {
                 'sys.ready': '🚀 **Sistem Sedia**\n📅 Tarikh Bisnes: {date}\n\n{wish}\n\n💡 Sila mula merakam (Start recording now)',
@@ -181,7 +185,9 @@ export const I18N = {
                 'fin.total_out': 'Jumlah Keluar (Payouts)',
                 'fin.total_ret': 'Jumlah Balik (Returns)',
                 'fin.balance': 'Baki Akhir (Balance)',
-                'fin.equiv': 'Pertukaran Baki'
+                'fin.equiv': 'Pertukaran Baki',
+                'err.typo_protection': '🚨 **TRANSACTION BLOCKED** 🚨\n\nBoss, Boss taip **{raw}**. Maksud Boss **{thousand}** (Ribu) atau **{decimal}** (Sen)? Lily tak berani cincai masuk record kalau tak clear. Tolong check balik k!',
+                'err.invalid_amount_short': '❌ **Jumlah Tidak Sah**'
             }
         };
 

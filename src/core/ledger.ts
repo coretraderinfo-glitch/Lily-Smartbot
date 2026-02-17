@@ -166,11 +166,15 @@ export const Ledger = {
             // WORLD-CLASS TYPO PROTECTION: Detect "16.000" (period used instead of comma)
             // If there are exactly 3 digits after the dot, it's highly suspicious.
             if (/\.\d{3}$/.test(amountStr)) {
-                return `🚨 **TRANSACTION BLOCKED** 🚨\n\nBoss, did you mean **${amountStr.replace('.', ',')}** (Thousand) or **${parseFloat(amountStr).toFixed(2)}** (Decimal)?\n\nYou typed \`${amountStr}\`. In finance, we only use 2 decimals. Please check and re-enter!`;
+                return I18N.t(settings.language_mode || 'CN', 'err.typo_protection', {
+                    raw: amountStr,
+                    thousand: amountStr.replace('.', ','),
+                    decimal: parseFloat(amountStr).toFixed(2)
+                });
             }
 
             let amount = new Decimal(amountStr);
-            if (amount.lte(0)) return `❌ **Invalid Amount**`;
+            if (amount.lte(0)) return I18N.t(settings.language_mode || 'CN', 'err.invalid_amount_short');
 
             const feeRate = type === 'DEPOSIT' ? new Decimal(settings.rate_in || 0) : new Decimal(settings.rate_out || 0);
             const feeAmount = amount.mul(feeRate.div(100));
