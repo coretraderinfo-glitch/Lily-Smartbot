@@ -98,7 +98,7 @@ export const Guardian = {
 
                 // Formatted as: 🚨 *ALERT* - [Name] joined. [Admin Tags] please verify.
                 const alertText = lang === 'CN' ? `🚨 *ALERT* - **${displayName}** 已加入。${adminTags} 请核对身份。`
-                    : lang === 'MY' ? `🚨 *ALERT* - **${displayName}** joined. ${adminTags} please verify.`
+                    : lang === 'MY' ? `🚨 *AMARAN* - **${displayName}** telah menyertai group. ${adminTags} sila sahkan identiti.`
                         : `🚨 *ALERT* - **${displayName}** joined. ${adminTags} please verify.`;
                 output += `${alertText}\n\n`;
             }
@@ -107,14 +107,16 @@ export const Guardian = {
             if (welcomeOn) {
                 // Vibrant Human Greeting (AI GENERATED)
                 const { AIBrain } = require('../utils/ai');
-                const aiGreeting = await AIBrain.generateSimpleGreeting(
-                    `请为新加入群组的用户 ${displayName} 生成一条简短、温馨且带有关心感的欢迎语。要有人情味，不要像机器人。可以用中文、英文或马来西亚口语。`
-                );
+                const prompt = lang === 'CN' ? `请为新加入群组的用户 ${displayName} 生成一条简短、温馨且带有关心感的欢迎语。要有人情味，不要像机器人。用中文回复。`
+                    : lang === 'MY' ? `Sila jana satu ucapan alu-aluan yang pendek, mesra dan ceria untuk member baru bernama ${displayName}. Gunakan gaya bahasa Melayu yang santai dan padu (budak group vibes).`
+                        : `Please generate a short, warm, and professional welcome greeting for a new group member named ${displayName}. Keep it human and friendly.`;
+
+                const aiGreeting = await AIBrain.generateSimpleGreeting(prompt, lang);
                 output += aiGreeting || Personality.getWelcome(lang, displayName);
             } else if (guardianOn) {
                 // Standard Welcome (If personality is toggled off)
                 const stdWelcome = lang === 'CN' ? `✨ 欢迎 **${displayName}** 加入！`
-                    : lang === 'MY' ? `✨ Selamat datang **${displayName}**!`
+                    : lang === 'MY' ? `✨ Selamat datang **${displayName}** ke group kami!`
                         : `✨ Welcome **${displayName}**!`;
                 output += stdWelcome;
             }

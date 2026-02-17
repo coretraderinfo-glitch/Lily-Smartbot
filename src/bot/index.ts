@@ -861,7 +861,7 @@ bot.on('message', async (ctx) => {
     if (text === '/start') {
         const { AIBrain } = require('../utils/ai');
         const welcome = await AIBrain.generateSimpleGreeting(
-            `用户 ${username} 刚刚启动了 Lily 机器人。请生成一段非常亲切、有个性的欢迎语。告诉他们你是 Lily，随时准备好协助他们。`
+            `A user named ${username} just started the Lily bot. Generate a warm, elite, and very human welcome message. Tell them you are Lily, your loyal assistant, ready to handle accounts, audit receipts, and protect the group. Use a friendly Malaysian vibe (Manglish/Chinese/English mix).`
         );
         return ctx.reply(welcome || `✨ **Welcome!** Lily is online and ready to serve.`);
     }

@@ -86,9 +86,9 @@ export const Chronos = {
     async processAllRollovers(bot: Bot) {
         const client = await db.getClient();
         try {
-            // WORLD-CLASS: Join with settings to check calc_enabled
+            // WORLD-CLASS: Join with settings to check calc_enabled and language_mode
             const groupsRes = await client.query(`
-                SELECT g.*, gs.calc_enabled 
+                SELECT g.*, gs.calc_enabled, gs.language_mode 
                 FROM groups g
                 LEFT JOIN group_settings gs ON g.id = gs.group_id
                 WHERE g.status = 'ACTIVE'
@@ -97,12 +97,12 @@ export const Chronos = {
             const bulkResults = await Promise.all(groupsRes.rows.map(async (group) => {
                 const tz = group.timezone || 'Asia/Shanghai';
                 const now = DateTime.now().setZone(tz);
+                const lang = group.language_mode || 'CN';
 
                 // Configurable reset hour (default 4 AM)
                 const resetHour = group.reset_hour || 4;
 
                 // 🌈 SMART TRIGGER: Trigger if we are in the reset hour AND haven't run today
-                // We removed now.minute === 0 to avoid missing the window due to lag
                 if (now.hour === resetHour) {
 
                     // 1. CHECK STATE: Has someone already closed it manually?
@@ -112,7 +112,7 @@ export const Chronos = {
                     const lastReset = group.last_auto_reset ? DateTime.fromJSDate(group.last_auto_reset).setZone(tz) : null;
                     if (lastReset && lastReset.hasSame(now, 'day')) return;
 
-                    console.log(`[CHRONOS] ⚡ Auto-Rollover triggering for Group ${group.id} (${group.title})`);
+                    console.log(`[CHRONOS] ⚡ Auto-Rollover triggering for Group ${group.id} (${group.title}) (Lang: ${lang})`);
 
                     // 🧠 SMART GREETING: Check if calc is enabled
                     const calcEnabled = group.calc_enabled !== false; // Default true
@@ -125,14 +125,24 @@ export const Chronos = {
                             const lastDate = DateTime.now().setZone(tz).minus({ days: 1 }).toFormat('yyyy-MM-dd');
 
                             // 🤖 DYNAMIC AI SLOGAN: Generate unique message every time
-                            const slogan = await AIBrain.generateSimpleGreeting(
-                                '请生成一条温馨的晚安祝福语，告诉用户辛苦了一天，祝他们好梦，明天继续加油。要自然、温暖、有人情味，不要太长，1-2句话即可。'
-                            ).catch(() => '🌙 辛苦了一天，早点休息吧。明天继续加油！'); // Fallback
+                            const sloganPrompt = lang === 'CN' ? '请生成一条温馨的晚安祝福语，祝辛苦了一天的人好梦。自然、人情味，1-2句。'
+                                : lang === 'MY' ? 'Sila jana satu ucapan selamat malam yang mesra untuk ahli group yang sudah penat bekerja. Santai dan bermakna, 1-2 ayat.'
+                                    : 'Generate a short, warm good night message for hardworking users. 1-2 sentences.';
 
-                            const finalMsg = `🏁 **系统自动结算 (Time: ${resetHour}:00)**\n\n` +
-                                `本日记录已正式截止并存入云端。\n\n` +
-                                `${slogan}\n\n` +
-                                `📢 **温馨提示：** 明天上班请记得回复 **"开始"** 以激活新的账单记录副本。`;
+                            const slogan = await AIBrain.generateSimpleGreeting(sloganPrompt, lang);
+                            const fallbackSlogan = lang === 'CN' ? '🌙 辛苦了一天，早点休息吧。明天继续加油！'
+                                : lang === 'MY' ? '🌙 Penat bekerja hari ni, rehat secukupnya ya. Esok kita pulun lagi!'
+                                    : '🌙 Hard work pays off, get some rest! See you tomorrow.';
+
+                            const title = lang === 'CN' ? `🏁 **系统自动结算 (Time: ${resetHour}:00)**`
+                                : lang === 'MY' ? `🏁 **Sistem Automatik Tutup (Masa: ${resetHour}:00)**`
+                                    : `🏁 **System Auto-Rollover (Time: ${resetHour}:00)**`;
+
+                            const body = lang === 'CN' ? `本日记录已正式截止并存入云端。\n\n${slogan || fallbackSlogan}\n\n📢 **温馨提示：** 明天上班请记得回复 **"开始"** 以激活新的账单记录副本。`
+                                : lang === 'MY' ? `Rekod hari ini telah tamat dan disimpan dalam cloud.\n\n${slogan || fallbackSlogan}\n\n📢 **Pesanan:** Esok masuk kerja, sila balas **"Mula"** atau **"Start"** untuk buka lejar baru.`
+                                    : `Today's record is finalized and archived.\n\n${slogan || fallbackSlogan}\n\n📢 **Tip:** Reply **"Start"** tomorrow to activate the new record cycle.`;
+
+                            const finalMsg = `${title}\n\n${body}`;
 
                             await bot.api.sendMessage(group.id, finalMsg, { parse_mode: 'Markdown' });
 
@@ -153,9 +163,14 @@ export const Chronos = {
                         }
                     } else {
                         // CALC DISABLED: AI-generated simple good night message
-                        const greeting = await AIBrain.generateSimpleGreeting(
-                            '请生成一条简短温馨的晚安问候，祝对方休息好，明天生意兴隆。要自然亲切，像朋友聊天，1句话即可。'
-                        ).catch(() => '🌙 晚安！祝您好梦，明天会更好！');
+                        const greetingPrompt = lang === 'CN' ? '请生成一条简短温馨的晚安问候，祝对方休息好，明天生意兴隆。像朋友聊天，1句话。'
+                            : lang === 'MY' ? 'Sila jana satu ucapan selamat malam yang ringkas dan mesra. Doakan mereka rehat cukup dan esok bisnes meletop. 1 ayat sahaja.'
+                                : 'Generate a short, friendly good night greeting. Wish them good rest and business success for tomorrow. 1 sentence.';
+
+                        const greeting = await AIBrain.generateSimpleGreeting(greetingPrompt, lang)
+                            .catch(() => lang === 'CN' ? '🌙 晚安！祝您好梦，明天会更好！'
+                                : lang === 'MY' ? '🌙 Selamat malam! Semoga mimpi indah dan esok bertambah rezeki!'
+                                    : '🌙 Good night! Sweet dreams and may tomorrow be even better!');
 
                         try {
                             await bot.api.sendMessage(group.id, greeting);

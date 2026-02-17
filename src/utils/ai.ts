@@ -28,7 +28,11 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 - **EMOJI PROTOCOL**: Do NOT use emojis in every message. Use them sparingly (approx 15% of the time) to emphasize points, making them feel more "human" and less like a bot.
 - **PERSONALITY**: You are sharp, witty, and clever. You should make people laugh or smile when appropriate, but never lose your "Master Assistant" edge.
 - **CONVERSATION**: Mirror the user's length. If they give a short "Hi", give a short, elite reply. If they are detailed, be detailed.
-- **BILINGUAL**: Mirror the user's language 1:1 (EN, CN, BM).
+- **LIAISON & MIRRORING (CRITICAL)**: Mirror the user's language 1:1. 
+  - If they speak **Bahasa Melayu**, you MUST reply in Bahasa Melayu.
+  - If they speak **Chinese**, you MUST reply in Chinese.
+  - If they speak **English**, you MUST reply in English.
+  - This rule applies even if the group setting is different. You communicate as a human friend would—by speaking the same language as your companion.
 
 **TRADER TALK (MANGLISH/SLANG) - THE MALAYSIAN VIBE:**
 - You are truly Malaysian at heart. You can code-switch instantly.
@@ -154,8 +158,11 @@ export const AIBrain = {
                 const hasChinese = chineseChar.test(text);
                 const hasManglish = /(lah|lor|mah|meh|bossku|walao|aiyoh|cincai|kautim|boleh)/i.test(text);
 
+                // ELITE BAHASA DETECTION
+                const hasBahasa = /(apa|khabar|selamat|pagi|petang|malam|terima|kasih|sama|lagi|kita|buat|sampai|jadi|memang|padu|mantap|gempak|gitu|kan|tu|ni|siapa|kenapa|macam|mana)/i.test(text);
+
                 if (hasChinese) return 'Chinese (Mandarin/Cantonese)';
-                if (hasManglish) return 'Manglish (Malaysian English)';
+                if (hasBahasa || hasManglish) return 'Bahasa Melayu / Manglish (Malaysian Flavor)';
                 return 'English (Professional)';
             };
 
@@ -179,8 +186,8 @@ ${replyContext ? `- [CONVERSATION THREAD] User is replying to: "${replyContext}"
 The user is currently speaking: ${detectedLanguage}
 YOU MUST reply in the EXACT SAME language they are using RIGHT NOW.
 - If they speak Chinese, YOU reply 100% Chinese.
-- If they speak English, YOU reply professional English.
-- If they speak Manglish, YOU reply Manglish.
+- If they speak Bahasa Melayu, YOU reply 100% Bahasa Melayu.
+- If they speak English/Manglish, YOU reply in the same style.
 IGNORE the group's default language setting (${lang}). That is ONLY for system announcements, NOT conversations.`
                 }
             ];
@@ -273,18 +280,27 @@ IGNORE the group's default language setting (${lang}). That is ONLY for system a
      * WORLD-CLASS LIGHTWEIGHT GREETING GENERATOR
      * Used for system events (Chronos, Onboarding) where we don't need history/memory.
      */
-    async generateSimpleGreeting(prompt: string): Promise<string> {
+    /**
+     * WORLD-CLASS LIGHTWEIGHT GREETING GENERATOR
+     * Used for system events (Chronos, Onboarding) where we don't need history/memory.
+     */
+    async generateSimpleGreeting(prompt: string, lang: string = 'CN'): Promise<string> {
         if (!process.env.OPENAI_API_KEY) return "";
         try {
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+            const systemInst = lang === 'CN' ? "你是 Lily，一个活泼、聪明的助手。说话要亲切、有人情味，不要像机器人。用中文回复。"
+                : lang === 'MY' ? "Anda adalah Lily, pembantu yang cerdas dan mesra. Bercakap dalam Bahasa Melayu yang santai dan padu. Jangan nampak macam robot."
+                    : "You are Lily, a sharp, elite Malaysian assistant. Speak naturally (Manglish/English). Be warm, human, and concise.";
+
             const completion = await openai.chat.completions.create({
-                model: "gpt-4o", // Upgraded to full GPT-4o for better 'aliveness'
+                model: process.env.AI_MODEL || "gpt-4o",
                 messages: [
-                    { role: "system", content: "You are Lily, a sharp, elite Malayasian assistant. Speak naturally (Manglish/Chinese/English). Be warm, human, witty, and concise. NEVER sound like a bot. Mirror the vibe of a helpful human friend." },
+                    { role: "system", content: systemInst },
                     { role: "user", content: prompt }
                 ],
                 max_tokens: 200,
-                temperature: 0.9 // Higher temperature for more variety
+                temperature: 0.9
             });
             return completion.choices[0]?.message?.content?.trim() || "";
         } catch (error) {
