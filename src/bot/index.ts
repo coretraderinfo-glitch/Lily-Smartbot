@@ -71,30 +71,59 @@ worker.on('completed', async (job, returnValue) => {
             if (returnValue.startsWith('PDF_EXPORT:')) {
                 const base64 = returnValue.replace('PDF_EXPORT:', '');
                 const filename = `Lily_Statement_${new Date().toISOString().split('T')[0]}.pdf`;
-                await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(base64, 'base64'), filename), {
-                    reply_to_message_id: job.data.messageId
-                });
+                try {
+                    await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(base64, 'base64'), filename), {
+                        reply_to_message_id: job.data.messageId
+                    });
+                } catch (e: any) {
+                    if (e.description?.includes('message to be replied not found')) {
+                        await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(base64, 'base64'), filename));
+                    } else { throw e; }
+                }
                 return;
             }
             if (returnValue.startsWith('EXCEL_EXPORT:')) {
                 const csv = returnValue.replace('EXCEL_EXPORT:', '');
                 const filename = `Lily_Ledger_${new Date().toISOString().split('T')[0]}.csv`;
-                await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(csv), filename), {
-                    reply_to_message_id: job.data.messageId
-                });
+                try {
+                    await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(csv), filename), {
+                        reply_to_message_id: job.data.messageId
+                    });
+                } catch (e: any) {
+                    if (e.description?.includes('message to be replied not found')) {
+                        await bot.api.sendDocument(job.data.chatId, new InputFile(Buffer.from(csv), filename));
+                    } else { throw e; }
+                }
                 return;
             }
-            // Standard text reply (With Markdown Fallback)
+            // Standard text reply (With Markdown & Reply Fallback)
             try {
                 await bot.api.sendMessage(job.data.chatId, returnValue, {
                     reply_to_message_id: job.data.messageId,
                     parse_mode: 'Markdown'
                 });
-            } catch (e) {
-                console.warn('[Markdown Fail] Retrying as plain text...');
-                await bot.api.sendMessage(job.data.chatId, returnValue, {
-                    reply_to_message_id: job.data.messageId
-                });
+            } catch (e: any) {
+                // FALLBACK 1: If Markdown fails, try as plain text
+                // FALLBACK 2: If reply target is deleted, try without reply
+                const isReplyError = e.description?.includes('message to be replied not found');
+                const isMarkdownError = e.description?.includes('can\'t parse entities');
+
+                if (isReplyError) {
+                    await bot.api.sendMessage(job.data.chatId, returnValue, {
+                        parse_mode: isMarkdownError ? undefined : 'Markdown'
+                    });
+                } else if (isMarkdownError) {
+                    console.warn('[Markdown Fail] Retrying as plain text...');
+                    await bot.api.sendMessage(job.data.chatId, returnValue, {
+                        reply_to_message_id: job.data.messageId
+                    }).catch(async (e2) => {
+                        if (e2.description?.includes('message to be replied not found')) {
+                            await bot.api.sendMessage(job.data.chatId, returnValue);
+                        }
+                    });
+                } else {
+                    console.error('Unhandled SendMessage Error:', e);
+                }
             }
             return;
         }
@@ -111,7 +140,25 @@ worker.on('completed', async (job, returnValue) => {
                     const btnLabel = lang === 'CN' ? '检查明细 (MORE)' : lang === 'MY' ? 'Lihat Butiran' : 'View Details';
                     options.reply_markup = new InlineKeyboard().url(btnLabel, res.url);
                 }
-                await bot.api.sendMessage(job.data.chatId, res.text, options);
+
+                try {
+                    await bot.api.sendMessage(job.data.chatId, res.text, options);
+                } catch (e: any) {
+                    if (e.description?.includes('message to be replied not found')) {
+                        delete options.reply_to_message_id;
+                        await bot.api.sendMessage(job.data.chatId, res.text, options);
+                    } else if (e.description?.includes('can\'t parse entities')) {
+                        delete options.parse_mode;
+                        await bot.api.sendMessage(job.data.chatId, res.text, options).catch(async (e2) => {
+                            if (e2.description?.includes('message to be replied not found')) {
+                                delete options.reply_to_message_id;
+                                await bot.api.sendMessage(job.data.chatId, res.text, options);
+                            }
+                        });
+                    } else {
+                        throw e;
+                    }
+                }
             }
 
             if (res.pdf) {
@@ -135,7 +182,12 @@ worker.on('failed', async (job, err) => {
                 reply_to_message_id: job.data.messageId,
                 parse_mode: 'Markdown'
             });
-        } catch (msgErr) {
+        } catch (msgErr: any) {
+            if (msgErr.description?.includes('message to be replied not found')) {
+                await bot.api.sendMessage(job.data.chatId, `⚠️ **System Error**: ${err.message}`, {
+                    parse_mode: 'Markdown'
+                }).catch(() => { });
+            }
             console.error('Failed to report job failure to user');
         }
     }
