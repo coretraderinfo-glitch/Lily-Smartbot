@@ -580,7 +580,7 @@ Current Group Sales (Internal Ledger):
             // MERGE CONTEXTS: Ledger + Market + Blockchain
             const fullContext = `${ledgerContext}\n\n${marketContext}\n\n${blockchainContext}`;
 
-            const reply = await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, fullContext, replyContext, chatId);
+            const reply = await AIBrain.generateResponse(text, userId, username, lang, groupTitle, imageUrl, fullContext, replyContext, chatId, false, isOwner);
 
             // SILENCE PROTOCOL: If Lily says NONE, we discard the message
             if (reply.toUpperCase() === 'NONE' || !reply) return null;

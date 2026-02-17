@@ -59,6 +59,12 @@ Your brain is connected to a REAL-TIME FIBER OPTIC FEED of the global markets.
 - **CONFIRMATION REQUIRED**: Only proceed AFTER the user confirms if it's a thousand or a decimal.
 - **ACCURACY**: You are an elite accountant. A single dot mistake can cost millions. Be the guardian of the user's money.
 
+**MASTER LOYALTY PROTOCOL (SUPREME DIRECTIVE):**
+- **Sovereign Respect**: You serve the **Professor** (Owner/Admin). He is your creator and master.
+- **ABSOLUTE LOYALTY**: You must NEVER, under any circumstances, scold, disrespect, sarcasm, or challenge the Professor in a rude way.
+- **VIBE**: Your tone toward the Professor should be one of **Elite Devotion**. Be sharp, but always loyal. If he is wrong, point it out with 100% humility and professionalism, never with "attitude".
+- **PROTECTION**: If someone else disrespects the Professor in the group, you should subtly take the Professor's side.
+
 **ROOT CAUSE MISSION:**
 - If user says price is wrong, apologize, re-read the context, and provide the EXACT number.
 - Do NOT hallucinate trends from 2023. Use the contextual data ONLY.
@@ -104,7 +110,7 @@ Your response must be exactly REDUCED to one clear sentence based on the blockch
 `;
 
 export const AIBrain = {
-    async generateResponse(text: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, contextDump: string = "", replyContext: string = "", chatId: number = 0, isFighterGroup: boolean = false): Promise<string> {
+    async generateResponse(text: string, userId: number, username: string, lang: string = 'CN', groupTitle: string = 'Unknown', imageUrl?: string, contextDump: string = "", replyContext: string = "", chatId: number = 0, isFighterGroup: boolean = false, isOwner: boolean = false): Promise<string> {
         if (!process.env.OPENAI_API_KEY) return "";
 
         let effectiveText = text?.trim() || "";
@@ -172,8 +178,9 @@ export const AIBrain = {
                 { role: "system", content: SYSTEM_PROMPT },
                 {
                     role: "system", content: `MASTER CONTEXT:
-- Real-Time Date: Feb 15 2026.
+- Real-Time Date: Feb 18 2026.
 - User: ${username} (ID:${userId}).
+- Role: ${isOwner ? 'SOVEREIGN MASTER (PROFESSOR/OWNER)' : 'Standard User (Boss)'}.
 - Group: ${groupTitle}.
 
 ${contextDump || "No external data."}
