@@ -208,7 +208,7 @@ IGNORE the group's default language setting (${lang}). That is ONLY for system a
             const completion = await openai.chat.completions.create({
                 model: process.env.AI_MODEL || "gpt-4o",
                 messages,
-                max_tokens: 600,
+                max_tokens: 1800, // TRIPLED CAPACITY: Deep Audits & Long Reports
                 temperature: 0.5,
                 presence_penalty: 0.2,
                 frequency_penalty: 0.2,

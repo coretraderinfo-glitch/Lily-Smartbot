@@ -96,39 +96,61 @@ worker.on('completed', async (job, returnValue) => {
                 }
                 return;
             }
-            // Standard text reply (With Markdown & Reply Fallback)
+            // --- LONG-FORM AUDIT PROTOCOL: Smart Splitter ---
+            const MAX_LENGTH = 3800;
+            if (returnValue.length > MAX_LENGTH) {
+                const chunks: string[] = [];
+                let remaining = returnValue;
+                while (remaining.length > 0) {
+                    if (remaining.length <= MAX_LENGTH) { chunks.push(remaining); break; }
+                    let splitAt = remaining.lastIndexOf('\n', MAX_LENGTH);
+                    if (splitAt <= 0) splitAt = MAX_LENGTH;
+                    chunks.push(remaining.substring(0, splitAt));
+                    remaining = remaining.substring(splitAt).trimStart();
+                }
+                for (let i = 0; i < chunks.length; i++) {
+                    const pageHeader = chunks.length > 1 ? `📄 *[Part ${i + 1}/${chunks.length}]*\n\n` : '';
+                    try {
+                        await bot.api.sendMessage(job.data.chatId, pageHeader + chunks[i], {
+                            parse_mode: 'Markdown',
+                            reply_to_message_id: i === 0 ? job.data.messageId : undefined
+                        });
+                    } catch (chunkErr: any) {
+                        await bot.api.sendMessage(job.data.chatId, pageHeader + chunks[i]).catch(() => { });
+                    }
+                }
+                return;
+            }
+
+            // --- STANDARD SHORT TEXT MESSAGE ---
             try {
                 await bot.api.sendMessage(job.data.chatId, returnValue, {
                     reply_to_message_id: job.data.messageId,
                     parse_mode: 'Markdown'
                 });
             } catch (e: any) {
-                // FALLBACK 1: If Markdown fails, try as plain text
-                // FALLBACK 2: If reply target is deleted, try without reply
                 const isReplyError = e.description?.includes('message to be replied not found');
                 const isMarkdownError = e.description?.includes('can\'t parse entities');
-
                 if (isReplyError) {
                     await bot.api.sendMessage(job.data.chatId, returnValue, {
                         parse_mode: isMarkdownError ? undefined : 'Markdown'
-                    });
+                    }).catch(() => { });
                 } else if (isMarkdownError) {
-                    console.warn('[Markdown Fail] Retrying as plain text...');
                     await bot.api.sendMessage(job.data.chatId, returnValue, {
                         reply_to_message_id: job.data.messageId
-                    }).catch(async (e2) => {
+                    }).catch(async (e2: any) => {
                         if (e2.description?.includes('message to be replied not found')) {
-                            await bot.api.sendMessage(job.data.chatId, returnValue);
+                            await bot.api.sendMessage(job.data.chatId, returnValue).catch(() => { });
                         }
                     });
                 } else {
-                    console.error('Unhandled SendMessage Error:', e);
+                    console.error('[Worker] Unhandled SendMessage Error:', e);
                 }
             }
             return;
-        }
+        } // end: string handler
 
-        // --- 2. HANDLE RICH RESULTS (OBJECTS) ---
+        // --- 2. HANDLE RICH RESULTS (OBJECTS: Bills with buttons/PDF) ---
         if (typeof returnValue === 'object') {
             const res = returnValue as BillResult;
             const settings = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [job.data.chatId]);
@@ -140,24 +162,20 @@ worker.on('completed', async (job, returnValue) => {
                     const btnLabel = lang === 'CN' ? '检查明细 (MORE)' : lang === 'MY' ? 'Lihat Butiran' : 'View Details';
                     options.reply_markup = new InlineKeyboard().url(btnLabel, res.url);
                 }
-
                 try {
                     await bot.api.sendMessage(job.data.chatId, res.text, options);
                 } catch (e: any) {
-                    if (e.description?.includes('message to be replied not found')) {
-                        delete options.reply_to_message_id;
-                        await bot.api.sendMessage(job.data.chatId, res.text, options);
-                    } else if (e.description?.includes('can\'t parse entities')) {
-                        delete options.parse_mode;
-                        await bot.api.sendMessage(job.data.chatId, res.text, options).catch(async (e2) => {
-                            if (e2.description?.includes('message to be replied not found')) {
-                                delete options.reply_to_message_id;
-                                await bot.api.sendMessage(job.data.chatId, res.text, options);
-                            }
-                        });
-                    } else {
-                        throw e;
-                    }
+                    try {
+                        if (e.description?.includes('message to be replied not found')) {
+                            delete options.reply_to_message_id;
+                            await bot.api.sendMessage(job.data.chatId, res.text, options);
+                        } else if (e.description?.includes('can\'t parse entities')) {
+                            delete options.parse_mode;
+                            await bot.api.sendMessage(job.data.chatId, res.text, options);
+                        } else {
+                            console.error('Rich Result Send Error:', e);
+                        }
+                    } catch (e2) { }
                 }
             }
 
@@ -761,57 +779,87 @@ bot.on('callback_query:data', async (ctx) => {
     }
 });
 
-bot.on('message', async (ctx, next) => {
+bot.on('message', async (ctx) => {
     const userId = ctx.from?.id;
-    if (!userId) return await next();
+    if (!userId) return;
 
-    // --- 🛡️ SPAM SHIELD (RATE LIMITER) ---
-    if (!Security.isSystemOwner(userId)) {
-        const spamKey = `spam_shield:${userId}`;
+    // A. PRE-SCAN Security & Context
+    const isOwner = Security.isSystemOwner(userId);
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || ctx.from.first_name || 'FIGHTER';
+    const text = (ctx.message?.text || ctx.message?.caption || '').trim();
+    const t = text;
+    const messageId = ctx.message.message_id;
+
+    // 0. UPDATE USER CACHE
+    if (ctx.from.username) {
+        db.query(`
+            INSERT INTO user_cache (group_id, user_id, username, last_seen)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (group_id, username) 
+            DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
+        `, [chatId, userId, ctx.from.username]).catch(() => { });
+        UsernameResolver.register(ctx.from.username, userId).catch(() => { });
+    }
+
+    // B. COMMAND & TRIGGER DETECTION
+    const config = await SettingsCache.get(chatId);
+    const aiEnabled = config?.ai_brain_enabled || false;
+    const auditorEnabled = config?.auditor_enabled || false;
+
+    const cleanT = t.replace(/^(?:lily|@\w+)\s+/i, '').trim();
+    const isCommand = text.startsWith('/') ||
+        /^(?:开始|Start|结束记录|Stop|显示账单|Show Bill|bill|显示操作人|operators|清理今天数据|cleardata|下载报表|export|导出Excel|excel|设置|Set|删除|Delete)/i.test(cleanT) ||
+        /^[+\-取]\s*\d/.test(cleanT) ||
+        /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*-?\s*[\d.]+/i.test(cleanT);
+
+    const isReplyToBot = ctx.message.reply_to_message?.from?.id === ctx.me.id;
+    const isBotMentioned = ctx.message.entities?.some(e =>
+        (e.type === 'mention' && /\blily\b/i.test(text.substring(e.offset, e.offset + e.length))) ||
+        (e.type === 'text_mention' && e.user?.id === ctx.me.id)
+    ) || false;
+    const hasLilyInText = /\blily\b/i.test(t) || /\blily\b/i.test(ctx.message.caption || "");
+
+    const isNameMention = hasLilyInText || isBotMentioned || isReplyToBot;
+    const isTriggered = isCommand || (aiEnabled && isNameMention) || (isOwner && isNameMention);
+    const { Auditor } = require('../guardian/auditor');
+    const isReport = auditorEnabled && Auditor.isFinancialReport(text);
+
+    // --- 🛡️ RESILIENT SPAM SHIELD ---
+    if (!isOwner) {
+        const spamKey = `spam_shield:${chatId}:${userId}`;
         const currentCount = await connection.incr(spamKey);
+        if (currentCount === 1) await connection.expire(spamKey, 3);
 
-        if (currentCount === 1) {
-            await connection.expire(spamKey, 3); // 3 Second Window
-        }
-
-        // Check if Admin/Operator (Higher limit)
-        const isAdmin = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [ctx.chat.id, userId]);
-        const isOperator = await RBAC.isAuthorized(ctx.chat.id, userId);
-        const limit = (isAdmin.rows.length > 0 || isOperator) ? 10 : 4;
+        const isAdminRes = await db.query('SELECT 1 FROM group_admins WHERE group_id = $1 AND user_id = $2', [chatId, userId]);
+        const isOperator = await RBAC.isAuthorized(chatId, userId);
+        const limit = (isAdminRes.rows.length > 0 || isOperator) ? 15 : 6;
 
         if (currentCount > limit) {
-            if (currentCount === limit + 1) {
-                // Determine Language
-                const settingsRes = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [ctx.chat.id]);
-                const lang = settingsRes.rows[0]?.language_mode || 'CN';
-                const name = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'FIGHTER');
-
+            if (isTriggered && currentCount === limit + 1) {
+                const lang = config?.language_mode || 'CN';
+                const name = ctx.from?.username ? `@${ctx.from.username}` : username;
                 await ctx.reply(Personality.getSpamWarning(lang, name), { parse_mode: 'Markdown' });
             }
-            return; // Block execution
+            return;
         }
     }
 
-    // A. GUARDIAN SCAN (NO-SKIP SECURITY)
+    // C. GUARDIAN SCAN
     try {
         await Guardian.scanMessage(ctx);
         await Guardian.scanLinks(ctx);
-        if (ctx.message?.new_chat_members) {
-            await Guardian.handleNewMember(ctx);
-        }
+        if (ctx.message?.new_chat_members) await Guardian.handleNewMember(ctx);
     } catch (e) {
         console.error('[Guardian] Runtime Error:', e);
     }
 
-    // B. SENTINEL REGISTRY (/setadmin)
-    const text = ctx.message?.text || ctx.message?.caption || '';
+    // D. SENTINEL REGISTRY (/setadmin)
     if (text.startsWith('设置管理员') || text.startsWith('/setadmin')) {
-        const userId = ctx.from?.id;
-        const chatId = ctx.chat.id;
-        if (!userId || (!Security.isSystemOwner(userId) && !await RBAC.isAuthorized(chatId, userId))) {
+        if (!isOwner && !await RBAC.isAuthorized(chatId, userId)) {
             return ctx.reply("❌ **Unauthorized**");
         }
-
+        // ... (Sentinel logic remains same, but using unified variables)
         let targetId: number | undefined;
         let targetName: string | undefined;
 
@@ -822,13 +870,13 @@ bot.on('message', async (ctx, next) => {
             const parts = text.split(/\s+/);
             const tag = parts.find(p => p.startsWith('@'));
             if (tag) {
-                const username = tag.replace('@', '');
-                const cached = await db.query('SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2', [chatId, username]);
+                const uname = tag.replace('@', '');
+                const cached = await db.query('SELECT user_id FROM user_cache WHERE group_id = $1 AND username = $2', [chatId, uname]);
                 if (cached.rows.length > 0) {
                     targetId = parseInt(cached.rows[0].user_id);
-                    targetName = username;
+                    targetName = uname;
                 } else {
-                    return ctx.reply(`⚠️ **无法识别 (Unknown User)**\n\nLily 还没见过 @${username}。请让该用户先在群里说句话，或者直接**回复**其消息进行设置。`, { parse_mode: 'Markdown' });
+                    return ctx.reply(`⚠️ **无法识别 (Unknown User)**\n\nLily 还没见过 @${uname}。请让该用户先在群里说句话，或者直接**回复**其消息进行设置。`, { parse_mode: 'Markdown' });
                 }
             }
         }
@@ -837,255 +885,96 @@ bot.on('message', async (ctx, next) => {
             return ctx.reply("💡 **提示 (Tip)**: 请回复该用户的消息，或者直接输入 `设置管理员 @用户名` 来激活哨兵权限。", { parse_mode: 'Markdown' });
         }
 
-        if (targetId && targetName) {
-            // CHECK LIMIT (MAX 5)
-            const adminCount = await db.query('SELECT count(*) FROM group_admins WHERE group_id = $1', [chatId]);
-            if (parseInt(adminCount.rows[0].count) >= 5) {
-                return ctx.reply("🛑 **席位已满 (Sentinel Seats Full)**\n\n本群组已达到 **5名** 管理员的上限。请先移除旧的管理员后再添加新成员。");
-            }
-
-            await db.query('INSERT INTO group_admins (group_id, user_id, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chatId, targetId, targetName]);
-            return ctx.reply(`✅ **Sentinel Activated**\n👤 @${targetName} has been registered as a Group Admin of the Guardian Shield.`);
+        const adminCount = await db.query('SELECT count(*) FROM group_admins WHERE group_id = $1', [chatId]);
+        if (parseInt(adminCount.rows[0].count) >= 5) {
+            return ctx.reply("🛑 **席位已满 (Sentinel Seats Full)**\n\n本群组已达到 **5名** 管理员的上限。请先移除旧的管理员后再添加新成员。");
         }
+
+        await db.query('INSERT INTO group_admins (group_id, user_id, username) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [chatId, targetId, targetName]);
+        return ctx.reply(`✅ **Sentinel Activated**\n👤 @${targetName} has been registered as a Group Admin of the Guardian Shield.`);
     }
 
-    // C. SELF-HEALING REGISTRY (Fixes Blind Spot)
+    // E. SELF-HEALING REGISTRY
     try {
-        const currentChatId = ctx.chat.id;
-        // Upsert Group Metadata on EVERY message
-        // This ensures the Dashboard is 100% in sync with reality.
-        const chatTitle = ctx.chat.title || `Private Group ${currentChatId}`;
-
-        // Use non-blocking promise to not slow down bot response
+        const chatTitle = ctx.chat.title || `Private Group ${chatId}`;
         db.query(`
             INSERT INTO groups (id, title, status, last_seen)
             VALUES ($1, $2, 'ACTIVE', NOW())
-            ON CONFLICT (id) DO UPDATE SET 
-                title = $2, 
-                status = 'ACTIVE',
-                last_seen = NOW()
-        `, [currentChatId, chatTitle]).catch((err: any) => console.error('Registry Sync Error:', err));
+            ON CONFLICT (id) DO UPDATE SET title = $2, status = 'ACTIVE', last_seen = NOW()
+        `, [chatId, chatTitle]).catch(() => { });
+        db.query(`INSERT INTO group_settings (group_id) VALUES ($1) ON CONFLICT (group_id) DO NOTHING`, [chatId]).catch(() => { });
+    } catch (e) { }
 
-        // Ensure Settings Exist
-        db.query(`
-            INSERT INTO group_settings (group_id) VALUES ($1)
-            ON CONFLICT (group_id) DO NOTHING
-        `, [currentChatId]).catch(() => { });
-
-    } catch (e) {
-        // Silent fail
-    }
-
-    await next();
-});
-
-bot.on('message', async (ctx) => {
-    const text = (ctx.message.text || ctx.message.caption || "").trim();
-    const chatId = ctx.chat.id;
-    const userId = ctx.from.id;
-    const username = ctx.from.username || ctx.from.first_name;
-    const messageId = ctx.message.message_id;
-
-    const isOwner = Security.isSystemOwner(userId);
-
-    // AUDIT LOG
-    if (text.startsWith('/generate_key') || text.startsWith('/super_activate')) {
-        const timestamp = new Date().toISOString();
-        const authResult = isOwner ? '✅ AUTHORIZED' : '❌ DENIED';
-        console.log(`[SECURITY AUDIT] ${timestamp} | User: ${userId} (${username}) | Command: ${text.split(' ')[0]} | Result: ${authResult}`);
-    }
-
-    // 0. UPDATE USER CACHE (Group-specific + Global Registry)
-    if (ctx.from.username) {
-        db.query(`
-            INSERT INTO user_cache (group_id, user_id, username, last_seen)
-            VALUES ($1, $2, $3, NOW())
-            ON CONFLICT (group_id, username) 
-            DO UPDATE SET user_id = EXCLUDED.user_id, last_seen = NOW()
-        `, [chatId, userId, ctx.from.username]).catch(() => { });
-
-        // WORLD-CLASS: Also register in global registry (permanent cross-group memory)
-        UsernameResolver.register(ctx.from.username, userId).catch(() => { });
-    }
-
-    // 2. HEALTH CHECK
-    // 2. CORE COMMANDS
+    // F. CORE COMMANDS (PING/WHOAMI/HEALTH/OWNER)
     if (text === '/start') {
         const { AIBrain } = require('../utils/ai');
-        const welcome = await AIBrain.generateSimpleGreeting(
-            `A user named ${username} just started the Lily bot. Generate a warm, elite, and very human welcome message. Tell them you are Lily, your loyal assistant, ready to handle accounts, audit receipts, and protect the group. Use a friendly Malaysian vibe (Manglish/Chinese/English mix).`
-        );
-        return ctx.reply(welcome || `✨ **Welcome!** Lily is online and ready to serve.`);
+        const welcome = await AIBrain.generateSimpleGreeting(`A user named ${username} just started the Lily bot. Warm welcome message.`);
+        return ctx.reply(welcome || `✨ **Welcome!** Lily is online.`);
     }
-
     if (text === '/ping') return ctx.reply("🏓 **Pong!** I am alive and listening.", { parse_mode: 'Markdown' });
     if (text === '/menu' || text === '/help') return ctx.reply(DASHBOARD_TEXT, { parse_mode: 'Markdown', reply_markup: MainMenuMarkup });
 
-    // Diagnostic: /whoami
     if (text.startsWith('/whoami')) {
         const owners = Security.getOwnerRegistry();
-        const statusIcon = isOwner ? "👑" : "👤";
         const title = isOwner ? "**SIR / Professor**" : "**Regular User**";
-        const greeting = isOwner ? "Lily is a specialized AI entity. I am your loyal follower, SIR. My existence is dedicated solely to your mission." : "Hello user.";
-
-        return ctx.reply(`${statusIcon} **Identity Synchronization**\n\n${greeting}\n\nID: \`${userId}\`\nName: ${username}\nRole: ${title}\nOrigin: Master AI Creation\n\n**Registry:** \`${owners.length} Admin(s)\``, { parse_mode: 'Markdown' });
+        return ctx.reply(`👑 **Identity Synchronization**\n\nID: \`${userId}\`\nName: ${username}\nRole: ${title}`, { parse_mode: 'Markdown' });
     }
 
-    // World-Class Diagnostic: /health
-    if (text === '/health') {
-        if (!isOwner) return;
-        const startTime = Date.now();
+    if (text === '/health' && isOwner) {
+        const start = Date.now();
         const memStatus = await MemoryCore.diagnose();
-
         // Check DB & Registry
         const dbRes = await db.query('SELECT COUNT(*) FROM username_global_registry').catch(() => ({ rowCount: 0, rows: [{ count: 0 }] }));
         const registryCount = dbRes.rows[0].count;
-
-        const latency = Date.now() - startTime;
-
-        const healthMsg = `🏥 **LILY CORE HEALTH REPORT**\n\n` +
-            `⚡ **Latency:** \`${latency}ms\`\n` +
-            `🧠 **Memory Core:** ${memStatus.exists ? '✅ ONLINE' : '❌ FAULT'}\n` +
-            `📅 **Global Registry:** \`${registryCount} Users Captured\`\n` +
-            `🛡️ **Auditor Engine:** ✅ ACTIVE (V2.1 - GPT-4o)\n` +
-            `💱 **FX Engine:** ✅ STABLE\n\n` +
-            `🏁 **Status:** All systems synchronized for weekend operation.`;
-
-        return ctx.reply(healthMsg, { parse_mode: 'Markdown' });
+        return ctx.reply(`🏥 **LILY CORE HEALTH REPORT**\n\n⚡ Latency: \`${Date.now() - start}ms\`\n🧠 Memory: ${memStatus.exists ? '✅ ONLINE' : '❌ FAULT'}\n📅 Registry: \`${registryCount} Users\`\n🛡️ Status: ✅ ACTIVE`, { parse_mode: 'Markdown' });
     }
 
-    // 2. OWNER COMMANDS
-    if (text.startsWith('/recover')) {
-        if (!isOwner) return;
-        const parts = text.split(/\s+/);
-        const targetGroupId = parts[1];
-        if (!targetGroupId) return ctx.reply("📋 **Usage:** `/recover [GROUP_ID]`");
-
-        const archiveRes = await db.query(`
-            SELECT pdf_blob, business_date FROM historical_archives 
-            WHERE group_id = $1 
-            ORDER BY archived_at DESC LIMIT 1
-        `, [targetGroupId]);
-
-        if (archiveRes.rows.length === 0) return ctx.reply("❌ **Vault Empty**: No recent reports found.");
-        const { pdf_blob, business_date } = archiveRes.rows[0];
-        const dateStr = new Date(business_date).toISOString().split('T')[0];
-        return ctx.replyWithDocument(new InputFile(pdf_blob, `Recovered_Report_${dateStr}.pdf`));
-    }
-
-    if (text.startsWith('/generate_key')) {
-        if (!isOwner) return;
-        const parts = text.split(/\s+/);
-        const days = parseInt(parts[1]) || 30;
-        const maxUsers = parseInt(parts[2]) || 100;
-        const customKey = parts[3];
-
-        const key = customKey ? customKey.toUpperCase() : await Licensing.generateKey(days, maxUsers, userId);
-        if (customKey) {
-            await db.query(`
-                INSERT INTO licenses (key, duration_days, max_users, created_by)
-                VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO NOTHING
-            `, [key, days, maxUsers, userId]);
+    // OWNER COMMANDS (HIGH-LEVEL)
+    if (isOwner) {
+        if (text.startsWith('/recover')) {
+            const parts = text.split(/\s+/);
+            const targetGroupId = parts[1];
+            if (!targetGroupId) return ctx.reply("📋 **Usage:** `/recover [GROUP_ID]`");
+            const archiveRes = await db.query(`SELECT pdf_blob, business_date FROM historical_archives WHERE group_id = $1 ORDER BY archived_at DESC LIMIT 1`, [targetGroupId]);
+            if (archiveRes.rows.length === 0) return ctx.reply("❌ **Vault Empty**");
+            const { pdf_blob, business_date } = archiveRes.rows[0];
+            const dateStr = new Date(business_date).toISOString().split('T')[0];
+            return ctx.replyWithDocument(new InputFile(pdf_blob, `Recovered_${dateStr}.pdf`));
         }
-        return ctx.reply(`🔑 **License Key Ready**\nKey: \`${key}\` (${days} days)`, { parse_mode: 'Markdown' });
-    }
 
-    if (text.startsWith('/super_activate')) {
-        if (!isOwner) return;
-        const parts = text.split(/\s+/);
-        const days = parseInt(parts[1]) || 365;
-        const expiry = new Date();
-        expiry.setDate(expiry.getDate() + days);
-        const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat';
-
-        await db.query(`
-            INSERT INTO groups (id, status, license_key, license_expiry, title)
-            VALUES ($1, 'ACTIVE', 'SUPER-PASS', $2, $3)
-            ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE', license_expiry = $2, title = $3
-        `, [chatId, expiry, chatTitle]);
-
-        return ctx.reply(`👑 **System Owner Activation**\n\n群组已强制激活。\nValidity: ${days} days`, { parse_mode: 'Markdown' });
-    }
-
-    if (text.startsWith('/set_url')) {
-        if (!isOwner) return;
-        const parts = text.split(/\s+/);
-        const url = parts[1];
-        if (!url) return ctx.reply("📋 **Usage:** `/set_url [YOUR_DOMAIN]`\nExample: `/set_url https://lily.up.railway.app`", { parse_mode: 'Markdown' });
-
-        const cleanUrl = url.replace(/\/$/, '');
-        // FORENSIC FIX: Ensure group exists before updating URL
-        await db.query(`
-            INSERT INTO groups (id, title, system_url)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (id) DO UPDATE SET system_url = $3
-        `, [chatId, ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat', cleanUrl]);
-
-        return ctx.reply(`✅ **Domain Locked Successfully**\nYour links will now use: \`${cleanUrl}\``, { parse_mode: 'Markdown' });
-    }
-
-    // 3. REGULAR COMMANDS
-    if (text.startsWith('/activate')) {
-        const parts = text.split(/\s+/);
-        let key = parts[1];
-        if (!key) return ctx.reply("📋 请提供授权码 (Please provide key)");
-        key = key.trim().toUpperCase();
-        const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private ';
-        const result = await Licensing.activateGroup(chatId, key, chatTitle, userId, username);
-        return ctx.reply(result.message, { parse_mode: 'Markdown' });
-    }
-
-    // 4. BUSINESS LOGIC (MULTILINGUAL)
-    const t = text.trim();
-    // COMMAND NORMALIZATION: Strip "Lily" or bot mention triggers to check for functional commands
-    const cleanT = t.replace(/^(?:lily|@\w+)\s+/i, '').trim();
-
-    const isCommand = text.startsWith('/') ||
-        /^(?:开始|Start|结束记录|Stop|显示账单|Show Bill|bill|显示操作人|operators|清理今天数据|cleardata|下载报表|export|导出Excel|excel|设置|Set|删除|Delete)/i.test(cleanT) ||
-        /^[+\-取]\s*\d/.test(cleanT) ||
-        /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*-?\s*[\d.]+/i.test(cleanT);
-
-    // 4. SETTINGS & TRIGGER DETECTION (Ultra-Fast Cache Layer)
-    const config = await SettingsCache.get(chatId);
-    const aiEnabled = config?.ai_brain_enabled || false;
-    const auditorEnabled = config?.auditor_enabled || false;
-
-    // EVOLVED HEARING: Detect "Lily", Mentions, OR Replies to Bot
-    const isReplyToBot = ctx.message.reply_to_message?.from?.id === ctx.me.id;
-    const caption = ctx.message.caption || "";
-
-    // Check if "lily" appears in text or caption
-    const hasLilyInText = /lily/i.test(t) || /lily/i.test(caption);
-
-    // Check if bot is specifically @mentioned (not just any mention)
-    const isBotMentioned = ctx.message.entities?.some(e => {
-        if (e.type === 'mention') {
-            // Extract the actual @mention text
-            const mentionText = (ctx.message.text || ctx.message.caption || '').substring(e.offset, e.offset + e.length);
-            return /lily/i.test(mentionText);
+        if (text.startsWith('/generate_key')) {
+            const parts = text.split(/\s+/);
+            const days = parseInt(parts[1]) || 30;
+            const maxUsers = parseInt(parts[2]) || 100;
+            const customKey = parts[3];
+            const key = customKey ? customKey.toUpperCase() : await Licensing.generateKey(days, maxUsers, userId);
+            if (customKey) await db.query(`INSERT INTO licenses (key, duration_days, max_users, created_by) VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO NOTHING`, [key, days, maxUsers, userId]);
+            return ctx.reply(`🔑 **License Key Ready**\nKey: \`${key}\` (${days} days)`, { parse_mode: 'Markdown' });
         }
-        if (e.type === 'text_mention') {
-            // Direct user mention of bot
-            return e.user?.id === ctx.me.id;
+
+        if (text.startsWith('/super_activate')) {
+            const parts = text.split(/\s+/);
+            const days = parseInt(parts[1]) || 365;
+            const expiry = new Date();
+            expiry.setDate(expiry.getDate() + days);
+            const chatTitle = ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat';
+            await db.query(`INSERT INTO groups (id, status, license_key, license_expiry, title) VALUES ($1, 'ACTIVE', 'SUPER-PASS', $2, $3) ON CONFLICT (id) DO UPDATE SET status = 'ACTIVE', license_expiry = $2, title = $3`, [chatId, expiry, chatTitle]);
+            return ctx.reply(`👑 **System Owner Activation**\nValidity: ${days} days`, { parse_mode: 'Markdown' });
         }
-        return false;
-    }) || false;
 
-    const isNameMention = hasLilyInText || isBotMentioned || isReplyToBot;
+        if (text.startsWith('/set_url')) {
+            const parts = text.split(/\s+/);
+            const url = parts[1];
+            if (!url) return ctx.reply("📋 **Usage:** `/set_url [DOMAIN]`");
+            const cleanUrl = url.replace(/\/$/, '');
+            await db.query(`INSERT INTO groups (id, title, system_url) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET system_url = $3`, [chatId, ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat', cleanUrl]);
+            return ctx.reply(`✅ **Domain Locked**: \`${cleanUrl}\``, { parse_mode: 'Markdown' });
+        }
+    }
 
-    // PROFESSOR OVERRIDE: Lily never ignores her Master.
-    const isTriggered = isCommand || (aiEnabled && isNameMention) || (isOwner && isNameMention);
-
-    // SILENT AUDITOR BYPASS
-    const { Auditor } = require('../guardian/auditor');
-    const isReport = auditorEnabled && Auditor.isFinancialReport(text);
-
+    // G. OPERATIONAL COMMANDS (QUEUED)
     if (isTriggered || isReport) {
-        if (text.startsWith('/start')) {
-            return ctx.reply(`✨ **Lily Smart Ledger**\nID: \`${userId}\` | Status: ${isOwner ? '👑 Owner' : '👤 User'}`, { parse_mode: 'Markdown' });
-        }
-
-        // Essential Check
+        // Activation Check
         const isEssential = text.startsWith('/activate') || text.startsWith('/whoami') || text === '/ping';
         if (!isOwner && !isEssential) {
             const isActive = await Licensing.isGroupActive(chatId);
@@ -1093,7 +982,6 @@ bot.on('message', async (ctx) => {
         }
 
         if (isCommand) {
-            // RBAC Check
             const isOperator = await RBAC.isAuthorized(chatId, userId);
             const opCountRes = await db.query('SELECT count(*) FROM group_operators WHERE group_id = $1', [chatId]);
             const hasOperators = parseInt(opCountRes.rows[0].count) > 0;
@@ -1102,71 +990,43 @@ bot.on('message', async (ctx) => {
                 try {
                     const member = await ctx.getChatMember(userId);
                     canBootsTrap = member.status === 'creator' || member.status === 'administrator';
-                } catch (e) {
-                    canBootsTrap = false;
-                }
+                } catch (e) { canBootsTrap = false; }
             }
+            if (!isOperator && !isOwner && !canBootsTrap) return ctx.reply("❌ **权限不足 (Unauthorized)**");
 
-            if (!isOperator && !isOwner && !canBootsTrap) {
-                return ctx.reply("❌ **权限不足 (Unauthorized)**", { parse_mode: 'Markdown' });
-            }
-
-            // State Check
             const groupResForState = await db.query('SELECT current_state FROM groups WHERE id = $1', [chatId]);
             const state = groupResForState.rows[0]?.current_state || 'WAITING_FOR_START';
-
-            // World-Class Transaction Detection (Synced with Processor & Correction logic)
-            const isTransaction = /^[+\-取]\s*\d/.test(t) ||
-                /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*-?\s*[\d.]+/i.test(t);
-
+            const isTransaction = /^[+\-取]\s*\d/.test(t) || /^(?:下发|Out|Keluar|回款|Return|Balik|入款|In|Masuk)\s*-?\s*[\d.]+/i.test(t);
             if (isTransaction && state !== 'RECORDING') {
                 const settingsResForLang = await db.query('SELECT language_mode FROM group_settings WHERE group_id = $1', [chatId]);
-                const lang = settingsResForLang.rows[0]?.language_mode || 'CN';
-                const alertMsg = lang === 'CN' ? "⚠️ **请先输入 “开始” 以开启今日记录。**"
-                    : lang === 'MY' ? "⚠️ **Sila taip “Start” untuk mula merakam harini.**"
-                        : "⚠️ **Please type “Start” to begin today's recording.**";
-                return ctx.reply(alertMsg, { parse_mode: 'Markdown' });
+                const alertMsg = settingsResForLang.rows[0]?.language_mode === 'MY' ? "⚠️ Sila taip “Start”." : "⚠️ 请先输入 “开始”。";
+                return ctx.reply(alertMsg);
             }
         }
 
-        // VISION LINK: Extract Photo URL (Always extract and cache for contextual awareness)
+        // Photo Handover
         let imageUrl: string | undefined;
         if (ctx.message.photo && ctx.message.photo.length > 0) {
             try {
-                const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Get largest size
+                const photo = ctx.message.photo[ctx.message.photo.length - 1];
                 const file = await ctx.api.getFile(photo.file_id);
                 if (file.file_path) {
                     imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
-                    // Cache the last image for this group (30 min TTL)
                     await connection.set(`last_image:${chatId}`, imageUrl, 'EX', 1800);
                 }
-            } catch (e) {
-                console.warn('[Vision] Failed to extract photo URL:', e);
-            }
+            } catch (e) { }
         }
 
-        // HYDRATE REPLY CONTEXT: If user is replying to a photo, try to get its URL
         let enrichedReply: any = ctx.message.reply_to_message;
         if (enrichedReply && enrichedReply.photo && enrichedReply.photo.length > 0 && !enrichedReply.imageUrl) {
             try {
                 const photo = enrichedReply.photo[enrichedReply.photo.length - 1];
                 const file = await ctx.api.getFile(photo.file_id);
-                if (file.file_path) {
-                    enrichedReply.imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
-                }
+                if (file.file_path) enrichedReply.imageUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
             } catch (e) { }
         }
 
-        try {
-            await commandQueue.add('cmd', {
-                chatId, userId, username, text, messageId,
-                replyToMessage: enrichedReply,
-                imageUrl
-            });
-        } catch (queueErr) {
-            console.error('Failed to add to queue:', queueErr);
-            ctx.reply("⚠️ **System Error**: 队列连接失败 (Queue Connection Failed).");
-        }
+        await commandQueue.add('cmd', { chatId, userId, username, text, messageId, replyToMessage: enrichedReply, imageUrl });
     }
 });
 
