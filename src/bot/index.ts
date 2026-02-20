@@ -437,10 +437,11 @@ bot.on('callback_query:data', async (ctx) => {
             session.step = 'AWAIT_TEXT';
             await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
             await ctx.editMessageText(
-                `📢 **BROADCAST WIZARD — Step 2/3**\n\n` +
-                `✅ *${session.selected.length} group(s) selected.*\n\n` +
-                `Now **type your memo** in the chat below.\nLily is listening...\n\n` +
-                `_Tip: Markdown supported — **bold**, _italic_, emoji ✅_`,
+                `📢 *BROADCAST WIZARD — Step 2/3*\n\n` +
+                `✅ ${session.selected.length} group(s) selected.\n\n` +
+                `Now type your memo message in the chat below.\n` +
+                `Lily is listening...\n\n` +
+                `💡 Tip: Emoji and plain text work best.`,
                 { parse_mode: 'Markdown' }
             );
             return ctx.answerCallbackQuery();
@@ -957,10 +958,10 @@ bot.on('message:text', async (ctx, next) => {
             .text('❌ Cancel', 'bcast_cancel');
 
         await ctx.reply(
-            `📢 **BROADCAST WIZARD — Step 3/3 (PREVIEW)**\n\n` +
-            `**Your Memo:**\n\`\`\`\n${content.substring(0, 300)}${content.length > 300 ? '...' : ''}\n\`\`\`\n\n` +
-            `**Target Groups (${session.selected.length}):**\n${groupNames}\n\n` +
-            `_Ready to launch?_`,
+            `📢 *BROADCAST WIZARD — Step 3/3 (PREVIEW)*\n\n` +
+            `Your Memo:\n├ ${content.substring(0, 300).replace(/[`*_]/g, '')}${content.length > 300 ? '...' : ''}\n\n` +
+            `Target Groups (${session.selected.length}):\n${groupNames}\n\n` +
+            `Ready to launch?`,
             { parse_mode: 'Markdown', reply_markup: previewKeyboard }
         );
         return; // Stop — do NOT pass to main handler
