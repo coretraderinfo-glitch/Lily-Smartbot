@@ -1,4 +1,5 @@
 import { Context, InputFile, InlineKeyboard, GrammyError, HttpError } from 'grammy';
+import { DateTime } from 'luxon';
 import { Worker, Queue } from 'bullmq';
 import dotenv from 'dotenv';
 import checkEnv from 'check-env';
@@ -779,6 +780,196 @@ bot.on('callback_query:data', async (ctx) => {
     }
 });
 
+// ==========================================================================
+// 📢 BROADCAST WIZARD (Owner Only - Pure Addition, Zero Side Effects)
+// ==========================================================================
+
+// Helper: Build the group selection keyboard from a session
+async function buildGroupSelectionKeyboard(selected: string[], allGroups: { id: string, title: string }[]): Promise<InlineKeyboard> {
+    const keyboard = new InlineKeyboard();
+    for (const group of allGroups) {
+        const isSelected = selected.includes(group.id);
+        const icon = isSelected ? '✅' : '⬜';
+        const label = `${icon} ${group.title.substring(0, 28)}`;
+        keyboard.text(label, `bcast_toggle:${group.id}`).row();
+    }
+    keyboard.text('🔁 Select ALL', 'bcast_all').text('🗑️ Clear', 'bcast_clear').row();
+    keyboard.text('❌ Cancel', 'bcast_cancel').text('✏️ Done → Write Memo', 'bcast_write').row();
+    return keyboard;
+}
+
+// WIZARD CALLBACK HANDLER: Button interactions
+bot.on('callback_query:data', async (ctx) => {
+    const data = ctx.callbackQuery.data;
+    const userId = ctx.from.id;
+    const isOwner = Security.isSystemOwner(userId);
+
+    if (!data.startsWith('bcast_') && !data.startsWith('bcast_toggle:') && !data.startsWith('bcast_confirm:') && !data.startsWith('bcast_schedule_')) return await ctx.answerCallbackQuery();
+
+    if (!isOwner) {
+        await ctx.answerCallbackQuery({ text: '🚫 Owner only.', show_alert: true });
+        return;
+    }
+
+    const sessionKey = `bcast_session:${userId}`;
+
+    if (data === 'bcast_cancel') {
+        await connection.del(sessionKey);
+        await ctx.editMessageText('❌ **Broadcast Wizard cancelled.**', { parse_mode: 'Markdown' });
+        return await ctx.answerCallbackQuery();
+    }
+
+    const rawSession = await connection.get(sessionKey);
+    const session = rawSession ? JSON.parse(rawSession) : { step: 'SELECT_GROUPS', selected: [], allGroups: [] };
+
+    if (data.startsWith('bcast_toggle:')) {
+        const groupId = data.replace('bcast_toggle:', '');
+        const idx = session.selected.indexOf(groupId);
+        if (idx === -1) session.selected.push(groupId);
+        else session.selected.splice(idx, 1);
+        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+        const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
+        const count = session.selected.length;
+        await ctx.editMessageText(
+            `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: ${count} group(s)*`,
+            { parse_mode: 'Markdown', reply_markup: keyboard }
+        );
+        return await ctx.answerCallbackQuery();
+    }
+
+    if (data === 'bcast_all') {
+        session.selected = session.allGroups.map((g: any) => g.id);
+        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+        const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
+        await ctx.editMessageText(
+            `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: ${session.selected.length} group(s) — ALL*`,
+            { parse_mode: 'Markdown', reply_markup: keyboard }
+        );
+        return await ctx.answerCallbackQuery({ text: '✅ All groups selected!' });
+    }
+
+    if (data === 'bcast_clear') {
+        session.selected = [];
+        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+        const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
+        await ctx.editMessageText(
+            `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: 0 group(s)*`,
+            { parse_mode: 'Markdown', reply_markup: keyboard }
+        );
+        return await ctx.answerCallbackQuery({ text: '🗑️ Selection cleared.' });
+    }
+
+    if (data === 'bcast_write') {
+        if (session.selected.length === 0) {
+            return await ctx.answerCallbackQuery({ text: '⚠️ Please select at least one group!', show_alert: true });
+        }
+        session.step = 'AWAIT_TEXT';
+        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+        await ctx.editMessageText(
+            `📢 **BROADCAST WIZARD — Step 2/3**\n\n✅ *${session.selected.length} group(s) selected.*\n\nNow, **type your memo message** in the chat. Lily is listening...\n\n_Tip: You can use Markdown formatting like **bold**, _italic_, or emoji!_`,
+            { parse_mode: 'Markdown' }
+        );
+        return await ctx.answerCallbackQuery();
+    }
+
+    if (data === 'bcast_send_now') {
+        session.step = 'DONE';
+        await connection.del(sessionKey);
+
+        let successCount = 0, failCount = 0;
+        for (const gId of session.selected) {
+            try {
+                await bot.api.sendMessage(gId, session.content, { parse_mode: 'Markdown' });
+                successCount++;
+            } catch (e) { failCount++; }
+        }
+        await ctx.editMessageText(
+            `🚀 **Broadcast Complete!**\n\n✅ Delivered: ${successCount} groups\n❌ Failed: ${failCount} groups`,
+            { parse_mode: 'Markdown' }
+        );
+        return await ctx.answerCallbackQuery({ text: '🚀 Sent!' });
+    }
+
+    if (data === 'bcast_schedule_now') {
+        session.step = 'AWAIT_SCHEDULE_TIME';
+        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+        await ctx.editMessageText(
+            `📢 **BROADCAST WIZARD — Schedule Time**\n\nType the date & time to send (China Time):\n\nFormat: \`YYYY-MM-DD HH:MM\`\nExample: \`2026-02-21 09:00\``,
+            { parse_mode: 'Markdown' }
+        );
+        return await ctx.answerCallbackQuery();
+    }
+
+    await ctx.answerCallbackQuery();
+});
+
+// WIZARD MESSAGE INTERCEPTOR: Captures text input during wizard session
+// ⚠️ This runs BEFORE the main message handler and returns early if wizard is active
+bot.on('message:text', async (ctx, next) => {
+    const userId = ctx.from?.id;
+    if (!userId || !Security.isSystemOwner(userId)) return next();
+
+    const sessionKey = `bcast_session:${userId}`;
+    const rawSession = await connection.get(sessionKey);
+    if (!rawSession) return next(); // Not in wizard — pass to main handler
+
+    const session = JSON.parse(rawSession);
+
+    if (session.step === 'AWAIT_TEXT') {
+        const content = ctx.message.text.trim();
+        if (!content || content.startsWith('/')) return next(); // Ignore commands
+
+        session.content = content;
+        session.step = 'PREVIEW';
+        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+
+        // Preview with action buttons
+        const groupNames = session.allGroups
+            .filter((g: any) => session.selected.includes(g.id))
+            .map((g: any) => `• ${g.title}`)
+            .join('\n');
+
+        const previewKeyboard = new InlineKeyboard()
+            .text('🚀 Send Now', 'bcast_send_now').row()
+            .text('📅 Schedule for Later', 'bcast_schedule_now').row()
+            .text('❌ Cancel', 'bcast_cancel');
+
+        await ctx.reply(
+            `📢 **BROADCAST WIZARD — Step 3/3 (PREVIEW)**\n\n` +
+            `**Your Memo:**\n\`\`\`\n${content.substring(0, 300)}${content.length > 300 ? '...' : ''}\n\`\`\`\n\n` +
+            `**Target Groups (${session.selected.length}):**\n${groupNames}\n\n` +
+            `_Ready to launch?_`,
+            { parse_mode: 'Markdown', reply_markup: previewKeyboard }
+        );
+        return; // Stop here — do NOT pass to main handler
+    }
+
+    if (session.step === 'AWAIT_SCHEDULE_TIME') {
+        const input = ctx.message.text.trim();
+        const scheduledAt = DateTime.fromFormat(input, 'yyyy-MM-dd HH:mm', { zone: 'Asia/Shanghai' });
+
+        if (!scheduledAt.isValid || scheduledAt < DateTime.now()) {
+            await ctx.reply('❌ Invalid or past date. Use format: `YYYY-MM-DD HH:MM` (China Time)', { parse_mode: 'Markdown' });
+            return;
+        }
+
+        const groupIds = session.selected.map(Number);
+        await db.query(
+            `INSERT INTO scheduled_announcements (group_ids, content, scheduled_at, created_by) VALUES ($1, $2, $3, $4)`,
+            [groupIds, session.content, scheduledAt.toJSDate(), userId]
+        );
+
+        await connection.del(sessionKey);
+        await ctx.reply(
+            `✅ **Memo Scheduled!**\n\n🕒 Time: \`${scheduledAt.toFormat('yyyy-MM-dd HH:mm')} CST\`\n🎯 Groups: ${session.selected.length}\n\n_Lily will deliver it on time._`,
+            { parse_mode: 'Markdown' }
+        );
+        return; // Stop here
+    }
+
+    return next(); // Unknown state — fall through
+});
+
 bot.on('message', async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) return;
@@ -931,6 +1122,26 @@ bot.on('message', async (ctx) => {
 
     // OWNER COMMANDS (HIGH-LEVEL)
     if (isOwner) {
+        if (text === '/broadcast') {
+            const groupsRes = await db.query(`SELECT id, title FROM groups WHERE status = 'ACTIVE' ORDER BY title ASC LIMIT 30`);
+            const allGroups = groupsRes.rows.map((g: any) => ({ id: g.id.toString(), title: g.title || `Group ${g.id}` }));
+
+            if (allGroups.length === 0) {
+                return ctx.reply('⚠️ **No active groups found.** Add Lily to some groups first!');
+            }
+
+            const sessionKey = `bcast_session:${userId}`;
+            const session = { step: 'SELECT_GROUPS', selected: [], allGroups, content: '' };
+            await connection.set(sessionKey, JSON.stringify(session), 'EX', 300); // 5 min TTL
+
+            const keyboard = await buildGroupSelectionKeyboard([], allGroups);
+            return ctx.reply(
+                `📢 **BROADCAST WIZARD — Step 1/3**\n\n` +
+                `Select the groups to receive this memo.\nTap ⬜ to select, ✅ to deselect.\n\n*Selected: 0 group(s)*\n\n_Session expires in 5 minutes._`,
+                { parse_mode: 'Markdown', reply_markup: keyboard }
+            );
+        }
+
         if (text.startsWith('/recover')) {
             const parts = text.split(/\s+/);
             const targetGroupId = parts[1];
@@ -969,6 +1180,57 @@ bot.on('message', async (ctx) => {
             const cleanUrl = url.replace(/\/$/, '');
             await db.query(`INSERT INTO groups (id, title, system_url) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET system_url = $3`, [chatId, ctx.chat.type !== 'private' ? ctx.chat.title : 'Private Chat', cleanUrl]);
             return ctx.reply(`✅ **Domain Locked**: \`${cleanUrl}\``, { parse_mode: 'Markdown' });
+        }
+
+        // --- BROADCAST DIRECTIVES (New) ---
+        if (text.startsWith('/schedule')) {
+            // Usage: /schedule YYYY-MM-DD HH:MM ALL|GroupID1,GroupID2 Content
+            const parts = text.split(/\s+/);
+            if (parts.length < 5) return ctx.reply("📋 **Usage:** `/schedule [YYYY-MM-DD] [HH:MM] [ALL|GroupIDs] [Content]`\nEx: `/schedule 2026-02-21 10:00 ALL Hello!`");
+
+            const dateStr = parts[1];
+            const timeStr = parts[2];
+            const target = parts[3];
+            const content = parts.slice(4).join(' ');
+
+            const scheduledAt = DateTime.fromFormat(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', { zone: 'Asia/Shanghai' });
+            if (!scheduledAt.isValid) return ctx.reply("❌ **Invalid Date/Time Format**. Use YYYY-MM-DD HH:mm (China Time).");
+            if (scheduledAt < DateTime.now()) return ctx.reply("❌ **Time in history**. Lily cannot travel back in time.");
+
+            let groupIds: any = null;
+            if (target.toUpperCase() !== 'ALL') {
+                groupIds = target.split(',').map(id => id.trim()).filter(id => id.length > 0);
+            }
+
+            const res = await db.query(`
+                INSERT INTO scheduled_announcements (group_ids, content, scheduled_at, created_by)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id
+            `, [groupIds, content, scheduledAt.toJSDate(), userId]);
+
+            return ctx.reply(`✅ **Memo Queued (ID: ${res.rows[0].id})**\n🕒 Time: \`${scheduledAt.toFormat('ffff')}\`\n🎯 Target: \`${target}\`\n💬 Content: \`${content.substring(0, 50)}${content.length > 50 ? '...' : ''}\``, { parse_mode: 'Markdown' });
+        }
+
+        if (text === '/schedules') {
+            const res = await db.query(`SELECT * FROM scheduled_announcements WHERE status = 'PENDING' ORDER BY scheduled_at ASC LIMIT 10`);
+            if (res.rows.length === 0) return ctx.reply("📭 **No pending memos.**");
+
+            let report = "📅 **PENDING BROADCASTS**\n\n";
+            res.rows.forEach((memo: any) => {
+                const time = DateTime.fromJSDate(memo.scheduled_at).setZone('Asia/Shanghai').toFormat('MM-dd HH:mm');
+                const target = memo.group_ids ? `${memo.group_ids.length} Groups` : 'ALL';
+                report += `🔹 [${memo.id}] ${time} | ${target}\n_${memo.content.substring(0, 40)}..._\n\n`;
+            });
+            return ctx.reply(report, { parse_mode: 'Markdown' });
+        }
+
+        if (text.startsWith('/cancel_schedule')) {
+            const match = text.match(/\/cancel_schedule\s+(\d+)/);
+            if (!match) return ctx.reply("📋 **Usage:** `/cancel_schedule [ID]`");
+            const id = parseInt(match[1]);
+            const res = await db.query(`UPDATE scheduled_announcements SET status = 'CANCELLED' WHERE id = $1 AND status = 'PENDING' RETURNING id`, [id]);
+            if (res.rows.length === 0) return ctx.reply("❌ **Memo not found or already sent/cancelled.**");
+            return ctx.reply(`✅ **Memo ${id} Cancelled.**`);
         }
     }
 

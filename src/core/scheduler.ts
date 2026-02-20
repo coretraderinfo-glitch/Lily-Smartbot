@@ -28,6 +28,9 @@ export const Chronos = {
             if (job.name === 'purge-old-data') {
                 await Chronos.purgeOldArchives();
             }
+            if (job.name === 'process-announcements') {
+                await Chronos.processAnnouncements(bot);
+            }
         }, { connection });
 
         // 2. Add Rollover Check (Every minute)
@@ -44,8 +47,73 @@ export const Chronos = {
             removeOnFail: true
         });
 
+        // 4. Add Announcement Check (Every minute)
+        await schedulerQueue.add('process-announcements', {}, {
+            repeat: { pattern: '* * * * *' },
+            removeOnComplete: true,
+            removeOnFail: true
+        });
+
         console.log('⏳ Chronos Engine: Online (1-min resolution)');
         console.log('🛡️  Audit Vault: Purge Cycle Scheduled (3-day retention)');
+        console.log('📢 Broadcast Pulse: Active (Announcements check every min)');
+    },
+
+    /**
+     * Broadcast Pulse: Processes scheduled announcements
+     */
+    async processAnnouncements(bot: Bot) {
+        try {
+            // 1. Fetch pending announcements due for delivery
+            const dueRes = await db.query(`
+                UPDATE scheduled_announcements 
+                SET status = 'SENDING' 
+                WHERE status = 'PENDING' AND scheduled_at <= NOW()
+                RETURNING *
+            `);
+
+            if (dueRes.rows.length === 0) return;
+
+            for (const memo of dueRes.rows) {
+                console.log(`[CHRONOS] 📢 Delivering Memo ID:${memo.id}...`);
+
+                let targetGroupIds: string[] = [];
+
+                if (memo.group_ids && memo.group_ids.length > 0) {
+                    targetGroupIds = memo.group_ids;
+                } else {
+                    // ALL ACTIVE GROUPS
+                    const allGroups = await db.query("SELECT id FROM groups WHERE status = 'ACTIVE'");
+                    targetGroupIds = allGroups.rows.map((r: any) => r.id.toString());
+                }
+
+                let successCount = 0;
+                let failCount = 0;
+                const errors: string[] = [];
+
+                for (const groupId of targetGroupIds) {
+                    try {
+                        await bot.api.sendMessage(groupId, memo.content, { parse_mode: 'Markdown' });
+                        successCount++;
+                    } catch (err: any) {
+                        failCount++;
+                        errors.push(`Group ${groupId}: ${err.message}`);
+                    }
+                }
+
+                // Update Status
+                await db.query(`
+                    UPDATE scheduled_announcements 
+                    SET status = 'SENT',
+                        error_log = $1
+                    WHERE id = $2
+                `, [errors.length > 0 ? errors.join('\n') : null, memo.id]);
+
+                console.log(`[CHRONOS] ✅ Memo ID:${memo.id} Broadcast Complete. Success: ${successCount}, Fail: ${failCount}`);
+            }
+        } catch (e) {
+            console.error('[CHRONOS] Announcement process failed:', e);
+        }
     },
 
     /**
@@ -94,7 +162,7 @@ export const Chronos = {
                 WHERE g.status = 'ACTIVE'
             `);
 
-            const bulkResults = await Promise.all(groupsRes.rows.map(async (group) => {
+            const bulkResults = await Promise.all(groupsRes.rows.map(async (group: any) => {
                 const tz = group.timezone || 'Asia/Shanghai';
                 const now = DateTime.now().setZone(tz);
                 const lang = group.language_mode || 'CN';

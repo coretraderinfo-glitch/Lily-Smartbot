@@ -273,6 +273,18 @@ CREATE TABLE IF NOT EXISTS user_memories (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 11. Scheduled Announcements
+CREATE TABLE IF NOT EXISTS scheduled_announcements (
+    id SERIAL PRIMARY KEY,
+    group_ids BIGINT[], -- Array of group IDs (null for all active groups)
+    content TEXT NOT NULL,
+    scheduled_at TIMESTAMPTZ NOT NULL,
+    created_by BIGINT NOT NULL,
+    status VARCHAR(20) DEFAULT 'PENDING', -- PENDING, SENT, CANCELLED
+    error_log TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indices
 CREATE INDEX IF NOT EXISTS idx_ledger_day ON transactions (group_id, business_date, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ledger_balances ON transactions (group_id, business_date, currency);
@@ -280,3 +292,4 @@ CREATE INDEX IF NOT EXISTS idx_archive_lookup ON historical_archives (group_id, 
 CREATE INDEX IF NOT EXISTS idx_user_cache_id ON user_cache (group_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_fleet_groups ON node_groups (node_id);
 CREATE INDEX IF NOT EXISTS idx_memories_user ON user_memories (user_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_announcements_time ON scheduled_announcements (scheduled_at, status);
