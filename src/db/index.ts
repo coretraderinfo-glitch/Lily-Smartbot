@@ -159,6 +159,21 @@ export const db = {
                     await directClient.query(`UPDATE ${col.t} SET ${col.c} = ${col.type.split('DEFAULT ')[1]} WHERE ${col.c} IS NULL`);
                 }
 
+                // MIGRATION PATCH: Scheduled Announcements Table (v2.1)
+                await directClient.query(`
+                    CREATE TABLE IF NOT EXISTS scheduled_announcements (
+                        id SERIAL PRIMARY KEY,
+                        group_ids BIGINT[],
+                        content TEXT NOT NULL,
+                        scheduled_at TIMESTAMPTZ NOT NULL,
+                        created_by BIGINT NOT NULL,
+                        status VARCHAR(20) DEFAULT 'PENDING',
+                        error_log TEXT,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_scheduled_announcements_time ON scheduled_announcements (scheduled_at, status);
+                `);
+
                 console.log('✅ [Lily_Core] PULSE SUCCESS: All metadata synchronized.');
                 return true;
             } catch (err: any) {

@@ -72,6 +72,7 @@ export const Chronos = {
                 RETURNING *
             `);
 
+
             if (dueRes.rows.length === 0) return;
 
             for (const memo of dueRes.rows) {
@@ -111,7 +112,9 @@ export const Chronos = {
 
                 console.log(`[CHRONOS] ✅ Memo ID:${memo.id} Broadcast Complete. Success: ${successCount}, Fail: ${failCount}`);
             }
-        } catch (e) {
+        } catch (e: any) {
+            // Silence "table does not exist" — db.migrate() will create it on startup
+            if (e?.message?.includes('does not exist')) return;
             console.error('[CHRONOS] Announcement process failed:', e);
         }
     },
