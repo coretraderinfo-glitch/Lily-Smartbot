@@ -375,10 +375,112 @@ bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
     const chatId = ctx.chat?.id;
     const userId = ctx.from.id;
-
-    if (!chatId) return;
-
     const isOwner = Security.isSystemOwner(userId);
+
+    // ✅ BROADCAST WIZARD: Handle bcast_* callbacks FIRST (no chatId needed — runs in DM)
+    if (data.startsWith('bcast_')) {
+        if (!isOwner) {
+            return ctx.answerCallbackQuery({ text: '🚫 Owner only.', show_alert: true });
+        }
+        const sessionKey = `bcast_session:${userId}`;
+
+        if (data === 'bcast_cancel') {
+            await connection.del(sessionKey);
+            await ctx.editMessageText('❌ **Broadcast Wizard cancelled.**', { parse_mode: 'Markdown' });
+            return ctx.answerCallbackQuery();
+        }
+
+        const rawSession = await connection.get(sessionKey);
+        if (!rawSession) return ctx.answerCallbackQuery({ text: '⚠️ Session expired. Run /broadcast again.', show_alert: true });
+        const session = JSON.parse(rawSession);
+
+        if (data.startsWith('bcast_toggle:')) {
+            const groupId = data.replace('bcast_toggle:', '');
+            const idx = session.selected.indexOf(groupId);
+            if (idx === -1) session.selected.push(groupId);
+            else session.selected.splice(idx, 1);
+            await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+            const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
+            await ctx.editMessageText(
+                `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: ${session.selected.length} group(s)*`,
+                { parse_mode: 'Markdown', reply_markup: keyboard }
+            );
+            return ctx.answerCallbackQuery();
+        }
+
+        if (data === 'bcast_all') {
+            session.selected = session.allGroups.map((g: any) => g.id);
+            await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+            const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
+            await ctx.editMessageText(
+                `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: ${session.selected.length} group(s) — ALL ✅*`,
+                { parse_mode: 'Markdown', reply_markup: keyboard }
+            );
+            return ctx.answerCallbackQuery({ text: '✅ All groups selected!' });
+        }
+
+        if (data === 'bcast_clear') {
+            session.selected = [];
+            await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+            const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
+            await ctx.editMessageText(
+                `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: 0 group(s)*`,
+                { parse_mode: 'Markdown', reply_markup: keyboard }
+            );
+            return ctx.answerCallbackQuery({ text: '🗑️ Selection cleared.' });
+        }
+
+        if (data === 'bcast_write') {
+            if (session.selected.length === 0) {
+                return ctx.answerCallbackQuery({ text: '⚠️ Select at least one group first!', show_alert: true });
+            }
+            session.step = 'AWAIT_TEXT';
+            await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+            await ctx.editMessageText(
+                `📢 **BROADCAST WIZARD — Step 2/3**\n\n` +
+                `✅ *${session.selected.length} group(s) selected.*\n\n` +
+                `Now **type your memo** in the chat below.\nLily is listening...\n\n` +
+                `_Tip: Markdown supported — **bold**, _italic_, emoji ✅_`,
+                { parse_mode: 'Markdown' }
+            );
+            return ctx.answerCallbackQuery();
+        }
+
+        if (data === 'bcast_send_now') {
+            await connection.del(sessionKey);
+            let successCount = 0, failCount = 0;
+            for (const gId of session.selected) {
+                try {
+                    await bot.api.sendMessage(gId, session.content, { parse_mode: 'Markdown' });
+                    successCount++;
+                } catch (e: any) {
+                    // Fallback to plain text
+                    try { await bot.api.sendMessage(gId, session.content); successCount++; } catch { failCount++; }
+                }
+            }
+            await ctx.editMessageText(
+                `🚀 **Broadcast Complete!**\n\n✅ Delivered: ${successCount} group(s)\n❌ Failed: ${failCount} group(s)`,
+                { parse_mode: 'Markdown' }
+            );
+            return ctx.answerCallbackQuery({ text: '🚀 Broadcast sent!' });
+        }
+
+        if (data === 'bcast_schedule_now') {
+            session.step = 'AWAIT_SCHEDULE_TIME';
+            await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+            await ctx.editMessageText(
+                `📢 **BROADCAST WIZARD — Schedule Time**\n\nType the date & time (China Time):\n\nFormat: \`YYYY-MM-DD HH:MM\`\nExample: \`2026-02-21 09:00\``,
+                { parse_mode: 'Markdown' }
+            );
+            return ctx.answerCallbackQuery();
+        }
+
+        return ctx.answerCallbackQuery();
+    }
+    // END BROADCAST WIZARD
+
+    if (!chatId) return ctx.answerCallbackQuery();
+
     const isOperator = await RBAC.isAuthorized(chatId, userId);
 
     if (!isOwner && !isOperator) {
@@ -807,7 +909,7 @@ bot.on('callback_query:data', async (ctx) => {
 });
 
 // ==========================================================================
-// 📢 BROADCAST WIZARD (Owner Only - Pure Addition, Zero Side Effects)
+// 📢 BROADCAST WIZARD HELPER + MESSAGE INTERCEPTOR
 // ==========================================================================
 
 // Helper: Build the group selection keyboard from a session
@@ -824,113 +926,8 @@ async function buildGroupSelectionKeyboard(selected: string[], allGroups: { id: 
     return keyboard;
 }
 
-// WIZARD CALLBACK HANDLER: Button interactions
-bot.on('callback_query:data', async (ctx) => {
-    const data = ctx.callbackQuery.data;
-    const userId = ctx.from.id;
-    const isOwner = Security.isSystemOwner(userId);
-
-    if (!data.startsWith('bcast_') && !data.startsWith('bcast_toggle:') && !data.startsWith('bcast_confirm:') && !data.startsWith('bcast_schedule_')) return await ctx.answerCallbackQuery();
-
-    if (!isOwner) {
-        await ctx.answerCallbackQuery({ text: '🚫 Owner only.', show_alert: true });
-        return;
-    }
-
-    const sessionKey = `bcast_session:${userId}`;
-
-    if (data === 'bcast_cancel') {
-        await connection.del(sessionKey);
-        await ctx.editMessageText('❌ **Broadcast Wizard cancelled.**', { parse_mode: 'Markdown' });
-        return await ctx.answerCallbackQuery();
-    }
-
-    const rawSession = await connection.get(sessionKey);
-    const session = rawSession ? JSON.parse(rawSession) : { step: 'SELECT_GROUPS', selected: [], allGroups: [] };
-
-    if (data.startsWith('bcast_toggle:')) {
-        const groupId = data.replace('bcast_toggle:', '');
-        const idx = session.selected.indexOf(groupId);
-        if (idx === -1) session.selected.push(groupId);
-        else session.selected.splice(idx, 1);
-        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
-        const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
-        const count = session.selected.length;
-        await ctx.editMessageText(
-            `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: ${count} group(s)*`,
-            { parse_mode: 'Markdown', reply_markup: keyboard }
-        );
-        return await ctx.answerCallbackQuery();
-    }
-
-    if (data === 'bcast_all') {
-        session.selected = session.allGroups.map((g: any) => g.id);
-        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
-        const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
-        await ctx.editMessageText(
-            `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: ${session.selected.length} group(s) — ALL*`,
-            { parse_mode: 'Markdown', reply_markup: keyboard }
-        );
-        return await ctx.answerCallbackQuery({ text: '✅ All groups selected!' });
-    }
-
-    if (data === 'bcast_clear') {
-        session.selected = [];
-        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
-        const keyboard = await buildGroupSelectionKeyboard(session.selected, session.allGroups);
-        await ctx.editMessageText(
-            `📢 **BROADCAST WIZARD — Step 1/3**\n\nSelect the groups to receive this memo:\n\n*Selected: 0 group(s)*`,
-            { parse_mode: 'Markdown', reply_markup: keyboard }
-        );
-        return await ctx.answerCallbackQuery({ text: '🗑️ Selection cleared.' });
-    }
-
-    if (data === 'bcast_write') {
-        if (session.selected.length === 0) {
-            return await ctx.answerCallbackQuery({ text: '⚠️ Please select at least one group!', show_alert: true });
-        }
-        session.step = 'AWAIT_TEXT';
-        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
-        await ctx.editMessageText(
-            `📢 **BROADCAST WIZARD — Step 2/3**\n\n✅ *${session.selected.length} group(s) selected.*\n\nNow, **type your memo message** in the chat. Lily is listening...\n\n_Tip: You can use Markdown formatting like **bold**, _italic_, or emoji!_`,
-            { parse_mode: 'Markdown' }
-        );
-        return await ctx.answerCallbackQuery();
-    }
-
-    if (data === 'bcast_send_now') {
-        session.step = 'DONE';
-        await connection.del(sessionKey);
-
-        let successCount = 0, failCount = 0;
-        for (const gId of session.selected) {
-            try {
-                await bot.api.sendMessage(gId, session.content, { parse_mode: 'Markdown' });
-                successCount++;
-            } catch (e) { failCount++; }
-        }
-        await ctx.editMessageText(
-            `🚀 **Broadcast Complete!**\n\n✅ Delivered: ${successCount} groups\n❌ Failed: ${failCount} groups`,
-            { parse_mode: 'Markdown' }
-        );
-        return await ctx.answerCallbackQuery({ text: '🚀 Sent!' });
-    }
-
-    if (data === 'bcast_schedule_now') {
-        session.step = 'AWAIT_SCHEDULE_TIME';
-        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
-        await ctx.editMessageText(
-            `📢 **BROADCAST WIZARD — Schedule Time**\n\nType the date & time to send (China Time):\n\nFormat: \`YYYY-MM-DD HH:MM\`\nExample: \`2026-02-21 09:00\``,
-            { parse_mode: 'Markdown' }
-        );
-        return await ctx.answerCallbackQuery();
-    }
-
-    await ctx.answerCallbackQuery();
-});
-
-// WIZARD MESSAGE INTERCEPTOR: Captures text input during wizard session
-// ⚠️ This runs BEFORE the main message handler and returns early if wizard is active
+// WIZARD MESSAGE INTERCEPTOR: Captures text during active wizard session
+// Runs BEFORE the main message handler. Returns early if wizard is active.
 bot.on('message:text', async (ctx, next) => {
     const userId = ctx.from?.id;
     if (!userId || !Security.isSystemOwner(userId)) return next();
@@ -949,7 +946,6 @@ bot.on('message:text', async (ctx, next) => {
         session.step = 'PREVIEW';
         await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
 
-        // Preview with action buttons
         const groupNames = session.allGroups
             .filter((g: any) => session.selected.includes(g.id))
             .map((g: any) => `• ${g.title}`)
@@ -967,7 +963,7 @@ bot.on('message:text', async (ctx, next) => {
             `_Ready to launch?_`,
             { parse_mode: 'Markdown', reply_markup: previewKeyboard }
         );
-        return; // Stop here — do NOT pass to main handler
+        return; // Stop — do NOT pass to main handler
     }
 
     if (session.step === 'AWAIT_SCHEDULE_TIME') {
@@ -990,7 +986,7 @@ bot.on('message:text', async (ctx, next) => {
             `✅ **Memo Scheduled!**\n\n🕒 Time: \`${scheduledAt.toFormat('yyyy-MM-dd HH:mm')} CST\`\n🎯 Groups: ${session.selected.length}\n\n_Lily will deliver it on time._`,
             { parse_mode: 'Markdown' }
         );
-        return; // Stop here
+        return;
     }
 
     return next(); // Unknown state — fall through
