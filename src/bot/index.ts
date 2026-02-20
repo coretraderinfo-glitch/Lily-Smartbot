@@ -554,8 +554,8 @@ bot.on('callback_query:data', async (ctx) => {
             `• **Currency**: Use \`=usdt\` or \`=myr\` at the end.\n` +
             `• **Precision**: Defaults to \`2\` decimals. Use \`.4\` for high-precision.\n` +
             `• **Example**: \`Lily tape /3.9 .2=usdt\` (Extract, Convert, 2 Decimals)\n\n` +
-            `💡 **PRO TIP:**\n` +
-            `Use '**Lily tape this *3.9=usdt**' on bank slips to instantly total, convert, and format your settlement report.`,
+            `💡 *PRO TIP:*\n` +
+            `Use \`Lily tape this /3.9=usdt\` on bank slips to instantly total, convert, and format your settlement report.`,
             { parse_mode: 'Markdown', reply_markup: CalcTapeMenuMarkup }
         );
     }
@@ -592,7 +592,7 @@ bot.on('callback_query:data', async (ctx) => {
             `• \`设置马币汇率 0.65\`: Set MYR Rate\n` +
             `• \`设置[比索/泰铢]汇率 [值]\`: Set PHP/THB\n` +
             `• \`删除[美元/马币/...]汇率\`: Reset/Delete a specific rate\n\n` +
-            `�️ **DISPLAY MODES (显示与格式)**\n` +
+            `🖥️ *DISPLAY MODES (显示与格式)*\n` +
             `• \`设置为无小数\`: Hide decimal points\n` +
             `• \`设置为计数模式\`: Simplified list view\n` +
             `• \`设置显示模式 [2/3/4]\`: Toggle UI detail level\n` +
@@ -601,7 +601,7 @@ bot.on('callback_query:data', async (ctx) => {
             `• \`设置操作人 @tag\`: Add Operator (tag or reply)\n` +
             `• \`删除操作人 @tag\`: Remove permissions\n` +
             `• \`显示操作人\`: View authorized team list\n\n` +
-            `�📊 **REPORTS (数据报表)**\n` +
+            `📊 *REPORTS (数据报表)*\n` +
             `• \`显示账单\`: View balance & ledger summary\n` +
             `• \`下载报表\`: Export daily PDF\n` +
             `• \`导出Excel\`: Export CSV spreadsheet\n` +
