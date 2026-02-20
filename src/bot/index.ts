@@ -223,7 +223,8 @@ const MainMenuMarkup = {
         [{ text: "📊 CALC", callback_data: "menu_calc" }],
         [{ text: "📜 CALCTAPE", callback_data: "menu_calctape" }],
         [{ text: "🛡️ GUARDIAN", callback_data: "menu_guardian" }],
-        [{ text: "💱 MONEY CHANGER", callback_data: "menu_mc" }]
+        [{ text: "💱 MONEY CHANGER", callback_data: "menu_mc" }],
+        [{ text: "📢 BROADCAST MEMO", callback_data: "menu_broadcast" }]
     ]
 };
 
@@ -382,6 +383,31 @@ bot.on('callback_query:data', async (ctx) => {
 
     if (!isOwner && !isOperator) {
         return ctx.answerCallbackQuery({ text: "❌ Unauthorized Access", show_alert: true });
+    }
+
+    if (data === "menu_broadcast") {
+        if (!isOwner) {
+            return ctx.answerCallbackQuery({ text: "🚫 Broadcast is Owner-only. SIR only!", show_alert: true });
+        }
+        await ctx.answerCallbackQuery();
+
+        const groupsRes = await db.query(`SELECT id, title FROM groups WHERE status = 'ACTIVE' ORDER BY title ASC LIMIT 30`);
+        const allGroups = groupsRes.rows.map((g: any) => ({ id: g.id.toString(), title: g.title || `Group ${g.id}` }));
+
+        if (allGroups.length === 0) {
+            return ctx.editMessageText('⚠️ **No active groups found.** Add Lily to some groups first!', { parse_mode: 'Markdown' });
+        }
+
+        const sessionKey = `bcast_session:${userId}`;
+        const session = { step: 'SELECT_GROUPS', selected: [], allGroups, content: '' };
+        await connection.set(sessionKey, JSON.stringify(session), 'EX', 300);
+
+        const keyboard = await buildGroupSelectionKeyboard([], allGroups);
+        return ctx.editMessageText(
+            `📢 **BROADCAST WIZARD — Step 1/3**\n\n` +
+            `Select the groups to receive this memo.\nTap ⬜ to select, ✅ to deselect.\n\n*Selected: 0 group(s)*\n\n_Session expires in 5 minutes._`,
+            { parse_mode: 'Markdown', reply_markup: keyboard }
+        );
     }
 
     if (data === "menu_mc") {
@@ -1382,7 +1408,22 @@ async function start() {
         await Chronos.init(bot);
 
         // Security: Reset Webhook & Commands
-        await bot.api.setMyCommands([{ command: 'menu', description: 'Open Lily Dashboard' }]);
+        // Register full command list with Telegram (appears in '/' autocomplete)
+        await bot.api.setMyCommands([
+            { command: 'menu', description: '🌟 Open Lily Dashboard' },
+            { command: 'help', description: '📖 Show all commands & help' },
+            { command: 'ping', description: '🏓 Check if Lily is online' },
+            { command: 'whoami', description: '👤 Check your role & identity' },
+            { command: 'broadcast', description: '📢 Send memo to selected groups (Owner only)' },
+            { command: 'schedules', description: '📅 View pending scheduled memos (Owner only)' },
+            { command: 'health', description: '🏥 System health report (Owner only)' },
+            { command: 'generate_key', description: '🔑 Generate a license key (Owner only)' },
+            { command: 'super_activate', description: '👑 Activate group without key (Owner only)' },
+            { command: 'recover', description: '🗃️ Recover archived report (Owner only)' },
+            { command: 'set_url', description: '🔗 Set system domain URL (Owner only)' },
+            { command: 'setadmin', description: '🛡️ Set a group admin/sentinel' },
+            { command: 'activate', description: '🔓 Activate this group with a license key' },
+        ]);
         await bot.api.deleteWebhook({ drop_pending_updates: true });
 
         console.log('🚀 Lily Bot Starting (Fighter Mode)...');
